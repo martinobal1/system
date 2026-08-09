@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IS SUAS</title>
+  <style>
+    :root {
+      --bg: #eef3f7;
+      --panel: #ffffff;
+      --ink: #1a2b3c;
+      --muted: #5b6b7c;
+      --primary: #1b4f72;
+      --line: #d5dee7;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(160deg, #dbe7f1, #f4f7fa 55%, #eef3f7);
+    }
+    .login-card {
+      width: min(420px, 92vw);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 2rem;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .brand { margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--primary); }
+    .login-card h1 { margin: 0; font-size: 1.25rem; }
+    .muted, .hint { color: var(--muted); margin: 0; }
+    label { display: grid; gap: 0.35rem; }
+    input, button { font: inherit; }
+    input { border: 1px solid var(--line); padding: 0.7rem 0.8rem; }
+    button {
+      border: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .error {
+      color: var(--danger);
+      margin: 0;
+      padding: 0.6rem 0.75rem;
+      background: #fdecea;
+      border: 1px solid #f5c2c0;
+    }
+    .app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+    .sidebar { background: #13293d; color: #eaf2f8; padding: 1.25rem 0.75rem; }
+    .sidebar-brand { font-weight: 700; font-size: 1.25rem; padding: 0.5rem 0.75rem 1.25rem; }
+    .sidebar nav { display: grid; gap: 0.25rem; }
+    .nav {
+      background: transparent;
+      color: #d7e3ee;
+      text-align: left;
+      font-weight: 500;
+    }
+    .nav.active, .nav:hover { background: rgba(255,255,255,0.1); }
+    main { display: grid; grid-template-rows: auto 1fr; }
+    .topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.9rem 1.25rem;
+    }
+    .userbox { display: flex; gap: 0.75rem; align-items: center; }
+    #logout-btn {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--line);
+    }
+    .content { padding: 1.25rem; }
+    .panel, table {
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .panel { padding: 1rem; }
+    .stack { display: grid; gap: 1rem; }
+    h2 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 0.7rem 0.8rem;
+      border-bottom: 1px solid var(--line);
+    }
+    th { background: #f7fafc; }
+    .msg {
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--line);
+      background: #eaf4fb;
+    }
+    .hidden { display: none !important; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.25rem; }
+    .form-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    .form-panel h3 { margin: 0; font-size: 1.05rem; color: var(--primary); }
+    .form-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr 1fr;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-grid label { font-size: 0.9rem; }
+    select, textarea {
+      font: inherit;
+      border: 1px solid var(--line);
+      padding: 0.65rem 0.75rem;
+      width: 100%;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button.secondary {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--line);
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 0.9rem;
+    }
+    .stat .n { font-size: 1.6rem; font-weight: 700; color: var(--primary); }
+    .stat .l { color: var(--muted); font-size: 0.85rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      background: #f0f4f8;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .badge-ok, .badge-inservice, .badge-active, .badge-approved, .badge-closed, .badge-resolved, .badge-sent { background: #e8f6ef; border-color: #b7e0c8; color: #0d6b3c; }
+    .badge-warn, .badge-draft, .badge-open, .badge-reported, .badge-pending, .badge-submitted { background: #fff7e6; border-color: #f0d9a8; color: #8a5a00; }
+    .badge-danger, .badge-suspended, .badge-critical, .badge-rejected, .badge-cancelled, .badge-overdue { background: #fdecea; border-color: #f5c2c0; color: var(--danger); }
+    .history-panel {
+      background: #f7fafc;
+      border: 1px solid var(--line);
+      padding: 0.75rem;
+      font-size: 0.9rem;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .history-panel h4 { margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--primary); }
+    @media (max-width: 800px) {
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="login-shell">
+    <form id="login-form" class="login-card">
+      <p class="brand">IS SUAS</p>
+      <h1>Prihlasenie</h1>
+      <p class="muted">Informacny system statnych bezpilotnych leteckych systemov</p>
+      <label>Pouzivatelske meno
+        <input id="username" value="gestor" autocomplete="username" required />
+      </label>
+      <label>Heslo
+        <input id="password" type="password" value="Heslo123!" autocomplete="current-password" required />
+      </label>
+      <p id="login-error" class="error hidden"></p>
+      <button id="login-btn" type="submit">Prihlasit sa</button>
+      <button id="sso-btn" type="button" class="secondary">SSO (DEV)</button>
+      <p class="hint">Demo: gestor / Heslo123!</p>
+      <p class="hint">SSO DEV: callback code=dev-sso:gestor</p>
+      <p class="hint">Ak sa nic nedeje, API nebezi. V terminali musi byt: Now listening on http://localhost:5211</p>
+    </form>
+  </div>
+
+  <div id="app-view" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">IS SUAS</div>
+      <nav>
+        <button type="button" data-page="dashboard" class="nav active">Prehlad</button>
+        <button type="button" data-page="orgs" class="nav">Organizacna struktura</button>
+        <button type="button" data-page="accounts" class="nav">Pouzivatelia</button>
+        <button type="button" data-page="delegations" class="nav">Delegacie</button>
+        <button type="button" data-page="pilots" class="nav">Piloti</button>
+        <button type="button" data-page="operations" class="nav">Operacie</button>
+        <button type="button" data-page="flights" class="nav">Lety</button>
+        <button type="button" data-page="maintenance" class="nav">Udrzba</button>
+        <button type="button" data-page="defects" class="nav">Poruchy</button>
+        <button type="button" data-page="incidents" class="nav">Incidenty</button>
+        <button type="button" data-page="documents" class="nav">Dokumenty</button>
+        <button type="button" data-page="reports" class="nav">Reporty</button>
+        <button type="button" data-page="calendar" class="nav">Kalendar</button>
+        <button type="button" data-page="admin" class="nav">Administracia</button>
+        <button type="button" data-page="tasks" class="nav">Ulohy</button>
+        <button type="button" data-page="controls" class="nav">Kontroly</button>
+        <button type="button" data-page="uas" class="nav">Register UAS</button>
+        <button type="button" data-page="components" class="nav">Komponenty</button>
+        <button type="button" data-page="batteries" class="nav">Baterie</button>
+      </nav>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div id="page-title">Prehlad</div>
+        <div class="userbox">
+          <form id="global-search-form" class="toolbar" style="margin:0;gap:0.35rem">
+            <input id="global-search-q" type="search" placeholder="Hladat..." style="min-width:160px;padding:0.45rem 0.6rem" />
+            <button type="submit" class="secondary" id="global-search-btn" style="padding:0.45rem 0.75rem">Hladat</button>
+          </form>
+          <span id="display-name"></span>
+          <button id="logout-btn" type="button">Odhlasit</button>
+        </div>
+      </header>
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      token: localStorage.getItem('issuas.token'),
+      displayName: localStorage.getItem('issuas.name') || ''
+    };
+
+    const loginView = document.getElementById('login-view');
+    const appView = document.getElementById('app-view');
+    const content = document.getElementById('content');
+    const pageTitle = document.getElementById('page-title');
+    const displayNameEl = document.getElementById('display-name');
+    const loginError = document.getElementById('login-error');
+    const loginBtn = document.getElementById('login-btn');
+
+    function showError(msg) {
+      loginError.textContent = msg;
+      loginError.classList.remove('hidden');
+    }
+
+    async function api(path, options = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (state.token) headers.Authorization = 'Bearer ' + state.token;
+
+      let res;
+      try {
+        res = await fetch(path, { ...options, headers });
+      } catch (e) {
+        throw new Error('Nepodarilo sa spojit s API. Spustite: dotnet run --project src/IsSuas.Api a nechajte terminal otvoreny.');
+      }
+
+      if (res.status === 401) {
+        if (!path.includes('/auth/login')) logout(false);
+        let detail = 'Neplatne prihlasovacie udaje';
+        try {
+          const body = await res.json();
+          detail = body.detail || body.title || detail;
+        } catch {}
+        throw new Error(detail);
+      }
+
+      if (!res.ok) {
+        let detail = 'Chyba ' + res.status;
+        try {
+          const body = await res.json();
+          detail = body.detail || body.title || detail;
+        } catch {}
+        throw new Error(detail);
+      }
+
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    function showApp() {
+      loginView.classList.add('hidden');
+      appView.classList.remove('hidden');
+      displayNameEl.textContent = state.displayName;
+      navigate('dashboard');
+    }
+
+    function showLogin() {
+      appView.classList.add('hidden');
+      loginView.classList.remove('hidden');
+    }
+
+    function logout(clearStorage = true) {
+      state.token = null;
+      state.displayName = '';
+      if (clearStorage) {
+        localStorage.removeItem('issuas.token');
+        localStorage.removeItem('issuas.name');
+      }
+      showLogin();
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Prihlasujem...';
+      try {
+        const body = {
+          userName: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value
+        };
+        const res = await api('/api/v1/auth/login', {
+          method: 'POST',
+          body: JSON.stringify(body)
+        });
+        state.token = res.accessToken;
+        state.displayName = res.displayName;
+        localStorage.setItem('issuas.token', state.token);
+        localStorage.setItem('issuas.name', state.displayName);
+        showApp();
+      } catch (err) {
+        showError(err.message || 'Prihlasenie zlyhalo');
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Prihlasit sa';
+      }
+    });
+
+    document.getElementById('sso-btn').addEventListener('click', async function () {
+      loginError.classList.add('hidden');
+      try {
+        const sso = await api('/api/v1/auth/sso/start?returnUrl=/');
+        if (sso.redirectUrl) {
+          window.location.href = sso.redirectUrl;
+          return;
+        }
+        showError(sso.message || 'SSO nie je dostupne');
+      } catch (err) {
+        showError(err.message || 'SSO zlyhalo');
+      }
+    });
+
+    async function completeSsoCallbackFromUrl() {
+      var path = window.location.pathname || '';
+      if (path.indexOf('/auth/callback') < 0) return false;
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      if (!code) {
+        showError('SSO callback: chýba code');
+        return true;
+      }
+      try {
+        var q = '/api/v1/auth/sso/callback?code=' + encodeURIComponent(code);
+        var stateParam = params.get('state');
+        if (stateParam) q += '&state=' + encodeURIComponent(stateParam);
+        var res = await api(q);
+        state.token = res.accessToken;
+        state.displayName = res.displayName;
+        localStorage.setItem('issuas.token', state.token);
+        localStorage.setItem('issuas.name', state.displayName);
+        window.history.replaceState({}, '', '/');
+        showApp();
+      } catch (err) {
+        showError(err.message || 'SSO callback zlyhal');
+      }
+      return true;
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', function () {
+      logout(true);
+    });
+
+    document.querySelectorAll('.nav').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.nav').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        navigate(btn.dataset.page);
+      });
+    });
+
+    const titles = {
+      dashboard: 'Prehlad',
+      orgs: 'Organizacna struktura',
+      accounts: 'Pouzivatelia',
+      delegations: 'Delegacie opravneni',
+      pilots: 'Piloti',
+      operations: 'Operacie',
+      flights: 'Lety',
+      maintenance: 'Udrzba',
+      defects: 'Poruchy',
+      incidents: 'Incidenty',
+      documents: 'Dokumenty',
+      reports: 'Reporty',
+      calendar: 'Kalendar',
+      admin: 'Administracia',
+      tasks: 'Ulohy',
+      controls: 'Kontroly a audity',
+      uas: 'Register UAS',
+      components: 'Komponenty',
+      batteries: 'Baterie',
+      search: 'Vysledky hladania'
+    };
+
+    document.getElementById('global-search-form').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var q = document.getElementById('global-search-q').value.trim();
+      state.searchQuery = q;
+      document.querySelectorAll('.nav').forEach(function (b) { b.classList.remove('active'); });
+      navigate('search');
+    });
+
+    async function navigate(page) {
+      pageTitle.textContent = titles[page] || page;
+      content.innerHTML = '<div class="panel">Nacitavam...</div>';
+      try {
+        if (page === 'search') {
+          const q = (state.searchQuery || '').trim();
+          document.getElementById('global-search-q').value = q;
+          if (q.length < 2) {
+            content.innerHTML = '<div class="stack"><div class="msg">Zadajte aspon 2 znaky do hladania v hornom paneli.</div></div>';
+            return;
+          }
+          const res = await api('/api/v1/search?q=' + encodeURIComponent(q) + '&limit=8');
+          const hits = res.hits || [];
+          if (!hits.length) {
+            content.innerHTML = '<div class="stack"><div class="msg">Ziadne vysledky pre „' + q.replace(/</g, '') + '“.</div></div>';
+            return;
+          }
+          const typeLabels = {
+            Uas: 'UAS',
+            Pilot: 'Piloti',
+            Operation: 'Operacie',
+            Account: 'Ucty',
+            SafetyEvent: 'Incidenty',
+            ControlAudit: 'Kontroly'
+          };
+          const groups = {};
+          hits.forEach(function (h) {
+            if (!groups[h.entityType]) groups[h.entityType] = [];
+            groups[h.entityType].push(h);
+          });
+          var html = '<div class="stack"><div class="msg">Hladanie: <b>' + q.replace(/</g, '') +
+            '</b> — ' + hits.length + ' vysledkov</div>';
+          Object.keys(groups).forEach(function (type) {
+            html += '<h2>' + (typeLabels[type] || type) + '</h2>';
+            html += groups[type].map(function (h) {
+              return '<button type="button" class="search-hit secondary" data-type="' + h.entityType +
+                '" data-id="' + h.id + '" style="display:block;width:100%;text-align:left;margin-bottom:0.4rem">' +
+                '<strong>' + h.title + '</strong> ' + statusBadge(h.status || '') +
+                '<div class="muted">' + (h.subtitle || '') +
+                (h.orgUnitName ? ' · ' + h.orgUnitName : '') + '</div></button>';
+            }).join('');
+          });
+          html += '</div>';
+          content.innerHTML = html;
+          content.querySelectorAll('.search-hit').forEach(function (btn) {
+            btn.onclick = function () {
+              openSearchHit(btn.dataset.type, btn.dataset.id, btn.querySelector('strong').textContent);
+            };
+          });
+          return;
+        }
+        if (page === 'dashboard') {
+          const orgs = await api('/api/v1/org-units');
+          const scope = state.dashboardScope || 'central';
+          let selectedOrg = (typeof state.dashboardOrgUnitId === 'string') ? state.dashboardOrgUnitId : '';
+          const branchOrgs = orgs.filter(function (o) { return o.level === 1; });
+          const unitOrgs = orgs.filter(function (o) { return o.level >= 2; });
+          if (scope === 'branch' && !selectedOrg && branchOrgs.length)
+            selectedOrg = branchOrgs[0].id;
+          if (scope === 'unit' && !selectedOrg && unitOrgs.length)
+            selectedOrg = unitOrgs[0].id;
+
+          var dashUrl = '/api/v1/dashboard?scope=' + encodeURIComponent(scope);
+          if (scope !== 'central' && selectedOrg)
+            dashUrl += '&orgUnitId=' + encodeURIComponent(selectedOrg);
+
+          const d = await api(dashUrl);
+          state.dashboardOrgUnitId = selectedOrg;
+
+          const scopeLabel = scope === 'branch' ? 'Zlozka' : (scope === 'unit' ? 'Utvar' : 'Centralny');
+          const scopeHint = d.scopeOrgUnitName
+            ? scopeLabel + ': ' + d.scopeOrgUnitName
+            : scopeLabel;
+
+          var orgSelectHtml = '';
+          if (scope === 'branch') {
+            const opts = branchOrgs.map(function (o) {
+              return '<option value="' + o.id + '"' + (o.id === selectedOrg ? ' selected' : '') + '>' +
+                o.code + ' — ' + o.name + '</option>';
+            }).join('');
+            orgSelectHtml = '<label style="display:flex;gap:0.5rem;align-items:center">Zlozka ' +
+              '<select id="dash-org" style="width:auto;min-width:220px">' + opts + '</select></label>';
+          } else if (scope === 'unit') {
+            const opts = unitOrgs.map(function (o) {
+              return '<option value="' + o.id + '"' + (o.id === selectedOrg ? ' selected' : '') + '>' +
+                o.code + ' — ' + o.name + '</option>';
+            }).join('');
+            orgSelectHtml = '<label style="display:flex;gap:0.5rem;align-items:center">Utvar ' +
+              '<select id="dash-org" style="width:auto;min-width:220px">' + opts + '</select></label>';
+          }
+
+          const upcoming = (d.upcomingOperations || []).map(function (o) {
+            return '<tr><td>' + o.title + '</td><td>' + statusBadge(o.status) + '</td><td>' + o.orgUnitName +
+              '</td><td>' + new Date(o.start).toLocaleString('sk-SK') + '</td></tr>';
+          }).join('') || '<tr><td colspan="4">Ziadne bliziace sa operacie</td></tr>';
+          const alerts = (d.criticalAlerts || []).map(function (a) {
+            return '<tr><td>' + statusBadge(a.priority) + '</td><td>' + a.typeCode + '</td><td>' + a.title + '</td></tr>';
+          }).join('') || '<tr><td colspan="3">Ziadne kriticke upozornenia</td></tr>';
+          content.innerHTML =
+            '<div class="stack">' +
+            '<div class="msg">Vitajte, ' + state.displayName + ' (rola: ' + d.roleHint + ') — ' + scopeHint + '</div>' +
+            '<div class="toolbar">' +
+            '<button type="button" class="secondary dash-scope" data-scope="central"' + (scope === 'central' ? ' disabled' : '') + '>Centralny</button>' +
+            '<button type="button" class="secondary dash-scope" data-scope="branch"' + (scope === 'branch' ? ' disabled' : '') + '>Zlozka</button>' +
+            '<button type="button" class="secondary dash-scope" data-scope="unit"' + (scope === 'unit' ? ' disabled' : '') + '>Utvar</button>' +
+            orgSelectHtml +
+            '</div>' +
+            '<div class="stat-grid">' +
+            '<div class="stat"><div class="n">' + d.fleet.totalUas + '</div><div class="l">UAS celkom</div></div>' +
+            '<div class="stat"><div class="n">' + d.fleet.inService + '</div><div class="l">V prevadzke</div></div>' +
+            '<div class="stat"><div class="n">' + d.fleet.suspended + '</div><div class="l">Pozastavene</div></div>' +
+            '<div class="stat"><div class="n">' + d.operationsToday + '</div><div class="l">Operacie dnes</div></div>' +
+            '<div class="stat"><div class="n">' + d.openTasks + '</div><div class="l">Otvorene ulohy</div></div>' +
+            '<div class="stat"><div class="n">' + d.openDefects + '</div><div class="l">Poruchy</div></div>' +
+            '<div class="stat"><div class="n">' + d.openIncidents + '</div><div class="l">Incidenty</div></div>' +
+            '<div class="stat"><div class="n">' + d.overdueMaintenance + '</div><div class="l">Udrzba overdue</div></div>' +
+            '<div class="stat"><div class="n">' + d.unreadNotifications + '</div><div class="l">Neprecitane</div></div>' +
+            '</div>' +
+            '<h2>Najblizsie operacie</h2>' +
+            makeTable(['Nazov', 'Stav', 'Utvar', 'Zaciatok'], upcoming) +
+            '<h2>Kriticke upozornenia</h2>' +
+            makeTable(['Priorita', 'Typ', 'Nazov'], alerts) +
+            '</div>';
+          content.querySelectorAll('.dash-scope').forEach(function (btn) {
+            btn.onclick = function () {
+              state.dashboardScope = btn.dataset.scope;
+              state.dashboardOrgUnitId = '';
+              navigate('dashboard');
+            };
+          });
+          var orgEl = document.getElementById('dash-org');
+          if (orgEl) {
+            orgEl.onchange = function () {
+              state.dashboardOrgUnitId = this.value || '';
+              navigate('dashboard');
+            };
+          }
+          return;
+        }
+        if (page === 'delegations') {
+          let items = [];
+          let accounts = [];
+          try {
+            items = await api('/api/v1/delegations');
+          } catch (err) {
+            content.innerHTML = '<div class="error">' + err.message + '</div>';
+            return;
+          }
+          try {
+            accounts = await api('/api/v1/accounts');
+          } catch (_) { /* optional for create */ }
+
+          const permOpts = [
+            'integrations.read', 'reports.write', 'uas.read', 'operations.read',
+            'documents.read', 'pilots.read', 'accounts.read'
+          ].map(function (p) {
+            return '<option value="' + p + '">' + p + '</option>';
+          }).join('');
+          const accountOpts = accounts.map(function (a) {
+            return '<option value="' + a.id + '">' + a.userName +
+              ' — ' + (a.firstName || '') + ' ' + (a.lastName || '') + '</option>';
+          }).join('') || '<option value="">(ziadne ucty)</option>';
+
+          const rows = items.map(function (d) {
+            return '<tr><td>' + d.fromUserName + '</td><td>' + d.toUserName +
+              '</td><td>' + d.permissionCode + '</td><td>' + statusBadge(d.isActive ? 'Active' : 'Revoked') +
+              '</td><td>' + new Date(d.validFrom).toLocaleString('sk-SK') +
+              '</td><td>' + (d.validTo ? new Date(d.validTo).toLocaleString('sk-SK') : '—') +
+              '</td><td>' + (d.reason || '') + '</td><td>' +
+              (d.isActive
+                ? '<button type="button" class="secondary revoke-del" data-id="' + d.id +
+                  '" data-rv="' + d.rowVersion + '">Zrusit</button>'
+                : '—') +
+              ' <button type="button" class="secondary hist-del" data-id="' + d.id + '">Historia</button>' +
+              '</td></tr>';
+          }).join('') || '<tr><td colspan="8">Ziadne aktivne delegacie</td></tr>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            '<div id="del-msg"></div>' +
+            '<div class="toolbar">' +
+            '<button type="button" data-reveal="del-form">Nova delegacia</button>' +
+            '</div>' +
+            '<div id="del-form" class="form-panel hidden">' +
+            '<h3>Delegovat opravnenie</h3>' +
+            '<form id="del-create" class="form-grid">' +
+            '<label class="full">Prijemca<select id="del-to" required>' + accountOpts + '</select></label>' +
+            '<label>Opravnenie<select id="del-perm" required>' + permOpts + '</select></label>' +
+            '<label>Platne do<input id="del-to-date" type="datetime-local" /></label>' +
+            '<label class="full">Dovod<textarea id="del-reason" required></textarea></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Vytvorit</button>' +
+            '<button type="button" class="secondary" data-hide="del-form">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Aktivne / zoznam</h2>' +
+            makeTable(['Od', 'Komu', 'Opravnenie', 'Stav', 'Od', 'Do', 'Dovod', 'Akcie'], rows) +
+            '<div id="del-history" class="history-panel hidden"></div>' +
+            '</div>';
+          bindFormReveals();
+
+          document.getElementById('del-create').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('del-msg');
+            try {
+              const validToEl = document.getElementById('del-to-date');
+              let validTo = null;
+              if (validToEl.value) validTo = new Date(validToEl.value).toISOString();
+              await api('/api/v1/delegations', {
+                method: 'POST',
+                body: JSON.stringify({
+                  toAccountId: document.getElementById('del-to').value,
+                  permissionCode: document.getElementById('del-perm').value,
+                  orgUnitId: null,
+                  validFrom: new Date().toISOString(),
+                  validTo: validTo,
+                  reason: document.getElementById('del-reason').value
+                })
+              });
+              msg.innerHTML = '<div class="msg">Delegacia vytvorena.</div>';
+              navigate('delegations');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.querySelectorAll('.revoke-del').forEach(function (btn) {
+            btn.onclick = async function () {
+              if (!confirmAction('Naozaj zrusit tuto delegaciu?')) return;
+              const msg = document.getElementById('del-msg');
+              try {
+                await api('/api/v1/delegations/' + btn.dataset.id + '/revoke', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    reason: 'Zrusenie z UI',
+                    rowVersion: Number(btn.dataset.rv)
+                  })
+                });
+                msg.innerHTML = '<div class="msg">Delegacia zrusena.</div>';
+                navigate('delegations');
+              } catch (err) {
+                msg.innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+
+          document.querySelectorAll('.hist-del').forEach(function (btn) {
+            btn.onclick = function () {
+              showHistory('DelegatedPermission', btn.dataset.id, document.getElementById('del-history'));
+            };
+          });
+          return;
+        }
+        if (page === 'orgs') {
+          const items = await api('/api/v1/org-units');
+          content.innerHTML = '<div class="stack"><h2>Organizacna struktura</h2>' + makeTable(
+            ['Kod', 'Nazov', 'Uroven'],
+            items.map(function (o) {
+              return '<tr><td>' + o.code + '</td><td>' + o.name + '</td><td>' + o.level + '</td></tr>';
+            }).join('')
+          ) + '</div>';
+          return;
+        }
+        if (page === 'accounts') {
+          const items = await api('/api/v1/accounts');
+          content.innerHTML = '<div class="stack">' + searchHighlightBanner() + '<h2>Pouzivatelia</h2>' + makeTable(
+            ['Pouzivatel', 'Meno', 'Email', 'Stav'],
+            items.map(function (a) {
+              return '<tr><td>' + a.userName + '</td><td>' + a.firstName + ' ' + a.lastName +
+                '</td><td>' + (a.email || '-') + '</td><td>' + a.status + '</td></tr>';
+            }).join('')
+          ) + '</div>';
+          return;
+        }
+        if (page === 'pilots') {
+          const items = await api('/api/v1/pilots');
+          const rows = items.map(function (p) {
+            return '<tr><td>' + p.firstName + ' ' + p.lastName + '</td><td>' + (p.licenseNumber || '-') +
+              '</td><td>' + p.orgUnitName + '</td><td>' + p.status + '</td><td>' +
+              (p.isEligibleForOperations ? 'Ano' : 'Nie') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadni piloti</td></tr>';
+          content.innerHTML = '<div class="stack">' + searchHighlightBanner() + '<h2>Piloti</h2>' +
+            makeTable(['Meno', 'Preukaz', 'Utvar', 'Stav', 'Sposobily do operacie'], rows) + '</div>';
+          return;
+        }
+        if (page === 'operations') {
+          const items = await api('/api/v1/operations');
+          const rows = items.map(function (o) {
+            return '<tr><td>' + o.title + '</td><td>' + o.status + '</td><td>' + o.orgUnitName +
+              '</td><td>' + (o.isUrgent ? 'Ano' : 'Nie') + '</td><td>' +
+              new Date(o.plannedStart).toLocaleString('sk-SK') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadne operacie</td></tr>';
+          content.innerHTML = '<div class="stack">' + searchHighlightBanner() + '<h2>Operacie</h2>' +
+            '<div class="toolbar"><button type="button" id="create-op">Nova operacia (demo)</button> ' +
+            '<button type="button" id="create-urgent">Neodkladna operacia</button></div>' +
+            '<div id="op-msg"></div>' +
+            makeTable(['Nazov', 'Stav', 'Utvar', 'Neodkladna', 'Zaciatok'], rows) + '</div>';
+
+          async function createDemo(urgent) {
+            const msg = document.getElementById('op-msg');
+            try {
+              const orgs = await api('/api/v1/org-units');
+              const unit = orgs.find(function (o) { return o.code === 'UTVAR-A'; }) || orgs[0];
+              const start = new Date(Date.now() + 86400000).toISOString();
+              const end = new Date(Date.now() + 86400000 + 7200000).toISOString();
+              await api('/api/v1/operations', {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: urgent ? 'Neodkladna hliadka' : 'Planovana hliadka',
+                  operationTypeCode: urgent ? 'URGENT' : 'PATROL',
+                  orgUnitId: unit.id,
+                  plannedStart: start,
+                  plannedEnd: end,
+                  locationAddress: 'Bratislava',
+                  locationLat: 48.14,
+                  locationLon: 17.1,
+                  locationGeoJson: null,
+                  description: 'Vytvorene z UI',
+                  isUrgent: !!urgent,
+                  urgentReason: urgent ? 'Demo neodkladny dovod' : null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Operacia vytvorena</div>';
+              navigate('operations');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          }
+          document.getElementById('create-op').onclick = function () { createDemo(false); };
+          document.getElementById('create-urgent').onclick = function () { createDemo(true); };
+          return;
+        }
+        if (page === 'flights') {
+          const items = await api('/api/v1/flights');
+          const rows = items.map(function (f) {
+            return '<tr><td>' + (f.uasLabel || '-') + '</td><td>' + (f.pilotName || '-') +
+              '</td><td>' + f.status + '</td><td>' + (f.durationMinutes ?? '-') +
+              '</td><td>' + (f.countersApplied ? 'Ano' : 'Nie') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadne lety</td></tr>';
+          content.innerHTML = '<div class="stack"><h2>Lety</h2>' +
+            '<div class="toolbar"><button type="button" id="create-flight">Novy samostatny let</button> ' +
+            '<button type="button" id="import-telem">Import demo telemetrie</button></div>' +
+            '<div id="flight-msg"></div>' +
+            makeTable(['UAS', 'Pilot', 'Stav', 'Trvanie (min)', 'Pocitadla'], rows) + '</div>';
+
+          document.getElementById('create-flight').onclick = async function () {
+            const msg = document.getElementById('flight-msg');
+            try {
+              const orgs = await api('/api/v1/org-units');
+              const unit = orgs.find(function (o) { return o.code === 'UTVAR-A'; }) || orgs[0];
+              await api('/api/v1/flights/standalone', {
+                method: 'POST',
+                body: JSON.stringify({
+                  orgUnitId: unit.id,
+                  standaloneReason: 'Demo let z UI',
+                  uasId: null,
+                  pilotId: null,
+                  batteryId: null,
+                  takeoffAt: new Date(Date.now() - 3600000).toISOString(),
+                  landingAt: new Date().toISOString()
+                })
+              });
+              msg.innerHTML = '<div class="msg">Let vytvoreny</div>';
+              navigate('flights');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('import-telem').onclick = async function () {
+            const msg = document.getElementById('flight-msg');
+            try {
+              const flights = await api('/api/v1/flights');
+              if (!flights.length) throw new Error('Najprv vytvorte let');
+              const flightId = flights[0].id;
+              const payload = JSON.stringify({
+                points: [
+                  { lat: 48.14, lon: 17.10, alt: 100, time: new Date(Date.now() - 600000).toISOString() },
+                  { lat: 48.141, lon: 17.102, alt: 110, time: new Date(Date.now() - 300000).toISOString() },
+                  { lat: 48.142, lon: 17.104, alt: 105, time: new Date().toISOString() }
+                ]
+              });
+              const res = await api('/api/v1/telemetry-imports', {
+                method: 'POST',
+                body: JSON.stringify({
+                  fileName: 'demo-track.json',
+                  format: 'json',
+                  payload: payload,
+                  flightId: flightId,
+                  uasId: null,
+                  operationId: null,
+                  pilotId: null,
+                  batteryId: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Import: ' + res.status + ' (hash ' + res.contentHash.substring(0, 8) + '...)</div>';
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+          return;
+        }
+        if (page === 'maintenance') {
+          const plans = await api('/api/v1/maintenance-plans');
+          const orders = await api('/api/v1/work-orders');
+          const uasList = await loadUasOptions();
+          const uasOpts = uasSelectHtml(uasList);
+          const planOpts = '<option value="">— bez planu —</option>' + plans.map(function (p) {
+            return '<option value="' + p.id + '">' + p.nameSk + '</option>';
+          }).join('');
+
+          const planRows = plans.map(function (p) {
+            return '<tr><td>' + p.nameSk + '</td><td>' + p.triggerType + '</td><td>' + p.status +
+              '</td><td>' + p.currentCounter + '</td><td>' + (p.isOverdue ? 'Ano' : 'Nie') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Ziadne plany</td></tr>';
+
+          const orderRows = orders.map(function (w) {
+            const completeBtn = (w.status === 0 || w.status === 'Open' || w.status === 1 || w.status === 'InProgress')
+              ? '<button type="button" class="secondary complete-wo" data-id="' + w.id +
+                '" data-rv="' + w.rowVersion + '">Dokoncit</button>'
+              : '—';
+            return '<tr><td>' + w.title + '</td><td>' + w.status + '</td><td>' + w.targetType +
+              ' ' + String(w.targetId).substring(0, 8) + '</td><td>' + completeBtn + '</td></tr>';
+          }).join('') || '<tr><td colspan="4">Ziadne prikazy</td></tr>';
+
+          const emptyHint = uasList.length ? '' :
+            '<div class="msg">Ziadne UAS. Kliknite <b>Vytvorit demo UAS</b> (ako gestor), alebo restartujte API aby sa nacital seed DEMO-UAS-001.</div>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            emptyHint +
+            '<div class="toolbar">' +
+            '<button type="button" id="mnt-create-uas">Vytvorit demo UAS</button>' +
+            '<button type="button" data-reveal="plan-panel">Pridat plan</button>' +
+            '<button type="button" data-reveal="wo-panel">Pridat pracovny prikaz</button>' +
+            '</div>' +
+            '<div id="mnt-msg"></div>' +
+            '<div id="plan-panel" class="form-panel hidden">' +
+            '<h3>Novy plan udrzby</h3>' +
+            '<form id="plan-form" class="form-grid">' +
+            '<label class="full">Nazov<input id="plan-name" required placeholder="napr. Kontrola po 10 letoch" /></label>' +
+            '<label>UAS<select id="plan-uas">' + uasOpts + '</select></label>' +
+            '<label>Trigger<select id="plan-trigger">' +
+            '<option value="1" selected>Pocet letov</option>' +
+            '<option value="2">Hodiny letu</option>' +
+            '<option value="0">Kalendarovy termin</option>' +
+            '<option value="3">Cykly baterie</option>' +
+            '</select></label>' +
+            '<label>Interval (pocet)<input id="plan-interval" type="number" min="1" value="10" required /></label>' +
+            '<label>Varovanie %<input id="plan-warn" type="number" min="1" max="100" value="80" /></label>' +
+            '<label>Blokovat pri overdue<select id="plan-block"><option value="true" selected>Ano</option><option value="false">Nie</option></select></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Ulozit plan</button>' +
+            '<button type="button" class="secondary" data-hide="plan-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<div id="wo-panel" class="form-panel hidden">' +
+            '<h3>Novy pracovny prikaz</h3>' +
+            '<form id="wo-form" class="form-grid">' +
+            '<label class="full">Nazov<input id="wo-title" required placeholder="napr. Vymena skrutiek" /></label>' +
+            '<label>UAS<select id="wo-uas">' + uasOpts + '</select></label>' +
+            '<label>Plan (volitelne)<select id="wo-plan">' + planOpts + '</select></label>' +
+            '<label class="full">Popis<textarea id="wo-desc" placeholder="Co treba urobit..."></textarea></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Ulozit prikaz</button>' +
+            '<button type="button" class="secondary" data-hide="wo-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Plany udrzby</h2>' +
+            makeTable(['Nazov', 'Trigger', 'Stav', 'Pocitadlo', 'Overdue'], planRows) +
+            '<h2>Pracovne prikazy</h2>' +
+            makeTable(['Nazov', 'Stav', 'Ciel', 'Akcia'], orderRows) +
+            '</div>';
+
+          bindFormReveals();
+
+          document.getElementById('mnt-create-uas').onclick = async function () {
+            const msg = document.getElementById('mnt-msg');
+            try {
+              await createDemoUas();
+              msg.innerHTML = '<div class="msg">UAS vytvorene. Obnovujem zoznam...</div>';
+              navigate('maintenance');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message +
+                ' (Prihlaste sa ako gestor — ucet bezpecnost nemoze vytvarat UAS.)</div>';
+            }
+          };
+
+          document.getElementById('plan-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('mnt-msg');
+            const uasId = document.getElementById('plan-uas').value;
+            if (!uasId) {
+              msg.innerHTML = '<div class="error">Najprv vytvorte alebo vyberte UAS.</div>';
+              return;
+            }
+            try {
+              const trigger = Number(document.getElementById('plan-trigger').value);
+              const interval = Number(document.getElementById('plan-interval').value);
+              await api('/api/v1/maintenance-plans', {
+                method: 'POST',
+                body: JSON.stringify({
+                  nameSk: document.getElementById('plan-name').value.trim(),
+                  targetType: 0,
+                  targetId: uasId,
+                  targetTypeCode: null,
+                  triggerType: trigger,
+                  intervalValue: interval,
+                  nextDueAt: trigger === 0 ? new Date(Date.now() + interval * 86400000).toISOString() : null,
+                  nextDueCounter: trigger === 0 ? null : interval,
+                  warningThresholdPercent: Number(document.getElementById('plan-warn').value) || 80,
+                  blockWhenOverdue: document.getElementById('plan-block').value === 'true'
+                })
+              });
+              msg.innerHTML = '<div class="msg">Plan udrzby vytvoreny.</div>';
+              navigate('maintenance');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('wo-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('mnt-msg');
+            const uasId = document.getElementById('wo-uas').value;
+            if (!uasId) {
+              msg.innerHTML = '<div class="error">Najprv vytvorte alebo vyberte UAS.</div>';
+              return;
+            }
+            try {
+              const planId = document.getElementById('wo-plan').value;
+              await api('/api/v1/work-orders', {
+                method: 'POST',
+                body: JSON.stringify({
+                  maintenancePlanId: planId || null,
+                  targetType: 0,
+                  targetId: uasId,
+                  title: document.getElementById('wo-title').value.trim(),
+                  description: document.getElementById('wo-desc').value.trim() || null,
+                  assignedTechnicianAccountId: null,
+                  dueAt: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Pracovny prikaz vytvoreny.</div>';
+              navigate('maintenance');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.querySelectorAll('.complete-wo').forEach(function (btn) {
+            btn.onclick = async function () {
+              if (!confirmAction('Dokoncit pracovny prikaz?')) return;
+              const msg = document.getElementById('mnt-msg');
+              try {
+                await api('/api/v1/work-orders/' + btn.dataset.id + '/complete', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    workScope: 'Kontrola z UI',
+                    result: 'V poriadku',
+                    performedAt: new Date().toISOString(),
+                    partsUsed: null,
+                    documentationNotes: null,
+                    airworthinessRestored: true,
+                    rowVersion: Number(btn.dataset.rv)
+                  })
+                });
+                msg.innerHTML = '<div class="msg">Prikaz dokoncany.</div>';
+                navigate('maintenance');
+              } catch (err) {
+                msg.innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          return;
+        }
+        if (page === 'defects') {
+          const items = await api('/api/v1/defects');
+          const uasList = await loadUasOptions();
+          let accounts = [];
+          try {
+            accounts = await api('/api/v1/accounts');
+          } catch (_) { /* optional */ }
+
+          const uasOpts = uasSelectHtml(uasList);
+          const rows = items.map(function (d) {
+            const resolveBtn = (d.status === 0 || d.status === 'Reported' || d.status === 1 || d.status === 'UnderRepair')
+              ? '<button type="button" class="secondary resolve-def" data-id="' + d.id +
+                '" data-rv="' + d.rowVersion + '" data-reporter="' + d.reportedByAccountId + '">Vyriesit</button>'
+              : '—';
+            return '<tr><td>' + d.title + '</td><td>' + d.severity + '</td><td>' + d.status +
+              '</td><td>' + (d.blocksOperations ? 'Ano' : 'Nie') + '</td><td>' + d.originalReport +
+              '</td><td>' + resolveBtn + '</td></tr>';
+          }).join('') || '<tr><td colspan="6">Ziadne poruchy</td></tr>';
+
+          const emptyHint = uasList.length ? '' :
+            '<div class="msg">Ziadne UAS na vyber. Porucha sa viaze na konkretny dron — najprv vytvorte UAS tlacidlom nizsie (ako <b>gestor</b>), alebo restartujte API (seed DEMO-UAS-001 / 002).</div>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            emptyHint +
+            '<div class="toolbar">' +
+            '<button type="button" id="def-create-uas">Vytvorit demo UAS</button>' +
+            '<button type="button" data-reveal="def-panel">Nahlasit poruchu</button>' +
+            '</div>' +
+            '<div id="def-msg"></div>' +
+            '<div id="def-panel" class="form-panel hidden">' +
+            '<h3>Nove hlasenie poruchy</h3>' +
+            '<form id="def-form" class="form-grid">' +
+            '<label class="full">Nazov<input id="def-title" required placeholder="napr. Vibracie" /></label>' +
+            '<label class="full">Povodne hlasenie<textarea id="def-report" required placeholder="Popis poruchy..."></textarea></label>' +
+            '<label>UAS<select id="def-uas">' + uasOpts + '</select></label>' +
+            '<label>Zavaznost<select id="def-severity">' +
+            '<option value="0">Nizka</option><option value="1">Stredna</option>' +
+            '<option value="2">Vysoka</option><option value="3" selected>Blokujuca</option>' +
+            '</select></label>' +
+            '<label>Blokovat operacie<select id="def-block"><option value="true" selected>Ano</option><option value="false">Nie</option></select></label>' +
+            '<label>Typ kod<input id="def-type" value="GENERAL" /></label>' +
+            '<label class="full">Docasne opatrenie<input id="def-temp" placeholder="napr. Vyradene z prevadzky" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Odoslat hlasenie</button>' +
+            '<button type="button" class="secondary" data-hide="def-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Poruchy</h2>' +
+            makeTable(['Nazov', 'Zavaznost', 'Stav', 'Blokuje', 'Povodne hlasenie', 'Akcia'], rows) +
+            '</div>';
+
+          bindFormReveals();
+
+          document.getElementById('def-create-uas').onclick = async function () {
+            const msg = document.getElementById('def-msg');
+            try {
+              const uas = await createDemoUas();
+              msg.innerHTML = '<div class="msg">UAS vytvorene: ' + uas.serialNumber + '. Obnovujem...</div>';
+              navigate('defects');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message +
+                ' — prihlaste sa ako <b>gestor</b> (bezpecnost nemoze vytvarat UAS).</div>';
+            }
+          };
+
+          document.getElementById('def-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('def-msg');
+            const uasId = document.getElementById('def-uas').value;
+            if (!uasId) {
+              msg.innerHTML = '<div class="error">Najprv kliknite „Vytvorit demo UAS“ alebo restartujte API (seed).</div>';
+              return;
+            }
+            try {
+              const severity = Number(document.getElementById('def-severity').value);
+              const blocks = document.getElementById('def-block').value === 'true' || severity === 3;
+              await api('/api/v1/defects', {
+                method: 'POST',
+                body: JSON.stringify({
+                  targetType: 0,
+                  targetId: uasId,
+                  title: document.getElementById('def-title').value.trim(),
+                  originalReport: document.getElementById('def-report').value.trim(),
+                  severity: severity,
+                  blocksOperations: blocks,
+                  temporaryMeasure: document.getElementById('def-temp').value.trim() || null,
+                  relatedFlightId: null,
+                  relatedUasId: uasId,
+                  defectTypeCode: document.getElementById('def-type').value.trim() || 'GENERAL'
+                })
+              });
+              msg.innerHTML = '<div class="msg">Porucha nahlasena' +
+                (blocks ? ' (blokuje UAS).' : '.') + '</div>';
+              navigate('defects');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.querySelectorAll('.resolve-def').forEach(function (btn) {
+            btn.onclick = async function () {
+              if (!confirmAction('Vyriesit poruchu?')) return;
+              const msg = document.getElementById('def-msg');
+              const verifier = accounts.find(function (a) { return a.id !== btn.dataset.reporter; })
+                || accounts[0];
+              if (!verifier) {
+                msg.innerHTML = '<div class="error">Chyba overovatel (ziadny iny ucet).</div>';
+                return;
+              }
+              try {
+                await api('/api/v1/defects/' + btn.dataset.id + '/resolve', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    resolutionNotes: 'Opravene z UI',
+                    technicalAssessment: 'Posudenie OK',
+                    testPerformed: true,
+                    verifiedByAccountId: verifier.id,
+                    rowVersion: Number(btn.dataset.rv)
+                  })
+                });
+                msg.innerHTML = '<div class="msg">Porucha vyriesena (overil: ' + verifier.userName + ').</div>';
+                navigate('defects');
+              } catch (err) {
+                msg.innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          return;
+        }
+        if (page === 'incidents') {
+          const items = await api('/api/v1/safety-events');
+          const notes = await api('/api/v1/notifications');
+          const orgs = await api('/api/v1/org-units');
+          const uasList = await loadUasOptions();
+
+          const orgOpts = orgs.map(function (o) {
+            return '<option value="' + o.id + '">' + o.code + ' — ' + o.name + '</option>';
+          }).join('');
+          const uasOpts = '<option value="">— bez UAS —</option>' + uasSelectHtml(uasList).replace(
+            '<option value="">(ziadne UAS v databaze)</option>', '');
+
+          const rows = items.map(function (e) {
+            const submitBtn = (e.status === 0 || e.status === 'Draft')
+              ? '<button type="button" class="secondary submit-ev" data-id="' + e.id +
+                '" data-rv="' + e.rowVersion + '">Odoslat</button>'
+              : '—';
+            return '<tr><td>' + e.title + '</td><td>' + e.severity + '</td><td>' + e.status +
+              '</td><td>' + (e.initialReportLocked ? 'Ano' : 'Nie') + '</td><td>' +
+              (e.autoSuspendApplied ? 'Ano' : 'Nie') + '</td><td>' + submitBtn + '</td></tr>';
+          }).join('') || '<tr><td colspan="6">Ziadne udalosti — vytvorte prvu nizsie</td></tr>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            searchHighlightBanner() +
+            '<div class="toolbar">' +
+            '<button type="button" data-reveal="inc-panel">Nove hlasenie incidentu</button>' +
+            '</div>' +
+            '<div id="inc-msg"></div>' +
+            '<div id="inc-panel" class="form-panel hidden">' +
+            '<h3>Nove hlasenie incidentu</h3>' +
+            '<form id="incident-form" class="form-grid">' +
+            '<label class="full">Nazov udalosti<input id="inc-title" required placeholder="napr. Strata spojenia" /></label>' +
+            '<label class="full">Prvotne hlasenie (minimalne udaje)<textarea id="inc-report" required placeholder="Co sa stalo, kde, kedy..."></textarea></label>' +
+            '<label>Zavaznost<select id="inc-severity">' +
+            '<option value="0">Nizka</option><option value="1">Stredna</option>' +
+            '<option value="2">Vysoka</option><option value="3" selected>Kriticka</option>' +
+            '</select></label>' +
+            '<label>Organizacny utvar<select id="inc-org">' + orgOpts + '</select></label>' +
+            '<label class="full">Suvisiace UAS (volitelne)<select id="inc-uas">' + uasOpts + '</select></label>' +
+            '<label class="full">Miesto<input id="inc-loc" placeholder="napr. Bratislava" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit" id="inc-create">Ulozit koncept</button>' +
+            '<button type="button" class="secondary" id="inc-create-submit">Ulozit a hned odoslat</button>' +
+            '<button type="button" class="secondary" data-hide="inc-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Bezpecnostne udalosti</h2>' +
+            makeTable(['Nazov', 'Zavaznost', 'Stav', 'Zamknute', 'Auto-suspend', 'Akcia'], rows) +
+            '<h2>Upozornenia</h2>' +
+            makeTable(['Priorita', 'Typ', 'Nazov', 'Stav'],
+              notes.map(function (n) {
+                return '<tr><td>' + n.priority + '</td><td>' + n.typeCode + '</td><td>' + n.title +
+                  '</td><td>' + n.status + '</td></tr>';
+              }).join('') || '<tr><td colspan="4">Ziadne upozornenia</td></tr>') +
+            '</div>';
+
+          bindFormReveals();
+
+          async function createIncident(alsoSubmit) {
+            const msg = document.getElementById('inc-msg');
+            const title = document.getElementById('inc-title').value.trim();
+            const report = document.getElementById('inc-report').value.trim();
+            if (!title || !report) {
+              msg.innerHTML = '<div class="error">Vyplnte nazov a prvotne hlasenie.</div>';
+              return;
+            }
+            try {
+              const uasVal = document.getElementById('inc-uas').value;
+              const created = await api('/api/v1/safety-events', {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: title,
+                  initialReport: report,
+                  severity: Number(document.getElementById('inc-severity').value),
+                  occurredAt: new Date().toISOString(),
+                  orgUnitId: document.getElementById('inc-org').value || null,
+                  relatedFlightId: null,
+                  relatedOperationId: null,
+                  relatedUasId: uasVal || null,
+                  locationDescription: document.getElementById('inc-loc').value.trim() || null
+                })
+              });
+              if (alsoSubmit) {
+                await api('/api/v1/safety-events/' + created.id + '/submit', {
+                  method: 'POST',
+                  body: JSON.stringify({ rowVersion: created.rowVersion })
+                });
+                msg.innerHTML = '<div class="msg">Udalost ulozena a odoslana' +
+                  (Number(document.getElementById('inc-severity').value) === 3
+                    ? ' (kriticka — upozornenia + pripadne pozastavenie UAS).'
+                    : '.') + '</div>';
+              } else {
+                msg.innerHTML = '<div class="msg">Koncept ulozeny. Mozete ho odoslat tlacidlom v tabulke.</div>';
+              }
+              navigate('incidents');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          }
+
+          document.getElementById('incident-form').onsubmit = function (ev) {
+            ev.preventDefault();
+            createIncident(false);
+          };
+          document.getElementById('inc-create-submit').onclick = function () {
+            createIncident(true);
+          };
+          document.querySelectorAll('.submit-ev').forEach(function (btn) {
+            btn.onclick = async function () {
+              const msg = document.getElementById('inc-msg');
+              try {
+                await api('/api/v1/safety-events/' + btn.dataset.id + '/submit', {
+                  method: 'POST',
+                  body: JSON.stringify({ rowVersion: Number(btn.dataset.rv) })
+                });
+                msg.innerHTML = '<div class="msg">Udalost odoslana.</div>';
+                navigate('incidents');
+              } catch (err) {
+                msg.innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          return;
+        }
+        if (page === 'documents') {
+          const docs = await api('/api/v1/documents');
+          const templates = await api('/api/v1/form-templates');
+          const risks = await api('/api/v1/risk-assessments');
+          const uasList = await loadUasOptions();
+          const uasOpts = uasSelectHtml(uasList);
+          const templateOpts = templates.map(function (t) {
+            return '<option value="' + t.id + '">' + t.code + ' v' + t.version + ' — ' + t.nameSk + '</option>';
+          }).join('') || '<option value="">(ziadne sablony)</option>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            '<div class="toolbar">' +
+            '<button type="button" data-reveal="doc-panel">Nahrat dokument</button>' +
+            '<button type="button" data-reveal="chk-panel">Spustit checklist</button>' +
+            '<button type="button" data-reveal="risk-panel">Posudenie rizika</button>' +
+            '<button type="button" class="secondary" id="doc-refresh">Obnovit exspiracie</button>' +
+            '</div>' +
+            '<div id="doc-msg"></div>' +
+            '<div id="doc-panel" class="form-panel hidden">' +
+            '<h3>Nahrat dokument</h3>' +
+            '<form id="doc-form" class="form-grid">' +
+            '<label class="full">Nazov<input id="doc-title" required placeholder="napr. Poistenie" /></label>' +
+            '<label>Typ kod<input id="doc-type" value="INSURANCE" /></label>' +
+            '<label>UAS<select id="doc-uas">' + uasOpts + '</select></label>' +
+            '<label>Subor (nazov)<input id="doc-file" value="dokument.pdf" required /></label>' +
+            '<label>Checksum<input id="doc-hash" value="demo-hash-001" required /></label>' +
+            '<label>Platnost do<input id="doc-validto" type="date" /></label>' +
+            '<label>Povinny<select id="doc-mandatory"><option value="false">Nie</option><option value="true">Ano</option></select></label>' +
+            '<label>Nahradit dokument ID<input id="doc-supersede" placeholder="volitelne GUID aktualnej verzie" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Ulozit dokument</button>' +
+            '<button type="button" class="secondary" data-hide="doc-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<div id="chk-panel" class="form-panel hidden">' +
+            '<h3>Spustit checklist</h3>' +
+            '<form id="chk-form" class="form-grid">' +
+            '<label>Sablona<select id="chk-template">' + templateOpts + '</select></label>' +
+            '<label>UAS (ciel)<select id="chk-uas">' + uasOpts + '</select></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Spustit a vyplnit (demo Ano)</button>' +
+            '<button type="button" class="secondary" data-hide="chk-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<div id="risk-panel" class="form-panel hidden">' +
+            '<h3>Posudenie rizika</h3>' +
+            '<form id="risk-form" class="form-grid">' +
+            '<label>UAS<select id="risk-uas">' + uasOpts + '</select></label>' +
+            '<label>Pravdepodobnost 1-5<input id="risk-l" type="number" min="1" max="5" value="3" /></label>' +
+            '<label>Zavaznost 1-5<input id="risk-s" type="number" min="1" max="5" value="3" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Vypocitat riziko</button>' +
+            '<button type="button" class="secondary" data-hide="risk-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Dokumenty</h2>' +
+            makeTable(['Nazov', 'Typ', 'Verzia', 'Stav', 'Aktualny', 'Hash'],
+              docs.map(function (d) {
+                return '<tr><td>' + d.title + '</td><td>' + d.documentTypeCode + '</td><td>' + d.version +
+                  '</td><td>' + d.status + '</td><td>' + (d.isCurrent ? 'Ano' : 'Nie') +
+                  '</td><td>' + String(d.contentHash).substring(0, 12) + '</td></tr>';
+              }).join('') || '<tr><td colspan="6">Ziadne dokumenty</td></tr>') +
+            '<h2>Sablony</h2>' +
+            makeTable(['Kod', 'Nazov', 'Druh', 'Verzia'],
+              templates.map(function (t) {
+                return '<tr><td>' + t.code + '</td><td>' + t.nameSk + '</td><td>' + t.kind +
+                  '</td><td>' + t.version + '</td></tr>';
+              }).join('') || '<tr><td colspan="4">Ziadne sablony</td></tr>') +
+            '<h2>Posudenia rizika</h2>' +
+            makeTable(['Score', 'Trieda', 'L', 'S', 'Metodika'],
+              risks.map(function (r) {
+                return '<tr><td>' + r.score + '</td><td>' + r.classification + '</td><td>' + r.likelihood +
+                  '</td><td>' + r.severity + '</td><td>' + r.methodologyCode + '</td></tr>';
+              }).join('') || '<tr><td colspan="5">Ziadne posudenia</td></tr>') +
+            '</div>';
+
+          bindFormReveals();
+
+          document.getElementById('doc-refresh').onclick = async function () {
+            const msg = document.getElementById('doc-msg');
+            try {
+              const res = await api('/api/v1/documents/refresh-expirations', { method: 'POST' });
+              msg.innerHTML = '<div class="msg">Exspirovalo: ' + res.expiredCount + '</div>';
+              navigate('documents');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('doc-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('doc-msg');
+            const uasId = document.getElementById('doc-uas').value;
+            if (!uasId) {
+              msg.innerHTML = '<div class="error">Vyberte UAS (alebo vytvorte v Poruchach / Register).</div>';
+              return;
+            }
+            try {
+              const validTo = document.getElementById('doc-validto').value;
+              const supersede = document.getElementById('doc-supersede').value.trim();
+              await api('/api/v1/documents', {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: document.getElementById('doc-title').value.trim(),
+                  documentTypeCode: document.getElementById('doc-type').value.trim() || 'GENERAL',
+                  linkedEntityType: 1,
+                  linkedEntityId: uasId,
+                  fileName: document.getElementById('doc-file').value.trim(),
+                  contentType: 'application/pdf',
+                  sizeBytes: 1024,
+                  contentHash: document.getElementById('doc-hash').value.trim(),
+                  sensitivity: 1,
+                  validFrom: new Date().toISOString(),
+                  validTo: validTo ? new Date(validTo).toISOString() : null,
+                  isMandatory: document.getElementById('doc-mandatory').value === 'true',
+                  blocksWhenInvalid: document.getElementById('doc-mandatory').value === 'true',
+                  supersedesDocumentId: supersede || null,
+                  notes: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Dokument ulozeny.</div>';
+              navigate('documents');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('chk-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('doc-msg');
+            const templateId = document.getElementById('chk-template').value;
+            const uasId = document.getElementById('chk-uas').value;
+            if (!templateId || !uasId) {
+              msg.innerHTML = '<div class="error">Vyberte sablonu a UAS.</div>';
+              return;
+            }
+            try {
+              const template = templates.find(function (t) { return t.id === templateId; });
+              const started = await api('/api/v1/form-submissions', {
+                method: 'POST',
+                body: JSON.stringify({
+                  formTemplateId: templateId,
+                  linkedEntityType: 1,
+                  linkedEntityId: uasId
+                })
+              });
+              const answers = (template.items || []).filter(function (i) {
+                return i.itemType === 4 || i.itemType === 'YesNo';
+              }).map(function (i) {
+                return {
+                  formTemplateItemId: i.id,
+                  itemCode: i.code,
+                  valueText: null,
+                  valueBool: true,
+                  valueNumber: null,
+                  valueDate: null
+                };
+              });
+              await api('/api/v1/form-submissions/' + started.id + '/answers', {
+                method: 'POST',
+                body: JSON.stringify({
+                  answers: answers,
+                  markCompleted: true,
+                  rowVersion: started.rowVersion
+                })
+              });
+              msg.innerHTML = '<div class="msg">Checklist dokonceny (viazany na sablonu v' + started.templateVersion + ').</div>';
+              navigate('documents');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('risk-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('doc-msg');
+            const uasId = document.getElementById('risk-uas').value;
+            if (!uasId) {
+              msg.innerHTML = '<div class="error">Vyberte UAS.</div>';
+              return;
+            }
+            try {
+              const res = await api('/api/v1/risk-assessments', {
+                method: 'POST',
+                body: JSON.stringify({
+                  linkedEntityType: 1,
+                  linkedEntityId: uasId,
+                  likelihood: Number(document.getElementById('risk-l').value),
+                  severity: Number(document.getElementById('risk-s').value),
+                  notes: 'UI demo',
+                  formSubmissionId: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Riziko: score ' + res.score + ' = ' + res.classification + '</div>';
+              navigate('documents');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+          return;
+        }
+        if (page === 'reports') {
+          const official = await api('/api/v1/official-reports');
+          content.innerHTML =
+            '<div class="stack">' +
+            '<div class="toolbar">' +
+            '<button type="button" data-reveal="rep-panel">Generovat report</button>' +
+            '<button type="button" data-reveal="off-panel">Oficialny vykaz</button>' +
+            '</div>' +
+            '<div id="rep-msg"></div>' +
+            '<div id="rep-panel" class="form-panel hidden">' +
+            '<h3>Preddefinovany report</h3>' +
+            '<form id="rep-form" class="form-grid">' +
+            '<label>Typ<select id="rep-type">' +
+            '<option value="UAS">UAS</option><option value="PILOTS">Piloti</option>' +
+            '<option value="FLIGHTS">Lety</option><option value="OPERATIONS">Operacie</option>' +
+            '<option value="BATTERIES">Baterie</option><option value="MAINTENANCE">Udrzba</option>' +
+            '<option value="DEFECTS">Poruchy</option><option value="INCIDENTS">Incidenty</option>' +
+            '</select></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Zobrazit</button>' +
+            '<button type="button" id="rep-csv">Export CSV</button>' +
+            '<button type="button" class="secondary" data-hide="rep-panel">Zrusit</button>' +
+            '</div></form>' +
+            '<div id="rep-result"></div></div>' +
+            '<div id="off-panel" class="form-panel hidden">' +
+            '<h3>Pripravit oficialny vykaz (zamrznuty snapshot)</h3>' +
+            '<form id="off-form" class="form-grid">' +
+            '<label>Typ<select id="off-type">' +
+            '<option value="UAS">UAS</option><option value="FLIGHTS">Lety</option>' +
+            '<option value="OPERATIONS">Operacie</option><option value="INCIDENTS">Incidenty</option>' +
+            '</select></label>' +
+            '<label class="full">Nazov<input id="off-title" placeholder="napr. Mesacny vykaz flotily" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Vytvorit koncept</button>' +
+            '<button type="button" class="secondary" data-hide="off-panel">Zrusit</button>' +
+            '</div></form></div>' +
+            '<h2>Oficialne vykazy</h2>' +
+            makeTable(['Nazov', 'Typ', 'Verzia', 'Stav', 'DataAsOf', 'Akcia'],
+              official.map(function (r) {
+                var approve = (r.status === 0 || r.status === 'Draft')
+                  ? '<button type="button" class="secondary approve-off" data-id="' + r.id +
+                    '" data-rv="' + r.rowVersion + '">Schvalit (iny ucet)</button>'
+                  : '—';
+                return '<tr><td>' + r.titleSk + '</td><td>' + r.reportTypeCode + '</td><td>' + r.version +
+                  '</td><td>' + r.status + '</td><td>' + new Date(r.dataAsOf).toLocaleString('sk-SK') +
+                  '</td><td>' + approve + '</td></tr>';
+              }).join('') || '<tr><td colspan="6">Ziadne vykazy</td></tr>') +
+            '</div>';
+
+          bindFormReveals();
+
+          document.getElementById('rep-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('rep-msg');
+            try {
+              const type = document.getElementById('rep-type').value;
+              const res = await api('/api/v1/reports/generate', {
+                method: 'POST',
+                body: JSON.stringify({ reportTypeCode: type, from: null, to: null, orgUnitId: null })
+              });
+              const rows = (res.rows || []).map(function (r) {
+                return '<tr><td>' + r.label + '</td><td>' + r.value + '</td><td>' + (r.unit || '') + '</td></tr>';
+              }).join('');
+              document.getElementById('rep-result').innerHTML =
+                '<div class="msg">' + res.titleSk + ' · dataAsOf ' + new Date(res.dataAsOf).toLocaleString('sk-SK') +
+                ' · pravidla ' + res.rulesVersion + '</div>' +
+                makeTable(['Ukazovatel', 'Hodnota', 'Jednotka'], rows);
+              msg.innerHTML = '';
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('rep-csv').onclick = async function () {
+            const msg = document.getElementById('rep-msg');
+            try {
+              const type = document.getElementById('rep-type').value;
+              const res = await fetch('/api/v1/reports/export.csv', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: 'Bearer ' + state.token
+                },
+                body: JSON.stringify({ reportTypeCode: type, from: null, to: null, orgUnitId: null })
+              });
+              if (!res.ok) throw new Error('Export zlyhal ' + res.status);
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = type + '.csv';
+              a.click();
+              URL.revokeObjectURL(url);
+              msg.innerHTML = '<div class="msg">CSV stiahnute.</div>';
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.getElementById('off-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('rep-msg');
+            try {
+              await api('/api/v1/official-reports', {
+                method: 'POST',
+                body: JSON.stringify({
+                  reportTypeCode: document.getElementById('off-type').value,
+                  titleSk: document.getElementById('off-title').value.trim() || 'Oficialny vykaz',
+                  from: null,
+                  to: null,
+                  orgUnitId: null,
+                  supersedesReportId: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Koncept oficialneho vykazu vytvoreny. Schvalenie: ucet schvalovatel.</div>';
+              navigate('reports');
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+
+          document.querySelectorAll('.approve-off').forEach(function (btn) {
+            btn.onclick = async function () {
+              if (!confirmAction('Schvalit oficialny vykaz?')) return;
+              const msg = document.getElementById('rep-msg');
+              msg.innerHTML = '<div class="msg">Prihlaste sa ako <b>schvalovatel</b> a skuste znova, ak ste gestor (SoD).</div>';
+              try {
+                await api('/api/v1/official-reports/' + btn.dataset.id + '/approve', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    approvalReason: 'Schvalenie z UI',
+                    rowVersion: Number(btn.dataset.rv)
+                  })
+                });
+                msg.innerHTML = '<div class="msg">Vykaz schvaleny (snapshot zostava zamrznuty).</div>';
+                navigate('reports');
+              } catch (err) {
+                msg.innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          return;
+        }
+        if (page === 'calendar') {
+          const from = new Date();
+          from.setDate(1);
+          const to = new Date(from);
+          to.setMonth(to.getMonth() + 2);
+          const items = await api('/api/v1/calendar?from=' + encodeURIComponent(from.toISOString()) +
+            '&to=' + encodeURIComponent(to.toISOString()));
+          const rows = items.map(function (o) {
+            return '<tr><td>' + new Date(o.start).toLocaleString('sk-SK') + '</td><td>' +
+              new Date(o.end).toLocaleString('sk-SK') + '</td><td>' + o.title +
+              '</td><td>' + o.status + '</td><td>' + o.orgUnitName +
+              '</td><td>' + (o.isUrgent ? 'Ano' : 'Nie') + '</td></tr>';
+          }).join('') || '<tr><td colspan="6">Ziadne operacie v kalendari</td></tr>';
+          content.innerHTML = '<div class="stack"><h2>Operacny kalendar</h2>' +
+            '<p class="muted">Obdobie: ' + from.toLocaleDateString('sk-SK') + ' – ' + to.toLocaleDateString('sk-SK') + '</p>' +
+            makeTable(['Od', 'Do', 'Nazov', 'Stav', 'Utvar', 'Neodkladna'], rows) + '</div>';
+          return;
+        }
+        if (page === 'admin') {
+          const codes = await api('/api/v1/lookups');
+          const rules = await api('/api/v1/config-rules');
+          const connectors = await api('/api/v1/integrations');
+          const audit = await api('/api/v1/audit-events');
+          let info = null;
+          try { info = await api('/api/v1/system/info'); } catch (_) {}
+
+          content.innerHTML =
+            '<div class="stack">' +
+            (info ? '<div class="msg">Verzia ' + info.appVersion + ' · ' + info.environmentName +
+              ' · DB ' + info.databaseMode + ' · aktivne pravidla: ' + info.activeConfigRules + '</div>' : '') +
+            '<div class="toolbar">' +
+            '<button type="button" data-reveal="adm-lookup">Novy ciselnik / polozka</button>' +
+            '<button type="button" data-reveal="adm-config">Nove config pravidlo</button>' +
+            '<button type="button" data-reveal="adm-int">Integracny konektor</button>' +
+            '<button type="button" class="secondary" id="adm-audit-export">Export auditu CSV</button>' +
+            '<button type="button" class="secondary" data-reveal="adm-reauth">Opätovné overenie (reauth)</button>' +
+            '</div>' +
+            '<div id="adm-msg"></div>' +
+            '<div id="adm-reauth" class="form-panel hidden">' +
+            '<h3>Re-auth (UI-002 light)</h3>' +
+            '<form id="reauth-form" class="form-grid">' +
+            '<label class="full">Heslo aktualneho ucta<input id="reauth-pw" type="password" required /></label>' +
+            '<div class="full toolbar"><button type="submit">Overit</button>' +
+            '<button type="button" class="secondary" data-hide="adm-reauth">Zrusit</button></div></form></div>' +
+            '<div id="adm-lookup" class="form-panel hidden">' +
+            '<h3>Ciselnik</h3>' +
+            '<form id="lookup-code-form" class="form-grid">' +
+            '<label>Kod<input id="lk-code" required placeholder="UAS_TYPE" /></label>' +
+            '<label>Nazov<input id="lk-name" required /></label>' +
+            '<div class="full toolbar"><button type="submit">Vytvorit ciselnik</button>' +
+            '<button type="button" class="secondary" data-hide="adm-lookup">Zrusit</button></div></form>' +
+            '<form id="lookup-item-form" class="form-grid">' +
+            '<label>Ciselnik kod<input id="lki-code" required placeholder="UAS_TYPE" /></label>' +
+            '<label>Polozka kod<input id="lki-item" required /></label>' +
+            '<label class="full">Popis<input id="lki-label" required /></label>' +
+            '<div class="full toolbar"><button type="submit">Pridat polozku</button></div></form></div>' +
+            '<div id="adm-config" class="form-panel hidden">' +
+            '<h3>Konfiguracne pravidlo (nova verzia)</h3>' +
+            '<form id="cfg-form" class="form-grid">' +
+            '<label>Kluc<input id="cfg-key" required placeholder="uas.registration_number_format" /></label>' +
+            '<label class="full">Value JSON<textarea id="cfg-val" required>{"pattern":"SUAS-{YYYY}-{SEQ:5}"}</textarea></label>' +
+            '<div class="full toolbar"><button type="submit">Ulozit verziu</button>' +
+            '<button type="button" class="secondary" data-hide="adm-config">Zrusit</button></div></form></div>' +
+            '<div id="adm-int" class="form-panel hidden">' +
+            '<h3>Integracny konektor</h3>' +
+            '<form id="int-form" class="form-grid">' +
+            '<label>Kod<input id="int-code" required /></label>' +
+            '<label>Nazov<input id="int-name" required /></label>' +
+            '<label class="full">Endpoint<input id="int-url" required placeholder="https://..." /></label>' +
+            '<label>Secret ref (nie tajomstvo)<input id="int-secret" placeholder="secrets/xyz" /></label>' +
+            '<div class="full toolbar"><button type="submit">Ulozit</button>' +
+            '<button type="button" class="secondary" data-hide="adm-int">Zrusit</button></div></form></div>' +
+            '<h2>Ciselniky</h2>' +
+            makeTable(['Kod', 'Nazov', 'Polozky', 'Aktivny'],
+              codes.map(function (c) {
+                return '<tr><td>' + c.code + '</td><td>' + c.nameSk + '</td><td>' + c.itemCount +
+                  '</td><td>' + (c.isActive ? 'Ano' : 'Nie') + '</td></tr>';
+              }).join('') || '<tr><td colspan="4">Ziadne</td></tr>') +
+            '<h2>Config pravidla</h2>' +
+            makeTable(['Kluc', 'Verzia', 'Od', 'Do', 'Value'],
+              rules.map(function (r) {
+                return '<tr><td>' + r.key + '</td><td>' + r.version + '</td><td>' +
+                  new Date(r.effectiveFrom).toLocaleString('sk-SK') + '</td><td>' +
+                  (r.effectiveTo ? new Date(r.effectiveTo).toLocaleString('sk-SK') : '-') +
+                  '</td><td>' + r.valueJson.substring(0, 40) + '</td></tr>';
+              }).join('') || '<tr><td colspan="5">Ziadne</td></tr>') +
+            '<h2>Integracie</h2>' +
+            makeTable(['Kod', 'Typ', 'Endpoint', 'Stav', 'SecretRef'],
+              connectors.map(function (c) {
+                return '<tr><td>' + c.code + '</td><td>' + c.connectorType + '</td><td>' + c.endpointUrl +
+                  '</td><td>' + c.status + '</td><td>' + (c.secretRef || '-') + '</td></tr>';
+              }).join('') || '<tr><td colspan="5">Ziadne</td></tr>') +
+            '<h2>Audit (posledne)</h2>' +
+            makeTable(['Cas', 'Pouzivatel', 'Akcia', 'Objekt', 'Vysledok'],
+              audit.slice(0, 30).map(function (a) {
+                return '<tr><td>' + new Date(a.occurredAt).toLocaleString('sk-SK') + '</td><td>' +
+                  a.actorUserName + '</td><td>' + a.action + '</td><td>' + a.entityType +
+                  '</td><td>' + a.result + '</td></tr>';
+              }).join('') || '<tr><td colspan="5">Ziadne</td></tr>') +
+            '</div>';
+
+          bindFormReveals();
+
+          document.getElementById('lookup-code-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('adm-msg');
+            try {
+              await api('/api/v1/lookups', {
+                method: 'POST',
+                body: JSON.stringify({
+                  code: document.getElementById('lk-code').value.trim(),
+                  nameSk: document.getElementById('lk-name').value.trim(),
+                  descriptionSk: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Ciselnik vytvoreny.</div>';
+              navigate('admin');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+
+          document.getElementById('lookup-item-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('adm-msg');
+            try {
+              const code = document.getElementById('lki-code').value.trim();
+              await api('/api/v1/lookups/' + encodeURIComponent(code) + '/items', {
+                method: 'POST',
+                body: JSON.stringify({
+                  itemCode: document.getElementById('lki-item').value.trim(),
+                  labelSk: document.getElementById('lki-label').value.trim(),
+                  sortOrder: 1,
+                  metadataJson: null
+                })
+              });
+              msg.innerHTML = '<div class="msg">Polozka pridana.</div>';
+              navigate('admin');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+
+          document.getElementById('cfg-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('adm-msg');
+            try {
+              await api('/api/v1/config-rules', {
+                method: 'POST',
+                body: JSON.stringify({
+                  key: document.getElementById('cfg-key').value.trim(),
+                  valueJson: document.getElementById('cfg-val').value.trim(),
+                  effectiveFrom: new Date().toISOString(),
+                  descriptionSk: 'UI'
+                })
+              });
+              msg.innerHTML = '<div class="msg">Nova verzia pravidla ulozena (stare zaznamy sa nemenia).</div>';
+              navigate('admin');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+
+          document.getElementById('int-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('adm-msg');
+            try {
+              await api('/api/v1/integrations', {
+                method: 'POST',
+                body: JSON.stringify({
+                  code: document.getElementById('int-code').value.trim(),
+                  nameSk: document.getElementById('int-name').value.trim(),
+                  connectorType: 'REST',
+                  endpointUrl: document.getElementById('int-url').value.trim(),
+                  format: 'JSON',
+                  scheduleCron: null,
+                  secretRef: document.getElementById('int-secret').value.trim() || null,
+                  activate: false
+                })
+              });
+              msg.innerHTML = '<div class="msg">Konektor ulozeny (bez tajomstva v plain texte).</div>';
+              navigate('admin');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+
+          document.getElementById('adm-audit-export').onclick = async function () {
+            const msg = document.getElementById('adm-msg');
+            try {
+              const res = await fetch('/api/v1/audit-events/export.csv', {
+                headers: { Authorization: 'Bearer ' + state.token }
+              });
+              if (!res.ok) throw new Error('Export zlyhal ' + res.status);
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = 'audit.csv'; a.click();
+              URL.revokeObjectURL(url);
+              msg.innerHTML = '<div class="msg">Audit CSV stiahnuty (export je auditovany).</div>';
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+          document.getElementById('reauth-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('adm-msg');
+            try {
+              const res = await api('/api/v1/auth/reauth', {
+                method: 'POST',
+                body: JSON.stringify({ password: document.getElementById('reauth-pw').value })
+              });
+              state.reauthToken = res.reauthToken;
+              msg.innerHTML = '<div class="msg">Reauth token vydany do ' +
+                new Date(res.expiresAt).toLocaleString('sk-SK') + '.</div>';
+              document.getElementById('adm-reauth').classList.add('hidden');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+          return;
+        }
+        if (page === 'tasks') {
+          const items = await api('/api/v1/work-tasks');
+          const rows = items.map(function (t) {
+            return '<tr><td>' + t.title + '</td><td>' + t.status + '</td><td>' + t.taskTypeCode +
+              '</td><td>' + (t.dueAt ? new Date(t.dueAt).toLocaleString('sk-SK') : '-') + '</td></tr>';
+          }).join('') || '<tr><td colspan="4">Zatial ziadne ulohy</td></tr>';
+          content.innerHTML = '<div class="stack"><h2>Pracovne ulohy</h2>' +
+            makeTable(['Nazov', 'Stav', 'Typ', 'Termin'], rows) + '</div>';
+          return;
+        }
+        if (page === 'controls') {
+          if (state.controlDetailId) {
+            const id = state.controlDetailId;
+            const detail = await api('/api/v1/control-audits/' + id);
+            const audit = detail.audit;
+            const status = audit.status;
+            const isPlanned = status === 0 || status === 'Planned';
+            const isOpen = status === 1 || status === 'InProgress' || status === 2 || status === 'FindingsReview';
+            const isClosed = status === 3 || status === 'Closed' || status === 4 || status === 'Cancelled';
+
+            const checklistRows = (detail.checklist || []).map(function (item) {
+              const disabled = isClosed ? ' disabled' : '';
+              return '<tr><td>' + item.code + '</td><td>' + item.questionSk +
+                '</td><td>' + statusBadge(item.resultStatus) + '</td><td>' +
+                (isOpen
+                  ? '<select class="chk-result" data-id="' + item.id + '" data-rv="' + item.rowVersion + '"' + disabled + '>' +
+                    '<option value="0"' + (item.resultStatus === 0 || item.resultStatus === 'Pending' ? ' selected' : '') + '>Pending</option>' +
+                    '<option value="1"' + (item.resultStatus === 1 || item.resultStatus === 'Compliant' ? ' selected' : '') + '>Compliant</option>' +
+                    '<option value="2"' + (item.resultStatus === 2 || item.resultStatus === 'NonCompliant' ? ' selected' : '') + '>NonCompliant</option>' +
+                    '<option value="3"' + (item.resultStatus === 3 || item.resultStatus === 'NotApplicable' ? ' selected' : '') + '>N/A</option>' +
+                    '</select>' +
+                    '<input class="chk-note" data-id="' + item.id + '" placeholder="Poznamka" value="' + (item.resultNote || '').replace(/"/g, '&quot;') + '"' + disabled + ' />' +
+                    '<button type="button" class="secondary save-chk" data-id="' + item.id + '" data-rv="' + item.rowVersion + '"' + disabled + '>Ulozit</button>'
+                  : (item.resultNote || '—')) +
+                '</td></tr>';
+            }).join('') || '<tr><td colspan="4">Ziadne checklist polozky</td></tr>';
+
+            const findingBlocks = (detail.findings || []).map(function (f) {
+              const actions = (f.actions || []).map(function (a) {
+                return '<li>' + a.title + ' ' + statusBadge(a.status) +
+                  ((a.status === 0 || a.status === 'Open' || a.status === 1 || a.status === 'InProgress') && isOpen
+                    ? ' <button type="button" class="secondary complete-act" data-id="' + a.id +
+                      '" data-rv="' + a.rowVersion + '">Dokonciti</button>'
+                    : '') +
+                  '</li>';
+              }).join('') || '<li class="muted">Ziadne opatrenia</li>';
+              return '<div class="panel" style="margin-bottom:0.5rem">' +
+                '<strong>' + f.title + '</strong> ' + statusBadge(f.severity) +
+                '<p class="muted">' + (f.description || '') + '</p>' +
+                '<ul>' + actions + '</ul>' +
+                (isOpen
+                  ? '<div class="toolbar"><input class="act-title" data-fid="' + f.id +
+                    '" placeholder="Nove opatrenie" style="flex:1" />' +
+                    '<button type="button" class="secondary add-act" data-fid="' + f.id + '">Pridat opatrenie</button></div>'
+                  : '') +
+                '</div>';
+            }).join('') || '<p class="muted">Ziadne zistenia</p>';
+
+            const reportRows = (detail.reports || []).map(function (r) {
+              return '<tr><td>v' + r.version + '</td><td>' + (r.isFrozen ? statusBadge('Frozen') : '—') +
+                '</td><td>' + new Date(r.issuedAt).toLocaleString('sk-SK') + '</td></tr>';
+            }).join('') || '<tr><td colspan="3">Ziadny report</td></tr>';
+
+            content.innerHTML =
+              '<div class="stack">' +
+              '<div class="toolbar">' +
+              '<button type="button" class="secondary" id="ctrl-back">Spat na zoznam</button>' +
+              (isPlanned ? '<button type="button" id="ctrl-start">Spustit kontrolu</button>' : '') +
+              (isOpen ? '<button type="button" id="ctrl-report">Vydat report</button>' : '') +
+              (isOpen ? '<button type="button" id="ctrl-close">Uzavriet</button>' : '') +
+              '<button type="button" class="secondary" id="ctrl-hist">Historia</button>' +
+              '</div>' +
+              '<div id="ctrl-msg"></div>' +
+              '<div class="msg"><b>' + audit.title + '</b> — ' + statusBadge(audit.status) +
+              ' / ' + audit.type + ' / ' + audit.orgUnitName + '</div>' +
+              '<h2>Checklist</h2>' +
+              makeTable(['Kod', 'Otazka', 'Vysledok', 'Akcia'], checklistRows) +
+              '<h2>Zistenia</h2>' +
+              (isOpen
+                ? '<div class="form-panel"><h3>Nove zistenie</h3><form id="finding-form" class="form-grid">' +
+                  '<label>Nazov<input id="f-title" required /></label>' +
+                  '<label>Zavaznost<select id="f-sev"><option value="0">Low</option><option value="1">Medium</option>' +
+                  '<option value="2" selected>High</option><option value="3">Critical</option></select></label>' +
+                  '<label class="full">Popis<textarea id="f-desc" required></textarea></label>' +
+                  '<div class="full"><button type="submit">Pridat zistenie</button></div></form></div>'
+                : '') +
+              findingBlocks +
+              '<h2>Reporty</h2>' +
+              makeTable(['Verzia', 'Stav', 'Vydane'], reportRows) +
+              '<div id="ctrl-history" class="history-panel hidden"></div>' +
+              '</div>';
+
+            document.getElementById('ctrl-back').onclick = function () {
+              state.controlDetailId = null;
+              navigate('controls');
+            };
+            document.getElementById('ctrl-hist').onclick = function () {
+              showHistory('ControlAudit', id, document.getElementById('ctrl-history'));
+            };
+
+            const startBtn = document.getElementById('ctrl-start');
+            if (startBtn) {
+              startBtn.onclick = async function () {
+                if (!confirmAction('Spustit kontrolu? Checklist bude aktivny.')) return;
+                const msg = document.getElementById('ctrl-msg');
+                try {
+                  await api('/api/v1/control-audits/' + id + '/start', {
+                    method: 'POST',
+                    body: JSON.stringify({ rowVersion: audit.rowVersion })
+                  });
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            }
+
+            document.querySelectorAll('.save-chk').forEach(function (btn) {
+              btn.onclick = async function () {
+                const msg = document.getElementById('ctrl-msg');
+                const sel = content.querySelector('.chk-result[data-id="' + btn.dataset.id + '"]');
+                const note = content.querySelector('.chk-note[data-id="' + btn.dataset.id + '"]');
+                try {
+                  await api('/api/v1/control-audits/' + id + '/checklist/' + btn.dataset.id, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      resultStatus: Number(sel.value),
+                      resultNote: note.value || null,
+                      rowVersion: Number(btn.dataset.rv)
+                    })
+                  });
+                  msg.innerHTML = '<div class="msg">Checklist ulozene.</div>';
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            });
+
+            const findingForm = document.getElementById('finding-form');
+            if (findingForm) {
+              findingForm.onsubmit = async function (ev) {
+                ev.preventDefault();
+                const msg = document.getElementById('ctrl-msg');
+                try {
+                  await api('/api/v1/control-audits/' + id + '/findings', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      title: document.getElementById('f-title').value,
+                      description: document.getElementById('f-desc').value,
+                      severity: Number(document.getElementById('f-sev').value),
+                      relatedEntityType: null,
+                      relatedEntityId: null
+                    })
+                  });
+                  msg.innerHTML = '<div class="msg">Zistenie pridane.</div>';
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            }
+
+            document.querySelectorAll('.add-act').forEach(function (btn) {
+              btn.onclick = async function () {
+                const msg = document.getElementById('ctrl-msg');
+                const input = content.querySelector('.act-title[data-fid="' + btn.dataset.fid + '"]');
+                if (!input || !input.value.trim()) {
+                  msg.innerHTML = '<div class="error">Zadajte nazov opatrenia.</div>';
+                  return;
+                }
+                try {
+                  await api('/api/v1/control-audits/findings/' + btn.dataset.fid + '/actions', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      title: input.value.trim(),
+                      description: null,
+                      ownerAccountId: null,
+                      dueAt: null
+                    })
+                  });
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            });
+
+            document.querySelectorAll('.complete-act').forEach(function (btn) {
+              btn.onclick = async function () {
+                if (!confirmAction('Oznacit opatrenie ako dokoncene?')) return;
+                const msg = document.getElementById('ctrl-msg');
+                try {
+                  await api('/api/v1/control-audits/actions/' + btn.dataset.id + '/complete', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      progressNote: 'Dokoncene z UI',
+                      rowVersion: Number(btn.dataset.rv)
+                    })
+                  });
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            });
+
+            const reportBtn = document.getElementById('ctrl-report');
+            if (reportBtn) {
+              reportBtn.onclick = async function () {
+                if (!confirmAction('Vydat zamrazeny report kontroly?')) return;
+                const msg = document.getElementById('ctrl-msg');
+                try {
+                  const fresh = await api('/api/v1/control-audits/' + id);
+                  await api('/api/v1/control-audits/' + id + '/reports', {
+                    method: 'POST',
+                    body: JSON.stringify({ contentJson: null, rowVersion: fresh.audit.rowVersion })
+                  });
+                  msg.innerHTML = '<div class="msg">Report vydany.</div>';
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            }
+
+            const closeBtn = document.getElementById('ctrl-close');
+            if (closeBtn) {
+              closeBtn.onclick = async function () {
+                if (!confirmAction('Uzavriet kontrolu? Tuto akciu nie je mozne vratit.')) return;
+                const msg = document.getElementById('ctrl-msg');
+                try {
+                  const fresh = await api('/api/v1/control-audits/' + id);
+                  await api('/api/v1/control-audits/' + id + '/close', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      summary: 'Uzavrete z UI',
+                      rowVersion: fresh.audit.rowVersion
+                    })
+                  });
+                  state.controlDetailId = null;
+                  msg.innerHTML = '<div class="msg">Kontrola uzavreta.</div>';
+                  navigate('controls');
+                } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+              };
+            }
+            return;
+          }
+
+          const orgs = await api('/api/v1/org-units');
+          const items = await api('/api/v1/control-audits');
+          const orgOpts = orgs.map(function (o) {
+            return '<option value="' + o.id + '">' + o.name + '</option>';
+          }).join('');
+          const rows = items.map(function (c) {
+            const startBtn = (c.status === 0 || c.status === 'Planned')
+              ? '<button type="button" class="secondary start-ctrl" data-id="' + c.id +
+                '" data-rv="' + c.rowVersion + '">Spustit</button> '
+              : '';
+            return '<tr><td>' + c.title + '</td><td>' + c.type + '</td><td>' + statusBadge(c.status) +
+              '</td><td>' + c.orgUnitName + '</td><td>' + startBtn +
+              '<button type="button" class="secondary open-ctrl" data-id="' + c.id + '">Otvorit</button></td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadne kontroly</td></tr>';
+          content.innerHTML =
+            '<div class="stack">' +
+            '<div class="toolbar"><button type="button" data-reveal="ctrl-panel">Nova kontrola</button></div>' +
+            '<div id="ctrl-msg"></div>' +
+            '<div id="ctrl-panel" class="form-panel hidden">' +
+            '<h3>Planovana kontrola (MOD-15)</h3>' +
+            '<form id="ctrl-form" class="form-grid">' +
+            '<label class="full">Nazov<input id="ctrl-title" required /></label>' +
+            '<label>Utvar<select id="ctrl-org">' + orgOpts + '</select></label>' +
+            '<label>Typ<select id="ctrl-type"><option value="0">Interna kontrola</option><option value="1">Interny audit</option></select></label>' +
+            '<div class="full"><button type="submit">Vytvorit (Planned)</button></div></form></div>' +
+            makeTable(['Nazov', 'Typ', 'Stav', 'Utvar', 'Akcie'], rows) + '</div>';
+          bindFormReveals();
+          document.getElementById('ctrl-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            const msg = document.getElementById('ctrl-msg');
+            try {
+              const created = await api('/api/v1/control-audits', {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: document.getElementById('ctrl-title').value,
+                  type: Number(document.getElementById('ctrl-type').value),
+                  orgUnitId: document.getElementById('ctrl-org').value,
+                  plannedFrom: null,
+                  plannedTo: null,
+                  scopeDescription: 'UI demo',
+                  checklistItems: [
+                    { code: 'DOC', questionSk: 'Dokumentacia kompletna?', sortOrder: 1 },
+                    { code: 'PROC', questionSk: 'Proces dodrzany?', sortOrder: 2 }
+                  ]
+                })
+              });
+              msg.innerHTML = '<div class="msg">Kontrola vytvorena v stave Planned. Spustite ju zo zoznamu alebo detailu.</div>';
+              state.controlDetailId = created.id;
+              navigate('controls');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+          document.querySelectorAll('.open-ctrl').forEach(function (btn) {
+            btn.onclick = function () {
+              state.controlDetailId = btn.dataset.id;
+              navigate('controls');
+            };
+          });
+          document.querySelectorAll('.start-ctrl').forEach(function (btn) {
+            btn.onclick = async function () {
+              if (!confirmAction('Spustit kontrolu?')) return;
+              const msg = document.getElementById('ctrl-msg');
+              try {
+                await api('/api/v1/control-audits/' + btn.dataset.id + '/start', {
+                  method: 'POST',
+                  body: JSON.stringify({ rowVersion: Number(btn.dataset.rv) })
+                });
+                state.controlDetailId = btn.dataset.id;
+                navigate('controls');
+              } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+            };
+          });
+          return;
+        }
+        if (page === 'uas') {
+          const data = await api('/api/v1/uas?page=1&pageSize=50');
+          const rows = (data.items || []).map(function (u) {
+            return '<tr><td>' + (u.registrationNumber || '-') + '</td><td>' + u.serialNumber +
+              '</td><td>' + u.manufacturer + ' ' + u.model + '</td><td>' + u.status + '</td></tr>';
+          }).join('') || '<tr><td colspan="4">Zatial ziadne UAS</td></tr>';
+          content.innerHTML = '<div class="stack">' + searchHighlightBanner() + '<h2>Register UAS</h2>' +
+            makeTable(['Evid. oznacenie', 'Vyrobne cislo', 'Vyrobca / model', 'Stav'], rows) + '</div>';
+          return;
+        }
+        if (page === 'components') {
+          const items = await api('/api/v1/components');
+          const rows = items.map(function (c) {
+            return '<tr><td>' + c.internalNumber + '</td><td>' + c.name + '</td><td>' + c.status + '</td></tr>';
+          }).join('') || '<tr><td colspan="3">Zatial ziadne komponenty</td></tr>';
+          content.innerHTML = '<div class="stack"><h2>Komponenty</h2>' +
+            makeTable(['Interne cislo', 'Nazov', 'Stav'], rows) + '</div>';
+          return;
+        }
+        if (page === 'batteries') {
+          const items = await api('/api/v1/batteries');
+          const rows = items.map(function (b) {
+            return '<tr><td>' + b.internalNumber + '</td><td>' + b.serialNumber + '</td><td>' +
+              b.cycleCount + '</td><td>' + (b.healthPercent ?? '-') + '</td><td>' + b.status + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadne baterie</td></tr>';
+          content.innerHTML = '<div class="stack"><h2>Baterie</h2>' +
+            makeTable(['Interne cislo', 'Vyrobne cislo', 'Cykly', 'Zdravie %', 'Stav'], rows) + '</div>';
+        }
+      } catch (err) {
+        content.innerHTML = '<div class="error">' + err.message + '</div>';
+      }
+    }
+
+    function openSearchHit(entityType, id, title) {
+      state.searchHighlight = { entityType: entityType, id: id, title: title };
+      var page = 'dashboard';
+      if (entityType === 'Uas') page = 'uas';
+      else if (entityType === 'Pilot') page = 'pilots';
+      else if (entityType === 'Operation') page = 'operations';
+      else if (entityType === 'Account') page = 'accounts';
+      else if (entityType === 'SafetyEvent') page = 'incidents';
+      else if (entityType === 'ControlAudit') {
+        state.controlDetailId = id;
+        page = 'controls';
+      }
+      document.querySelectorAll('.nav').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.page === page);
+      });
+      navigate(page);
+    }
+
+    function searchHighlightBanner() {
+      if (!state.searchHighlight) return '';
+      var h = state.searchHighlight;
+      state.searchHighlight = null;
+      return '<div class="msg">Z hladania: <b>' + (h.title || h.id) + '</b> (' + h.entityType + ')</div>';
+    }
+
+    function makeTable(headers, rowsHtml) {
+      return '<table><thead><tr>' +
+        headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
+        '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+    }
+
+    function confirmAction(message) {
+      return window.confirm(message || 'Pokracovat?');
+    }
+
+    function statusBadge(text) {
+      var raw = (text == null ? '' : String(text));
+      var key = raw.replace(/\s+/g, '').toLowerCase();
+      var cls = 'badge';
+      if (/inservice|active|approved|closed|resolved|sent|clear|ok|compliant|frozen|completed|verified/.test(key)) cls += ' badge-ok';
+      else if (/draft|open|reported|pending|submitted|underrepair|high|warn|planned|inprogress|findingsreview|medium/.test(key)) cls += ' badge-warn';
+      else if (/suspended|critical|rejected|cancelled|overdue|conflict|revoked|danger|noncompliant/.test(key)) cls += ' badge-danger';
+      return '<span class="' + cls + '">' + raw + '</span>';
+    }
+
+    async function showHistory(entityType, entityId, containerEl) {
+      if (!containerEl) return;
+      containerEl.classList.remove('hidden');
+      containerEl.innerHTML = '<h4>Historia</h4><p class="muted">Nacitavam...</p>';
+      try {
+        var q = '/api/v1/audit-events?entityType=' + encodeURIComponent(entityType) +
+          '&entityId=' + encodeURIComponent(entityId);
+        var events = await api(q);
+        if (!events || !events.length) {
+          containerEl.innerHTML = '<h4>Historia — ' + entityType + '</h4><p class="muted">Ziadne audit zaznamy.</p>';
+          return;
+        }
+        var rows = events.slice(0, 40).map(function (e) {
+          return '<tr><td>' + new Date(e.occurredAt).toLocaleString('sk-SK') +
+            '</td><td>' + (e.actorUserName || '—') +
+            '</td><td>' + e.action +
+            '</td><td>' + statusBadge(e.result) + '</td></tr>';
+        }).join('');
+        containerEl.innerHTML = '<h4>Historia — ' + entityType + '</h4>' +
+          makeTable(['Cas', 'Aktor', 'Akcia', 'Vysledok'], rows);
+      } catch (err) {
+        containerEl.innerHTML = '<h4>Historia</h4><div class="error">' + err.message + '</div>';
+      }
+    }
+
+    /** Formuláre sú skryté; tlačidlá data-reveal / data-hide ich otvárajú a zatvárajú. */
+    function bindFormReveals() {
+      content.querySelectorAll('[data-reveal]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-reveal');
+          var panel = document.getElementById(id);
+          if (!panel) return;
+          var willOpen = panel.classList.contains('hidden');
+          content.querySelectorAll('.form-panel').forEach(function (p) { p.classList.add('hidden'); });
+          if (willOpen) panel.classList.remove('hidden');
+        });
+      });
+      content.querySelectorAll('[data-hide]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var panel = document.getElementById(btn.getAttribute('data-hide'));
+          if (panel) panel.classList.add('hidden');
+        });
+      });
+    }
+
+    async function loadUasOptions() {
+      try {
+        const uasData = await api('/api/v1/uas?page=1&pageSize=50');
+        return uasData.items || uasData.Items || [];
+      } catch (err) {
+        console.warn('UAS list', err);
+        return [];
+      }
+    }
+
+    function uasSelectHtml(uasList, emptyLabel) {
+      if (!uasList.length) {
+        return '<option value="">' + (emptyLabel || '(ziadne UAS v databaze)') + '</option>';
+      }
+      return uasList.map(function (u) {
+        return '<option value="' + u.id + '">' + (u.registrationNumber || u.serialNumber) +
+          ' — ' + u.manufacturer + ' ' + u.model + ' (' + u.status + ')</option>';
+      }).join('');
+    }
+
+    async function createDemoUas() {
+      const orgs = await api('/api/v1/org-units');
+      const unit = orgs.find(function (o) { return o.code === 'UTVAR-A'; }) || orgs[0];
+      const sn = 'UI-' + Date.now().toString().slice(-8);
+      return api('/api/v1/uas', {
+        method: 'POST',
+        body: JSON.stringify({
+          serialNumber: sn,
+          manufacturer: 'DJI',
+          model: 'M300',
+          uasTypeCode: 'MULTI_ROTOR',
+          owningOrgUnitId: unit.id,
+          notes: 'Vytvorene z UI'
+        })
+      });
+    }
+
+    // Stary token po reštarte API nefunguje — vzdy ukaz login (okrem SSO callback)
+    localStorage.removeItem('issuas.token');
+    localStorage.removeItem('issuas.name');
+    state.token = null;
+    completeSsoCallbackFromUrl().then(function (handled) {
+      if (!handled) showLogin();
+    });
+  </script>
+</body>
+</html>

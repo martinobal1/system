@@ -1,0 +1,48 @@
+namespace IsSuas.Application.Policies;
+
+public static class Permissions
+{
+    public const string OrgUnitsRead = "orgunits.read";
+    public const string OrgUnitsWrite = "orgunits.write";
+    public const string AccountsRead = "accounts.read";
+    public const string AccountsWrite = "accounts.write";
+    public const string RolesAssign = "roles.assign";
+    public const string LookupsRead = "lookups.read";
+    public const string LookupsWrite = "lookups.write";
+    public const string AuditRead = "audit.read";
+    public const string UasRead = "uas.read";
+    public const string UasWrite = "uas.write";
+    public const string UasApprove = "uas.approve";
+    public const string ComponentsRead = "components.read";
+    public const string ComponentsWrite = "components.write";
+    public const string BatteriesRead = "batteries.read";
+    public const string BatteriesWrite = "batteries.write";
+    public const string PilotsRead = "pilots.read";
+    public const string PilotsWrite = "pilots.write";
+    public const string OperationsRead = "operations.read";
+    public const string OperationsWrite = "operations.write";
+    public const string OperationsApprove = "operations.approve";
+    public const string FlightsRead = "flights.read";
+    public const string FlightsWrite = "flights.write";
+    public const string MaintenanceRead = "maintenance.read";
+    public const string MaintenanceWrite = "maintenance.write";
+    public const string SafetyRead = "safety.read";
+    public const string SafetyWrite = "safety.write";
+    public const string SafetySensitiveRead = "safety.sensitive.read";
+    public const string SafetyClose = "safety.close";
+    public const string DocumentsRead = "documents.read";
+    public const string DocumentsWrite = "documents.write";
+    public const string DocumentsSensitiveRead = "documents.sensitive.read";
+    public const string ReportsRead = "reports.read";
+    public const string ReportsWrite = "reports.write";
+    public const string ReportsOfficial = "reports.official";
+    public const string AuditExport = "audit.export";
+    public const string IntegrationsRead = "integrations.read";
+    public const string IntegrationsWrite = "integrations.write";
+    public const string SystemInfoRead = "system.info.read";
+    public const string ControlsRead = "controls.read";
+    public const string ControlsWrite = "controls.write";
+    public const string ControlsClose = "controls.close";
+    public const string NotificationsRead = "notifications.read";
+    public const string NotificationsWrite = "notifications.write";
+}

@@ -1,0 +1,52 @@
+name: IsSuas CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: issuas
+          POSTGRES_PASSWORD: issuas_dev
+          POSTGRES_DB: issuas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U issuas -d issuas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore
+        run: dotnet restore backend/IsSuas.slnx
+      - name: Build
+        run: dotnet build backend/IsSuas.slnx --no-restore -c Release
+      - name: Test
+        run: dotnet test backend/IsSuas.slnx --no-build -c Release --verbosity normal
+        env:
+          ConnectionStrings__Default: Host=localhost;Port=5432;Database=issuas;Username=issuas;Password=issuas_dev
+          Jwt__SigningKey: CI_TEST_SIGNING_KEY_MUST_BE_AT_LEAST_32_CHARS
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run build

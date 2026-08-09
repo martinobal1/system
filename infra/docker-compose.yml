@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: issuas-postgres
+    environment:
+      POSTGRES_USER: issuas
+      POSTGRES_PASSWORD: issuas_dev
+      POSTGRES_DB: issuas
+    ports:
+      - "5432:5432"
+    volumes:
+      - issuas_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U issuas -d issuas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: issuas-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: issuas
+      MINIO_ROOT_PASSWORD: issuas_dev_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - issuas_minio:/data
+
+volumes:
+  issuas_pgdata:
+  issuas_minio:

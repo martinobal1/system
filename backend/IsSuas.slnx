@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IsSuas.Api/IsSuas.Api.csproj" />
+    <Project Path="src/IsSuas.Application/IsSuas.Application.csproj" />
+    <Project Path="src/IsSuas.Domain/IsSuas.Domain.csproj" />
+    <Project Path="src/IsSuas.Infrastructure/IsSuas.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IsSuas.IntegrationTests/IsSuas.IntegrationTests.csproj" />
+    <Project Path="tests/IsSuas.UnitTests/IsSuas.UnitTests.csproj" />
+  </Folder>
+</Solution>
