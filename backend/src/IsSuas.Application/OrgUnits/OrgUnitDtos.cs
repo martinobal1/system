@@ -7,7 +7,8 @@ public sealed record OrgUnitDto(
     Guid? ParentId,
     string Path,
     int Level,
-    bool IsActive);
+    bool IsActive,
+    uint RowVersion);
 
 public sealed record CreateOrgUnitRequest(string Code, string Name, Guid? ParentId);
 public sealed record UpdateOrgUnitRequest(string Name, uint RowVersion);

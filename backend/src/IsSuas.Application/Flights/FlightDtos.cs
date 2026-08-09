@@ -17,6 +17,12 @@ public sealed record FlightDto(
     DateTimeOffset? TakeoffAt,
     DateTimeOffset? LandingAt,
     int? DurationMinutes,
+    string? FlightNumber,
+    string? Location,
+    string? Purpose,
+    double? LocationLat,
+    double? LocationLon,
+    double? LocationRadiusMeters,
     double? DistanceMeters,
     double? MaxAltitudeMeters,
     bool CountersApplied,
@@ -56,7 +62,12 @@ public sealed record CreateStandaloneFlightRequest(
     Guid? PilotId,
     Guid? BatteryId,
     DateTimeOffset? TakeoffAt,
-    DateTimeOffset? LandingAt);
+    DateTimeOffset? LandingAt,
+    string? Location = null,
+    string? Purpose = null,
+    double? LocationLat = null,
+    double? LocationLon = null,
+    double? LocationRadiusMeters = null);
 
 public sealed record CloseFlightRequest(
     string PostFlightNotes,

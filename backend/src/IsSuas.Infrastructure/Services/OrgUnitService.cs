@@ -13,6 +13,7 @@ public interface IOrgUnitService
     Task<OrgUnitDto> CreateAsync(CreateOrgUnitRequest request, CancellationToken cancellationToken = default);
     Task<OrgUnitDto> UpdateAsync(Guid id, UpdateOrgUnitRequest request, CancellationToken cancellationToken = default);
     Task<OrgUnitDto> MoveAsync(Guid id, MoveOrgUnitRequest request, CancellationToken cancellationToken = default);
+    Task DeactivateAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public sealed class OrgUnitService(
@@ -150,6 +151,23 @@ public sealed class OrgUnitService(
         return Map(entity);
     }
 
+    public async Task DeactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.OrgUnitsWrite);
+        var entity = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == id && x.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Útvar nebol nájdený.");
+        policy.EnsureOrgAccess(entity.Path);
+
+        if (await db.OrgUnits.AnyAsync(x => x.ParentId == id && x.IsActive, cancellationToken))
+            throw new ValidationException("Najprv odoberte (deaktivujte) podradené útvary.");
+
+        var before = Map(entity);
+        entity.IsActive = false;
+        entity.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("OrgUnit.Deactivate", nameof(OrgUnit), entity.Id, before, Map(entity), cancellationToken: cancellationToken);
+    }
+
     private static void EnsureRowVersion(OrgUnit entity, uint rowVersion)
     {
         if (entity.RowVersion != rowVersion)
@@ -157,5 +175,5 @@ public sealed class OrgUnitService(
     }
 
     private static OrgUnitDto Map(OrgUnit x) =>
-        new(x.Id, x.Code, x.Name, x.ParentId, x.Path, x.Level, x.IsActive);
+        new(x.Id, x.Code, x.Name, x.ParentId, x.Path, x.Level, x.IsActive, x.RowVersion);
 }

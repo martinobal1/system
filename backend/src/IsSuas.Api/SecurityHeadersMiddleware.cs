@@ -9,13 +9,23 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IHostEnviron
         headers["X-Content-Type-Options"] = "nosniff";
         headers["X-Frame-Options"] = "SAMEORIGIN";
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+        headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)";
         if (env.IsDevelopment())
             headers["Content-Security-Policy"] =
-                "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: https:; connect-src 'self'";
+                "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+                "img-src 'self' data: https: blob:; " +
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; " +
+                "font-src 'self' data: https://fonts.gstatic.com; " +
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; " +
+                "connect-src 'self' https://gis.lps.sk https://nominatim.openstreetmap.org https://services.arcgisonline.com https://server.arcgisonline.com";
         else
             headers["Content-Security-Policy"] =
-                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+                "default-src 'self'; " +
+                "img-src 'self' data: https: blob:; " +
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; " +
+                "font-src 'self' data: https://fonts.gstatic.com; " +
+                "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; " +
+                "connect-src 'self' https://gis.lps.sk https://nominatim.openstreetmap.org https://services.arcgisonline.com https://server.arcgisonline.com";
 
         await next(context);
     }

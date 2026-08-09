@@ -28,4 +28,11 @@ public sealed class OrgUnitsController(IOrgUnitService service) : ControllerBase
     [HttpPost("{id:guid}/move")]
     public async Task<ActionResult<OrgUnitDto>> Move(Guid id, [FromBody] MoveOrgUnitRequest request, CancellationToken cancellationToken)
         => Ok(await service.MoveAsync(id, request, cancellationToken));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
+    {
+        await service.DeactivateAsync(id, cancellationToken);
+        return NoContent();
+    }
 }

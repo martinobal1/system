@@ -1,0 +1,27 @@
+prehlad
+graf, shmu, farbicky
+
+pridat dennik letov
+
+Pouzivatel premenit na prevadzkovatel
+
+Piloti naplnit random mena nech mame predstavu, utvar nech ma nejaku farbu nech to je farebne rozdielne
+
+operacie čo robili a kde robili, aky bol učel
+
+
+lety vymazat to je to iste čo operacia, 
+
+vymazat udrzbu ponechat poruchy
+
+---------------
+do kalendara pridat graf, kolacovy graf nech to vyzera pekne
+
+ulohy vymazat
+
+kontroly vymazat
+
+register uas naplnit nejakymi random datami 
+
+
+komponenty a baterie doplnit data

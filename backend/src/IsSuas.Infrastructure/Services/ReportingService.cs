@@ -124,6 +124,57 @@ public sealed class ReportingService(
             .Take(10)
             .ToListAsync(cancellationToken);
 
+        var closedFlights = await db.Flights.AsNoTracking()
+            .Include(f => f.OrgUnit)
+            .Include(f => f.Uas)
+            .Where(f => f.IsActive && f.Status == FlightStatus.Closed && f.DurationMinutes != null && f.DurationMinutes > 0)
+            .ToListAsync(cancellationToken);
+        closedFlights = closedFlights.Where(f => InScope(f.OrgUnit.Path)).ToList();
+
+        var totalFlightHours = Math.Round((decimal)closedFlights.Sum(f => f.DurationMinutes!.Value) / 60m, 1);
+
+        var byOrg = closedFlights
+            .GroupBy(f => new { f.OrgUnitId, f.OrgUnit.Code, f.OrgUnit.Name })
+            .Select(g => new FlightHoursSliceDto(
+                g.Key.Code,
+                g.Key.Name,
+                Math.Round(g.Sum(x => x.DurationMinutes!.Value) / 60m, 1),
+                g.Count()))
+            .OrderByDescending(x => x.Hours)
+            .ToList();
+
+        var byUasRaw = closedFlights
+            .Where(f => f.UasId != null)
+            .GroupBy(f => new
+            {
+                Id = f.UasId!.Value,
+                Label = f.Uas!.RegistrationNumber ?? f.Uas.SerialNumber,
+                Serial = f.Uas.SerialNumber
+            })
+            .Select(g => new FlightHoursSliceDto(
+                g.Key.Serial,
+                g.Key.Label,
+                Math.Round(g.Sum(x => x.DurationMinutes!.Value) / 60m, 1),
+                g.Count()))
+            .OrderByDescending(x => x.Hours)
+            .ToList();
+
+        const int topUas = 10;
+        IReadOnlyList<FlightHoursSliceDto> byUas;
+        if (byUasRaw.Count <= topUas)
+            byUas = byUasRaw;
+        else
+        {
+            var top = byUasRaw.Take(topUas).ToList();
+            var rest = byUasRaw.Skip(topUas).ToList();
+            top.Add(new FlightHoursSliceDto(
+                "OTHER",
+                $"Ostatné drony ({rest.Count})",
+                Math.Round(rest.Sum(x => x.Hours), 1),
+                rest.Sum(x => x.FlightCount)));
+            byUas = top;
+        }
+
         var roleHint = currentUser.Roles.Select(r => r.RoleCode).FirstOrDefault() ?? "User";
 
         return new DashboardDto(
@@ -141,7 +192,10 @@ public sealed class ReportingService(
             alerts.Select(a => new AlertItemDto(a.Id, a.Title, a.Priority, a.TypeCode, a.RelatedEntityId, a.RelatedEntityType)).ToList(),
             scopeNorm,
             scopeOrgId,
-            scopeOrgName);
+            scopeOrgName,
+            totalFlightHours,
+            byOrg,
+            byUas);
     }
 
     public async Task<IReadOnlyList<CalendarItemDto>> GetCalendarAsync(
@@ -291,20 +345,20 @@ public sealed class ReportingService(
     private async Task<ReportDto> ReportUasAsync(ReportRequest request, DateTimeOffset dataAsOf, CancellationToken ct)
     {
         var items = await db.UasAircraft.AsNoTracking().Where(u => u.IsActive).ToListAsync(ct);
-        var rows = items.GroupBy(u => u.Status.ToString())
-            .Select(g => new ReportRowDto(g.Key, $"UAS stav {g.Key}", g.Count(), "ks", "status"))
+        var rows = items.GroupBy(u => u.Status)
+            .Select(g => new ReportRowDto(g.Key.ToString(), $"UAS stav {StatusSk(g.Key.ToString())}", g.Count(), "ks", "status"))
             .ToList();
-        return new ReportDto("UAS", "Report flotily UAS", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("UAS", "Výkaz flotily UAS", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["uas_total"] = items.Count });
     }
 
     private async Task<ReportDto> ReportPilotsAsync(ReportRequest request, DateTimeOffset dataAsOf, CancellationToken ct)
     {
         var items = await db.Pilots.AsNoTracking().Where(p => p.IsActive).ToListAsync(ct);
-        var rows = items.GroupBy(p => p.Status.ToString())
-            .Select(g => new ReportRowDto(g.Key, $"Piloti {g.Key}", g.Count(), "osôb", "status"))
+        var rows = items.GroupBy(p => p.Status)
+            .Select(g => new ReportRowDto(g.Key.ToString(), $"Piloti — {StatusSk(g.Key.ToString())}", g.Count(), "osôb", "status"))
             .ToList();
-        return new ReportDto("PILOTS", "Report pilotov", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("PILOTS", "Výkaz pilotov", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["pilots_total"] = items.Count });
     }
 
@@ -322,7 +376,7 @@ public sealed class ReportingService(
             new("flights_closed", "Uzatvorené lety", closed.Count, "ks", "flights"),
             new("flight_minutes", "Súčet minút uzatvorených letov", duration, "min", "flights")
         };
-        return new ReportDto("FLIGHTS", "Report letov", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("FLIGHTS", "Výkaz letov", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal>
             {
                 ["flights_count"] = items.Count,
@@ -342,7 +396,7 @@ public sealed class ReportingService(
             new("operations_approved", "Schválené", items.Count(o => o.Status == OperationStatus.Approved), "ks", "operations"),
             new("operations_urgent", "Neodkladné", items.Count(o => o.IsUrgent), "ks", "operations")
         };
-        return new ReportDto("OPERATIONS", "Report operácií", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("OPERATIONS", "Výkaz operácií", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["operations_count"] = items.Count });
     }
 
@@ -354,7 +408,7 @@ public sealed class ReportingService(
             new("batteries_total", "Batérie celkom", items.Count, "ks", "batteries"),
             new("battery_cycles_sum", "Súčet cyklov", items.Sum(b => b.CycleCount), "cykly", "batteries")
         };
-        return new ReportDto("BATTERIES", "Report batérií", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("BATTERIES", "Výkaz batérií", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["batteries_total"] = items.Count });
     }
 
@@ -365,9 +419,9 @@ public sealed class ReportingService(
         var rows = new List<ReportRowDto>
         {
             new("plans_total", "Plány údržby", plans.Count, "ks", "maintenance"),
-            new("plans_overdue", "Overdue", overdue, "ks", "maintenance")
+            new("plans_overdue", "Po termíne", overdue, "ks", "maintenance")
         };
-        return new ReportDto("MAINTENANCE", "Report údržby", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("MAINTENANCE", "Výkaz údržby", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["plans_total"] = plans.Count, ["plans_overdue"] = overdue });
     }
 
@@ -380,7 +434,7 @@ public sealed class ReportingService(
             new("defects_total", "Poruchy celkom", items.Count, "ks", "defects"),
             new("defects_open", "Otvorené", open, "ks", "defects")
         };
-        return new ReportDto("DEFECTS", "Report porúch", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("DEFECTS", "Výkaz porúch", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["defects_total"] = items.Count, ["defects_open"] = open });
     }
 
@@ -393,7 +447,7 @@ public sealed class ReportingService(
             new("incidents_total", "Incidenty celkom", items.Count, "ks", "incidents"),
             new("incidents_critical", "Kritické", critical, "ks", "incidents")
         };
-        return new ReportDto("INCIDENTS", "Report incidentov", dataAsOf, ReportRules.Version, rows,
+        return new ReportDto("INCIDENTS", "Výkaz incidentov", dataAsOf, ReportRules.Version, rows,
             new Dictionary<string, decimal> { ["incidents_total"] = items.Count, ["incidents_critical"] = critical });
     }
 
@@ -401,6 +455,48 @@ public sealed class ReportingService(
         new(r.Id, r.ReportFamilyId, r.ReportTypeCode, r.TitleSk, r.Version, r.DataAsOf, r.Status,
             r.PreparedByAccountId, r.ApprovedByAccountId, r.ApprovedAt, r.ApprovalReason,
             r.SnapshotJson, r.RulesJson, r.RowVersion);
+
+    private static string StatusSk(string code) => code switch
+    {
+        "Draft" => "Koncept",
+        "Submitted" => "Podané",
+        "Approved" => "Schválené",
+        "Returned" => "Vrátené",
+        "Rejected" => "Zamietnuté",
+        "Cancelled" => "Zrušené",
+        "Active" => "Aktívne",
+        "Revoked" => "Odvolané",
+        "Open" => "Otvorené",
+        "Closed" => "Uzavreté",
+        "Resolved" => "Vyriešené",
+        "InProgress" => "Prebieha",
+        "Pending" => "Čaká",
+        "Ready" => "Pripravené",
+        "Reported" => "Nahlásené",
+        "UnderRepair" => "V oprave",
+        "InService" => "V prevádzke",
+        "Suspended" => "Pozastavené",
+        "InMaintenance" => "V údržbe",
+        "Deactivated" => "Deaktivovaný",
+        "TemporarilyBlocked" => "Dočasne blokovaný",
+        "Prepared" => "Pripravený",
+        "Eligible" => "Spôsobilý",
+        "NotEligible" => "Nespôsobilý",
+        "Registered" => "Registrovaný",
+        "Available" => "Dostupný",
+        "InUse" => "Používaný",
+        "Overdue" => "Po termíne",
+        "Planned" => "Plánované",
+        "Completed" => "Dokončené",
+        "Unread" => "Neprečítané",
+        "Read" => "Prečítané",
+        "Critical" => "Kritická",
+        "High" => "Vysoká",
+        "Medium" => "Stredná",
+        "Low" => "Nízka",
+        "Blocking" => "Blokujúca",
+        _ => code
+    };
 
     private static string Escape(string? value)
     {

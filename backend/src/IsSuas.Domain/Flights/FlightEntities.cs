@@ -20,6 +20,14 @@ public class Flight : AuditableEntity
     public Pilot? Pilot { get; set; }
     public Guid? BatteryId { get; set; }
     public Battery? Battery { get; set; }
+    public string? FlightNumber { get; set; }
+    public string? Location { get; set; }
+    /// <summary>Stred plánovaného operačného priestoru (WGS84).</summary>
+    public double? LocationLat { get; set; }
+    public double? LocationLon { get; set; }
+    /// <summary>Polomer operačného priestoru v metroch (napr. 1000 = 1 km).</summary>
+    public double? LocationRadiusMeters { get; set; }
+    public string? Purpose { get; set; }
     public FlightStatus Status { get; set; } = FlightStatus.Draft;
     public DateTimeOffset? TakeoffAt { get; set; }
     public DateTimeOffset? LandingAt { get; set; }

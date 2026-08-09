@@ -10,6 +10,9 @@ internal sealed class FlightConfiguration : IEntityTypeConfiguration<Flight>
     {
         AuditableConfig.Configure(builder);
         builder.Property(x => x.StandaloneReason).HasMaxLength(1024);
+        builder.Property(x => x.FlightNumber).HasMaxLength(64);
+        builder.Property(x => x.Location).HasMaxLength(512);
+        builder.Property(x => x.Purpose).HasMaxLength(256);
         builder.Property(x => x.ChecklistResult).HasMaxLength(512);
         builder.HasOne(x => x.Operation).WithMany().HasForeignKey(x => x.OperationId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.OrgUnit).WithMany().HasForeignKey(x => x.OrgUnitId).OnDelete(DeleteBehavior.Restrict);
@@ -17,6 +20,7 @@ internal sealed class FlightConfiguration : IEntityTypeConfiguration<Flight>
         builder.HasOne(x => x.Pilot).WithMany().HasForeignKey(x => x.PilotId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.Battery).WithMany().HasForeignKey(x => x.BatteryId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => x.FlightNumber);
         builder.HasIndex(x => x.OperationId);
     }
 }

@@ -35,6 +35,12 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHttpClient("lps-gis", client =>
+{
+    client.BaseAddress = new Uri("https://gis.lps.sk/server/rest/services/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("IsSuas/1.0 (VFR map proxy)");
+});
 
 var app = builder.Build();
 

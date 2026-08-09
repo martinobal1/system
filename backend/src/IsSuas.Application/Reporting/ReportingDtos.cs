@@ -15,9 +15,14 @@ public sealed record DashboardDto(
     IReadOnlyList<AlertItemDto> CriticalAlerts,
     string Scope = "central",
     Guid? ScopeOrgUnitId = null,
-    string? ScopeOrgUnitName = null);
+    string? ScopeOrgUnitName = null,
+    decimal TotalFlightHours = 0,
+    IReadOnlyList<FlightHoursSliceDto>? FlightHoursByOrgUnit = null,
+    IReadOnlyList<FlightHoursSliceDto>? FlightHoursByUas = null);
 
 public sealed record FleetSummaryDto(int TotalUas, int InService, int Suspended, int InMaintenance, int Draft);
+
+public sealed record FlightHoursSliceDto(string Key, string Label, decimal Hours, int FlightCount);
 
 public sealed record CalendarItemDto(
     Guid Id,

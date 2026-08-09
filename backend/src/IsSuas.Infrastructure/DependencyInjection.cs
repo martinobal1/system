@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddObjectStorage(configuration);
         services.AddEmailSender(configuration);
         services.AddSingleton<IAirspaceMapAdapter, OfflineAirspaceMapAdapter>();
+        services.AddSingleton<IWeatherProvider, OfflineShmuWeatherProvider>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddScoped<IControlAuditService, ControlAuditService>();
         services.AddScoped<ILookupService, LookupService>();

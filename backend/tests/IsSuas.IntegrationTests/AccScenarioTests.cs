@@ -13,6 +13,7 @@ using IsSuas.Application.OrgUnits;
 using IsSuas.Application.Pilots;
 using IsSuas.Application.Safety;
 using IsSuas.Application.Documents;
+using IsSuas.Application.Weather;
 using IsSuas.Application.Reporting;
 using IsSuas.Application.Lookups;
 using IsSuas.Application.Notifications;
@@ -1992,6 +1993,20 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         Assert.NotNull(reauth);
         Assert.False(string.IsNullOrWhiteSpace(reauth.ReauthToken));
         Assert.True(reauth.ExpiresAt > DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Acc37_WeatherShmuSnapshot_HasHourlySeries()
+    {
+        await LoginAs("gestor");
+        var weather = await _client.GetFromJsonAsync<WeatherSnapshotDto>("/api/v1/weather", JsonOptions);
+        Assert.NotNull(weather);
+        Assert.Equal("OfflineShmu", weather.ProviderCode);
+        Assert.Contains("SHMÚ", weather.SourceLabel, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(weather.StationName));
+        Assert.NotEmpty(weather.Hourly);
+        Assert.True(weather.Hourly.Count >= 12);
+        Assert.True(weather.ValidUntil > weather.ObservedAt);
     }
 
     private async Task LoginAs(string userName)

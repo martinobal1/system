@@ -86,6 +86,7 @@ public sealed class FlightService(
             BatteryId = batteryId,
             TakeoffAt = request.TakeoffAt ?? op.PlannedStart,
             LandingAt = request.LandingAt ?? op.PlannedEnd,
+            FlightNumber = await NextFlightNumberAsync(cancellationToken),
             Status = FlightStatus.Draft,
             CreatedBy = currentUser.AccountId,
             UpdatedBy = currentUser.AccountId
@@ -111,6 +112,23 @@ public sealed class FlightService(
         if (request.BatteryId is Guid batteryId && request.UasId is Guid uasId)
             await fleet.EnsureBatteryCompatibleAsync(batteryId, uasId, cancellationToken);
 
+        var lat = request.LocationLat;
+        var lon = request.LocationLon;
+        var radius = request.LocationRadiusMeters;
+        if (radius is < 50 or > 20000)
+            throw new ValidationException("Polomer operačného priestoru musí byť 50–20000 m.");
+        if ((lat is null) != (lon is null))
+            throw new ValidationException("Lokalita na mape vyžaduje lat aj lon.");
+        if (lat is < -90 or > 90 || lon is < -180 or > 180)
+            throw new ValidationException("Neplatné súradnice lokality.");
+
+        var locationText = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim();
+        if (locationText is null && lat is not null && lon is not null)
+        {
+            var rLabel = radius is null ? "" : $" · r={radius:0} m";
+            locationText = $"{lat:0.0000}°N, {lon:0.0000}°E{rLabel}";
+        }
+
         var flight = new Flight
         {
             StandaloneReason = request.StandaloneReason.Trim(),
@@ -120,6 +138,12 @@ public sealed class FlightService(
             BatteryId = request.BatteryId,
             TakeoffAt = request.TakeoffAt,
             LandingAt = request.LandingAt,
+            FlightNumber = await NextFlightNumberAsync(cancellationToken),
+            Location = locationText,
+            LocationLat = lat,
+            LocationLon = lon,
+            LocationRadiusMeters = radius,
+            Purpose = string.IsNullOrWhiteSpace(request.Purpose) ? null : request.Purpose.Trim(),
             Status = FlightStatus.Draft,
             CreatedBy = currentUser.AccountId,
             UpdatedBy = currentUser.AccountId
@@ -401,6 +425,26 @@ public sealed class FlightService(
         }
     }
 
+    private async Task<string> NextFlightNumberAsync(CancellationToken cancellationToken)
+    {
+        var year = clock.UtcNow.Year;
+        var prefix = $"LET-{year}-";
+        var existing = await db.Flights.AsNoTracking()
+            .Where(f => f.FlightNumber != null && f.FlightNumber.StartsWith(prefix))
+            .Select(f => f.FlightNumber!)
+            .ToListAsync(cancellationToken);
+
+        var max = 0;
+        foreach (var number in existing)
+        {
+            var suffix = number.Length > prefix.Length ? number[prefix.Length..] : "";
+            if (int.TryParse(suffix, out var seq) && seq > max)
+                max = seq;
+        }
+
+        return $"{prefix}{(max + 1):0000}";
+    }
+
     private async Task<Flight> LoadAsync(Guid id, CancellationToken cancellationToken) =>
         await db.Flights
             .Include(f => f.OrgUnit)
@@ -534,8 +578,10 @@ public sealed class FlightService(
         new(f.Id, f.OperationId, f.StandaloneReason, f.OrgUnitId, f.OrgUnit.Name, f.UasId,
             f.Uas?.RegistrationNumber ?? f.Uas?.SerialNumber, f.PilotId,
             f.Pilot is null ? null : $"{f.Pilot.Person.FirstName} {f.Pilot.Person.LastName}",
-            f.BatteryId, f.Status, f.TakeoffAt, f.LandingAt, f.DurationMinutes, f.DistanceMeters,
-            f.MaxAltitudeMeters, f.CountersApplied, f.IsActive, f.RowVersion);
+            f.BatteryId, f.Status, f.TakeoffAt, f.LandingAt, f.DurationMinutes,
+            f.FlightNumber, f.Location, f.Purpose,
+            f.LocationLat, f.LocationLon, f.LocationRadiusMeters,
+            f.DistanceMeters, f.MaxAltitudeMeters, f.CountersApplied, f.IsActive, f.RowVersion);
 
     private static FlightDetailDto ToDetail(Flight f) =>
         new(Map(f), f.PostFlightNotes, f.ChecklistResult, f.DeviationNotes, f.TrackGeoJson,
