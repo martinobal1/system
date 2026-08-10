@@ -236,9 +236,39 @@
   .map-legend {
     border-right: 0;
     border-bottom: 1px solid #d3dde6;
-    max-height: 160px;
+    max-height: 140px;
   }
   .map-shell {
-    min-height: calc(100vh - 3.5rem);
+    min-height: calc(100dvh - 3.5rem);
+  }
+  .map-toolbar {
+    gap: 0.4rem;
+    padding: 0.55rem 0.65rem;
+  }
+  .map-toolbar h2 {
+    width: 100%;
+    margin: 0 0 0.15rem;
+    font-size: 0.88rem;
+  }
+  .map-toolbar .map-search {
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 100%;
+  }
+  .map-toolbar button {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.4rem);
+  }
+  .map-coords {
+    width: 100%;
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+  .map-pick-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #drone-map {
+    min-height: 320px;
   }
 }
