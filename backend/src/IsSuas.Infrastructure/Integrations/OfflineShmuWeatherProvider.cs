@@ -31,7 +31,7 @@ public sealed class OfflineShmuWeatherProvider(IConfiguration configuration) : I
         var hourly = new List<WeatherHourPointDto>(24);
         for (var h = 0; h < 24; h++)
         {
-            var at = now.AddHours(h).ToOffset(TimeSpan.FromHours(2));
+            var at = now.AddHours(h); // UTC — Npgsql-safe if ever persisted; UI formátuje lokálne
             // Deterministic diurnal curve: coolest near hour 5, warmest near hour 15.
             var wave = Math.Sin((h - 5) / 24.0 * Math.PI * 2);
             var temp = Math.Round(baseTempC + wave * 3.0, 1);

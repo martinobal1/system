@@ -747,7 +747,8 @@ public static class DatabaseSeeder
             OperationStatus.Approved, OperationStatus.Returned, OperationStatus.Rejected
         };
         var now = DateTimeOffset.UtcNow;
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 8, 0, 0, TimeSpan.FromHours(2));
+        // Npgsql timestamptz accepts only UTC (Offset=0)
+        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 8, 0, 0, TimeSpan.Zero);
 
         for (var i = 0; i < 24; i++)
         {
