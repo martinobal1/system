@@ -2023,11 +2023,28 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<int?>("DurationMinutes")
                         .HasColumnType("integer");
 
+                    b.Property<string>("FlightNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LandingAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<double?>("LocationLat")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LocationLon")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LocationRadiusMeters")
+                        .HasColumnType("double precision");
 
                     b.Property<double?>("MaxAltitudeMeters")
                         .HasColumnType("double precision");
@@ -2046,6 +2063,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("PostFlightNotes")
                         .HasColumnType("text");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
@@ -2076,6 +2097,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BatteryId");
+
+                    b.HasIndex("FlightNumber");
 
                     b.HasIndex("IsActive");
 
@@ -5813,6 +5836,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IsActive");
 
+                    b.HasIndex("OrgUnitId");
+
                     b.HasIndex("RelatedUasId");
 
                     b.HasIndex("Severity");
@@ -7300,6 +7325,15 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("SafetyEvent");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Safety.SafetyEvent", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Identity.OrgUnit", "OrgUnit")
+                        .WithMany()
+                        .HasForeignKey("OrgUnitId");
+
+                    b.Navigation("OrgUnit");
                 });
 
             modelBuilder.Entity("IsSuas.Domain.Safety.SafetyEventAsset", b =>

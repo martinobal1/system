@@ -4,7 +4,7 @@ services:
     container_name: issuas-postgres
     environment:
       POSTGRES_USER: issuas
-      POSTGRES_PASSWORD: issuas_dev
+      POSTGRES_PASSWORD: 3CDGKPFE32
       POSTGRES_DB: issuas
     ports:
       - "5432:5432"
@@ -22,12 +22,28 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: issuas
-      MINIO_ROOT_PASSWORD: issuas_dev_secret
+      MINIO_ROOT_PASSWORD: AYOZB7EFzwAPseW7xqbnbHwoRn/PJSdzE2B6BfLjQbaN7JqRJtfTsF7sxfFswIYL
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - issuas_minio:/data
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: src/IsSuas.Api/Dockerfile
+    container_name: issuas-api
+    env_file:
+      - .env
+    ports:
+      - "80:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   issuas_pgdata:
