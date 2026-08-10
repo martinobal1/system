@@ -2254,6 +2254,185 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.ToTable("TelemetryImports");
                 });
 
+            modelBuilder.Entity("IsSuas.Domain.GeoZones.GeoZone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorityContact")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DescriptionHtml")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("FlightConditions")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("GeometryGeoJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("HorizontalLimits")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ImportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("PropertiesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RestrictionDescription")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceLabel")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ValidFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ValidTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerticalLimits")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ZoneType")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ImportId", "Name");
+
+                    b.HasIndex("ImportId", "Sequence");
+
+                    b.ToTable("GeoZones");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.GeoZones.GeoZoneImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("DataVersionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FeatureCollectionGeoJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ImportedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ResultMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("StoredFileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ZoneCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentHash");
+
+                    b.HasIndex("ImportedAt");
+
+                    b.HasIndex("ImportedByAccountId");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("StoredFileId");
+
+                    b.ToTable("GeoZoneImports");
+                });
+
             modelBuilder.Entity("IsSuas.Domain.Identity.Account", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2399,6 +2578,9 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Level")
                         .HasColumnType("integer");
 
@@ -2431,6 +2613,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("Kind");
 
                     b.HasIndex("ParentId");
 
@@ -5290,6 +5474,191 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.ToTable("TrainingParticipations");
                 });
 
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ConfirmedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("OrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("OrgUnitId", "Year", "Month")
+                        .IsUnique();
+
+                    b.HasIndex("Year", "Month", "Status");
+
+                    b.ToTable("MonthlyFlightReports");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReportChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ChangedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NewJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PreviousJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ReportId", "ChangedAt");
+
+                    b.ToTable("MonthlyFlightReportChangeLogs");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReportLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Hours")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Landings")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OperationalFlights")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OtherFlights")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PilotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Takeoffs")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TrainingFlights")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UasId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("PilotId");
+
+                    b.HasIndex("UasId");
+
+                    b.HasIndex("ReportId", "PilotId", "UasId");
+
+                    b.ToTable("MonthlyFlightReportLines");
+                });
+
             modelBuilder.Entity("IsSuas.Domain.Reporting.OfficialReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5376,6 +5745,63 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReportTypeCode", "Status");
 
                     b.ToTable("OfficialReports");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.PilotUasAuthorization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("OrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PilotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UasId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ValidFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ValidTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("UasId");
+
+                    b.HasIndex("OrgUnitId", "IsActive");
+
+                    b.HasIndex("PilotId", "UasId", "ValidFrom");
+
+                    b.ToTable("PilotUasAuthorizations");
                 });
 
             modelBuilder.Entity("IsSuas.Domain.Safety.AppNotification", b =>
@@ -6731,6 +7157,35 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Navigation("Flight");
                 });
 
+            modelBuilder.Entity("IsSuas.Domain.GeoZones.GeoZone", b =>
+                {
+                    b.HasOne("IsSuas.Domain.GeoZones.GeoZoneImport", "Import")
+                        .WithMany("Zones")
+                        .HasForeignKey("ImportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Import");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.GeoZones.GeoZoneImport", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Identity.Account", "ImportedByAccount")
+                        .WithMany()
+                        .HasForeignKey("ImportedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IsSuas.Domain.Documents.StoredFile", "StoredFile")
+                        .WithMany()
+                        .HasForeignKey("StoredFileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ImportedByAccount");
+
+                    b.Navigation("StoredFile");
+                });
+
             modelBuilder.Entity("IsSuas.Domain.Identity.Account", b =>
                 {
                     b.HasOne("IsSuas.Domain.Identity.Person", "Person")
@@ -7276,6 +7731,82 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReport", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Identity.OrgUnit", "OrgUnit")
+                        .WithMany()
+                        .HasForeignKey("OrgUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrgUnit");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReportChangeLog", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Reporting.MonthlyFlightReport", "Report")
+                        .WithMany("ChangeLogs")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReportLine", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Pilots.Pilot", "Pilot")
+                        .WithMany()
+                        .HasForeignKey("PilotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IsSuas.Domain.Reporting.MonthlyFlightReport", "Report")
+                        .WithMany("Lines")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IsSuas.Domain.Fleet.Uas", "Uas")
+                        .WithMany()
+                        .HasForeignKey("UasId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pilot");
+
+                    b.Navigation("Report");
+
+                    b.Navigation("Uas");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.PilotUasAuthorization", b =>
+                {
+                    b.HasOne("IsSuas.Domain.Identity.OrgUnit", "OrgUnit")
+                        .WithMany()
+                        .HasForeignKey("OrgUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IsSuas.Domain.Pilots.Pilot", "Pilot")
+                        .WithMany()
+                        .HasForeignKey("PilotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IsSuas.Domain.Fleet.Uas", "Uas")
+                        .WithMany()
+                        .HasForeignKey("UasId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrgUnit");
+
+                    b.Navigation("Pilot");
+
+                    b.Navigation("Uas");
+                });
+
             modelBuilder.Entity("IsSuas.Domain.Safety.CorrectiveAction", b =>
                 {
                     b.HasOne("IsSuas.Domain.Safety.SafetyEvent", "SafetyEvent")
@@ -7527,6 +8058,11 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Navigation("TrackPoints");
                 });
 
+            modelBuilder.Entity("IsSuas.Domain.GeoZones.GeoZoneImport", b =>
+                {
+                    b.Navigation("Zones");
+                });
+
             modelBuilder.Entity("IsSuas.Domain.Identity.Account", b =>
                 {
                     b.Navigation("RoleAssignments");
@@ -7613,6 +8149,13 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("IsSuas.Domain.Pilots.TrainingParticipation", b =>
                 {
                     b.Navigation("Result");
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Reporting.MonthlyFlightReport", b =>
+                {
+                    b.Navigation("ChangeLogs");
+
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("IsSuas.Domain.Safety.SafetyEvent", b =>

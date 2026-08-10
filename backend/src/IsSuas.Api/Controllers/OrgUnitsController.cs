@@ -11,8 +11,10 @@ namespace IsSuas.Api.Controllers;
 public sealed class OrgUnitsController(IOrgUnitService service) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<OrgUnitDto>>> List(CancellationToken cancellationToken)
-        => Ok(await service.ListAsync(cancellationToken));
+    public async Task<ActionResult<IReadOnlyList<OrgUnitDto>>> List(
+        [FromQuery] bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+        => Ok(await service.ListAsync(includeInactive, cancellationToken));
 
     [HttpPost]
     public async Task<ActionResult<OrgUnitDto>> Create([FromBody] CreateOrgUnitRequest request, CancellationToken cancellationToken)
@@ -33,6 +35,13 @@ public sealed class OrgUnitsController(IOrgUnitService service) : ControllerBase
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         await service.DeactivateAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/reactivate")]
+    public async Task<IActionResult> Reactivate(Guid id, CancellationToken cancellationToken)
+    {
+        await service.ReactivateAsync(id, cancellationToken);
         return NoContent();
     }
 }

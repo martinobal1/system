@@ -24,7 +24,9 @@ internal sealed class OrgUnitConfiguration : IEntityTypeConfiguration<OrgUnit>
         builder.Property(x => x.Code).HasMaxLength(64).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(256).IsRequired();
         builder.Property(x => x.Path).HasMaxLength(1024).IsRequired();
+        builder.Property(x => x.Kind).HasConversion<int>();
         builder.HasIndex(x => x.Code).IsUnique();
+        builder.HasIndex(x => x.Kind);
         builder.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId)
             .OnDelete(DeleteBehavior.Restrict);
     }

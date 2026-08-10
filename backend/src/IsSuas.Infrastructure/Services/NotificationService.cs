@@ -80,9 +80,12 @@ public sealed class NotificationService(
 
     private async Task<NotificationDetailDto> PublishInternalAsync(PublishNotificationRequest request, CancellationToken cancellationToken)
     {
-        // Allow system/internal callers (safety/docs) without extra write permission when already authenticated with business access.
-        if (!policy.HasPermission(Permissions.NotificationsWrite) && !policy.HasPermission(Permissions.SafetyWrite)
-            && !policy.HasPermission(Permissions.DocumentsWrite) && !policy.HasPermission(Permissions.OperationsWrite))
+        // Background/system callers have no HTTP user — allow publish without permission check.
+        if (currentUser.IsAuthenticated
+            && !policy.HasPermission(Permissions.NotificationsWrite)
+            && !policy.HasPermission(Permissions.SafetyWrite)
+            && !policy.HasPermission(Permissions.DocumentsWrite)
+            && !policy.HasPermission(Permissions.OperationsWrite))
             policy.EnsurePermission(Permissions.NotificationsWrite);
 
         var title = request.Title;
@@ -233,7 +236,8 @@ public sealed class NotificationService(
 
     public async Task<int> RunEscalationsAsync(CancellationToken cancellationToken = default)
     {
-        policy.EnsurePermission(Permissions.NotificationsWrite);
+        if (currentUser.IsAuthenticated)
+            policy.EnsurePermission(Permissions.NotificationsWrite);
         var rules = await db.EscalationRules.AsNoTracking().Where(r => r.IsActive).ToListAsync(cancellationToken);
         var created = 0;
         var now = clock.UtcNow;

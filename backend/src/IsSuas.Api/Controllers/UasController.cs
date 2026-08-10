@@ -41,4 +41,8 @@ public sealed class UasController(IFleetService service) : ControllerBase
     [HttpPost("{id:guid}/assignments")]
     public async Task<ActionResult<UasAssignmentDto>> Assign(Guid id, [FromBody] AssignUasRequest request, CancellationToken cancellationToken)
         => Ok(await service.AssignUasAsync(id, request, cancellationToken));
+
+    [HttpPost("{id:guid}/transfer")]
+    public async Task<ActionResult<UasAssignmentDto>> Transfer(Guid id, [FromBody] TransferUasRequest request, CancellationToken cancellationToken)
+        => Ok(await service.TransferUasAsync(id, request, cancellationToken));
 }

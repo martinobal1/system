@@ -1,6 +1,7 @@
 using IsSuas.Application.Abstractions;
 using IsSuas.Application.OrgUnits;
 using IsSuas.Application.Policies;
+using IsSuas.Domain.Enums;
 using IsSuas.Domain.Identity;
 using IsSuas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,11 +10,12 @@ namespace IsSuas.Infrastructure.Services;
 
 public interface IOrgUnitService
 {
-    Task<IReadOnlyList<OrgUnitDto>> ListAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OrgUnitDto>> ListAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
     Task<OrgUnitDto> CreateAsync(CreateOrgUnitRequest request, CancellationToken cancellationToken = default);
     Task<OrgUnitDto> UpdateAsync(Guid id, UpdateOrgUnitRequest request, CancellationToken cancellationToken = default);
     Task<OrgUnitDto> MoveAsync(Guid id, MoveOrgUnitRequest request, CancellationToken cancellationToken = default);
     Task DeactivateAsync(Guid id, CancellationToken cancellationToken = default);
+    Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public sealed class OrgUnitService(
@@ -23,14 +25,15 @@ public sealed class OrgUnitService(
     IAuditWriter audit,
     IClock clock) : IOrgUnitService
 {
-    public async Task<IReadOnlyList<OrgUnitDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<OrgUnitDto>> ListAsync(bool includeInactive = false, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.OrgUnitsRead);
 
-        var units = await db.OrgUnits.AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Path)
-            .ToListAsync(cancellationToken);
+        var query = db.OrgUnits.AsNoTracking().AsQueryable();
+        if (!includeInactive)
+            query = query.Where(x => x.IsActive);
+
+        var units = await query.OrderBy(x => x.Path).ToListAsync(cancellationToken);
 
         return units
             .Where(u => policy.CanAccessOrgUnit(u.Path))
@@ -47,6 +50,7 @@ public sealed class OrgUnitService(
 
         string path;
         int level;
+        OrgUnit? parent = null;
         if (request.ParentId is null)
         {
             path = "/";
@@ -54,17 +58,20 @@ public sealed class OrgUnitService(
         }
         else
         {
-            var parent = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == request.ParentId && x.IsActive, cancellationToken)
+            parent = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == request.ParentId && x.IsActive, cancellationToken)
                 ?? throw new NotFoundException("Nadradený útvar nebol nájdený.");
             policy.EnsureOrgAccess(parent.Path);
             path = parent.Path;
             level = parent.Level + 1;
         }
 
+        var kind = request.Kind ?? InferKind(parent, request.Code);
+
         var entity = new OrgUnit
         {
             Code = request.Code.Trim(),
             Name = request.Name.Trim(),
+            Kind = kind,
             ParentId = request.ParentId,
             Level = level,
             Path = path,
@@ -168,6 +175,46 @@ public sealed class OrgUnitService(
         await audit.WriteAsync("OrgUnit.Deactivate", nameof(OrgUnit), entity.Id, before, Map(entity), cancellationToken: cancellationToken);
     }
 
+    public async Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.OrgUnitsWrite);
+        var entity = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == id && !x.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Neaktívny útvar nebol nájdený.");
+        policy.EnsureOrgAccess(entity.Path);
+
+        if (entity.ParentId is Guid parentId)
+        {
+            var parent = await db.OrgUnits.AsNoTracking().FirstOrDefaultAsync(x => x.Id == parentId, cancellationToken)
+                ?? throw new ValidationException("Nadradený útvar neexistuje.");
+            if (!parent.IsActive)
+                throw new ValidationException("Najprv aktivujte nadradený útvar.");
+        }
+
+        var before = Map(entity);
+        entity.IsActive = true;
+        entity.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("OrgUnit.Reactivate", nameof(OrgUnit), entity.Id, before, Map(entity), cancellationToken: cancellationToken);
+    }
+
+    private static OrgUnitKind InferKind(OrgUnit? parent, string code)
+    {
+        if (parent is null)
+            return OrgUnitKind.Root;
+        var c = code.Trim().ToUpperInvariant();
+        if (c is "ZLOZKA-PZ" or "PZ")
+            return OrgUnitKind.BranchPz;
+        if (c is "ZLOZKA-HAZZ" or "HAZZ")
+            return OrgUnitKind.BranchHazz;
+        if (c is "ZLOZKA-CO" or "CO")
+            return OrgUnitKind.BranchCo;
+        if (parent.Kind is OrgUnitKind.Root && (c.StartsWith("ZLOZKA-", StringComparison.Ordinal) || parent.Level == 0))
+        {
+            // Child of root without known code → unit unless looks like branch.
+        }
+        return OrgUnitKind.Unit;
+    }
+
     private static void EnsureRowVersion(OrgUnit entity, uint rowVersion)
     {
         if (entity.RowVersion != rowVersion)
@@ -175,5 +222,5 @@ public sealed class OrgUnitService(
     }
 
     private static OrgUnitDto Map(OrgUnit x) =>
-        new(x.Id, x.Code, x.Name, x.ParentId, x.Path, x.Level, x.IsActive, x.RowVersion);
+        new(x.Id, x.Code, x.Name, x.Kind, x.ParentId, x.Path, x.Level, x.IsActive, x.RowVersion);
 }

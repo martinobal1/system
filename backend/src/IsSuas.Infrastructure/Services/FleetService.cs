@@ -4,6 +4,7 @@ using IsSuas.Application.Fleet;
 using IsSuas.Application.Policies;
 using IsSuas.Domain.Enums;
 using IsSuas.Domain.Fleet;
+using IsSuas.Domain.Reporting;
 using IsSuas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,7 @@ public interface IFleetService
     Task<UasDto> ApproveUasAsync(Guid id, CancellationToken cancellationToken = default);
     Task<UasDto> TransitionUasAsync(Guid id, TransitionUasRequest request, CancellationToken cancellationToken = default);
     Task<UasAssignmentDto> AssignUasAsync(Guid id, AssignUasRequest request, CancellationToken cancellationToken = default);
+    Task<UasAssignmentDto> TransferUasAsync(Guid id, TransferUasRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ComponentDto>> ListComponentsAsync(CancellationToken cancellationToken = default);
     Task<ComponentDto> CreateComponentAsync(CreateComponentRequest request, CancellationToken cancellationToken = default);
     Task<InstallationDto> InstallComponentAsync(Guid componentId, InstallComponentRequest request, CancellationToken cancellationToken = default);
@@ -86,6 +88,15 @@ public sealed class FleetService(
 
         EnsureUasOrgAccess(uas);
 
+        var now = clock.UtcNow;
+        var authorizations = await db.PilotUasAuthorizations.AsNoTracking()
+            .Include(a => a.Pilot).ThenInclude(p => p.Person)
+            .Include(a => a.Uas)
+            .Include(a => a.OrgUnit)
+            .Where(a => a.UasId == id && a.IsActive && (a.ValidTo == null || a.ValidTo > now))
+            .OrderByDescending(a => a.ValidFrom)
+            .ToListAsync(cancellationToken);
+
         return new UasDetailDto(
             MapUas(uas),
             uas.Assignments.OrderByDescending(a => a.ValidFrom).Select(a => new UasAssignmentDto(
@@ -93,7 +104,20 @@ public sealed class FleetService(
             uas.Installations.OrderByDescending(i => i.InstalledAt).Select(i => new InstallationDto(
                 i.Id, i.ComponentId, i.Component.Name, i.UasId, uas.RegistrationNumber, i.InstalledAt, i.RemovedAt, i.IsActive)).ToList(),
             uas.StatusHistory.OrderByDescending(h => h.ChangedAt).Select(h => new UasStatusHistoryDto(
-                h.Id, h.FromStatus, h.ToStatus, h.Reason, h.ChangedAt)).ToList());
+                h.Id, h.FromStatus, h.ToStatus, h.Reason, h.ChangedAt)).ToList(),
+            authorizations.Select(a => new PilotUasAuthorizationDto(
+                a.Id,
+                a.PilotId,
+                $"{a.Pilot.Person.FirstName} {a.Pilot.Person.LastName}".Trim(),
+                a.UasId,
+                a.Uas.RegistrationNumber ?? a.Uas.SerialNumber,
+                a.OrgUnitId,
+                a.OrgUnit.Name,
+                a.ValidFrom,
+                a.ValidTo,
+                a.IsActive,
+                a.Note,
+                a.RowVersion)).ToList());
     }
 
     public async Task<UasDto> CreateUasAsync(CreateUasRequest request, CancellationToken cancellationToken = default)
@@ -107,6 +131,12 @@ public sealed class FleetService(
             var org = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == request.OwningOrgUnitId, cancellationToken)
                 ?? throw new NotFoundException("Útvar nebol nájdený.");
             policy.EnsureOrgAccess(org.Path);
+        }
+        else if (!IsCentralGestor())
+        {
+            var home = currentUser.Roles.FirstOrDefault(r => r.GrantsBusinessDataAccess)
+                ?? throw new ValidationException("Účet nemá priradený útvar.");
+            request = request with { OwningOrgUnitId = home.OrgUnitId };
         }
 
         var entity = new Uas
@@ -244,6 +274,52 @@ public sealed class FleetService(
             new UasAssignmentDto(assignment.Id, org.Id, org.Name, assignment.ValidFrom, assignment.ValidTo, assignment.Reason, assignment.IsActive),
             cancellationToken: cancellationToken);
         return new UasAssignmentDto(assignment.Id, org.Id, org.Name, assignment.ValidFrom, assignment.ValidTo, assignment.Reason, assignment.IsActive);
+    }
+
+    public async Task<UasAssignmentDto> TransferUasAsync(Guid id, TransferUasRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.UasWrite);
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            throw new ValidationException("Dôvod transferu je povinný.");
+
+        var uas = await LoadUasAsync(id, cancellationToken);
+        EnsureUasOrgAccess(uas);
+
+        var newOrg = await db.OrgUnits.FirstOrDefaultAsync(x => x.Id == request.NewOrgUnitId && x.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Cieľový útvar nebol nájdený.");
+        policy.EnsureOrgAccess(newOrg.Path);
+
+        if (uas.OwningOrgUnitId == newOrg.Id)
+            throw new ValidationException("UAS je už pridelený tomuto útvaru.");
+
+        var effectiveAt = request.EffectiveAt;
+        var activeAssignments = await db.UasAssignments
+            .Where(a => a.UasId == id && a.IsActive && a.ValidTo == null)
+            .ToListAsync(cancellationToken);
+        foreach (var old in activeAssignments)
+        {
+            old.ValidTo = effectiveAt;
+            old.UpdatedBy = currentUser.AccountId;
+        }
+
+        var assignment = new UasAssignment
+        {
+            UasId = id,
+            OrgUnitId = newOrg.Id,
+            ValidFrom = effectiveAt,
+            Reason = request.Reason.Trim(),
+            CreatedBy = currentUser.AccountId,
+            UpdatedBy = currentUser.AccountId
+        };
+        db.UasAssignments.Add(assignment);
+        uas.OwningOrgUnitId = newOrg.Id;
+        uas.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        assignment.OrgUnit = newOrg;
+        await audit.WriteAsync("Uas.Transfer", nameof(UasAssignment), assignment.Id, null,
+            new UasAssignmentDto(assignment.Id, newOrg.Id, newOrg.Name, assignment.ValidFrom, assignment.ValidTo, assignment.Reason, assignment.IsActive),
+            cancellationToken: cancellationToken);
+        return new UasAssignmentDto(assignment.Id, newOrg.Id, newOrg.Name, assignment.ValidFrom, assignment.ValidTo, assignment.Reason, assignment.IsActive);
     }
 
     public async Task<IReadOnlyList<ComponentDto>> ListComponentsAsync(CancellationToken cancellationToken = default)
@@ -701,6 +777,9 @@ public sealed class FleetService(
         else if (!policy.CanAccessBusinessData())
             throw new ForbiddenException("Prístup zamietnutý.");
     }
+
+    private bool IsCentralGestor() =>
+        currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.CentralGestor));
 
     private static UasDto MapUas(Uas x) =>
         new(x.Id, x.RegistrationNumber, x.SerialNumber, x.Manufacturer, x.Model, x.UasTypeCode, x.Status,

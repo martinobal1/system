@@ -29,11 +29,14 @@ public sealed class AccountService(
     {
         policy.EnsurePermission(Permissions.AccountsRead);
         var accounts = await db.Accounts.AsNoTracking()
-            .Include(a => a.Person)
+            .Include(a => a.Person).ThenInclude(p => p.HomeOrgUnit)
             .OrderBy(a => a.UserName)
             .ToListAsync(cancellationToken);
 
-        return accounts.Select(Map).ToList();
+        return accounts
+            .Where(a => a.Person.HomeOrgUnit is null || policy.CanAccessOrgUnit(a.Person.HomeOrgUnit.Path))
+            .Select(Map)
+            .ToList();
     }
 
     public async Task<AccountDto> CreateAsync(CreateAccountRequest request, CancellationToken cancellationToken = default)
@@ -43,12 +46,12 @@ public sealed class AccountService(
         if (await db.Accounts.AnyAsync(a => a.UserName == request.UserName, cancellationToken))
             throw new ConflictException("Používateľské meno už existuje.");
 
-        if (request.HomeOrgUnitId is not null)
-        {
-            var org = await db.OrgUnits.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.HomeOrgUnitId, cancellationToken)
-                ?? throw new NotFoundException("Útvar nebol nájdený.");
-            policy.EnsureOrgAccess(org.Path);
-        }
+        if (request.HomeOrgUnitId is null)
+            throw new ValidationException("HomeOrgUnitId je povinný — účet musí byť viazaný na jeden útvar.");
+
+        var org = await db.OrgUnits.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.HomeOrgUnitId, cancellationToken)
+            ?? throw new NotFoundException("Útvar nebol nájdený.");
+        policy.EnsureOrgAccess(org.Path);
 
         var person = new Person
         {
@@ -110,13 +113,41 @@ public sealed class AccountService(
     public async Task<RoleAssignmentDto> AssignRoleAsync(Guid accountId, CreateRoleAssignmentRequest request, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.RolesAssign);
-        _ = await db.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken)
+        var account = await db.Accounts.Include(a => a.Person).FirstOrDefaultAsync(a => a.Id == accountId, cancellationToken)
             ?? throw new NotFoundException("Účet nebol nájdený.");
         var role = await db.Roles.FirstOrDefaultAsync(r => r.Id == request.RoleId && r.IsActive, cancellationToken)
             ?? throw new NotFoundException("Rola nebola nájdená.");
         var org = await db.OrgUnits.FirstOrDefaultAsync(o => o.Id == request.OrgUnitId && o.IsActive, cancellationToken)
             ?? throw new NotFoundException("Útvar nebol nájdený.");
         policy.EnsureOrgAccess(org.Path);
+
+        // Lock: one home unit; active business assignments must stay on that unit.
+        if (role.Code != SystemRole.SystemAdministrator)
+        {
+            if (account.Person.HomeOrgUnitId is null)
+            {
+                account.Person.HomeOrgUnitId = org.Id;
+                account.Person.UpdatedBy = currentUser.AccountId;
+            }
+            else if (account.Person.HomeOrgUnitId != org.Id && role.Code != SystemRole.CentralGestor)
+            {
+                throw new ValidationException(
+                    "Účet je viazaný na iný útvar (HomeOrgUnit). Pre bežné role nie je možné pridať prístup k cudziemu útvaru.");
+            }
+
+            var otherActive = await db.RoleAssignments
+                .Include(x => x.Role)
+                .Where(x => x.AccountId == accountId && x.IsActive
+                    && (x.ValidTo == null || x.ValidTo > clock.UtcNow)
+                    && x.OrgUnitId != org.Id)
+                .ToListAsync(cancellationToken);
+            if (otherActive.Any(x => x.Role.Code != SystemRole.SystemAdministrator && x.Role.Code != SystemRole.CentralGestor)
+                && role.Code != SystemRole.CentralGestor)
+            {
+                throw new ValidationException(
+                    "Účet už má aktívne pridelenie k inému útvaru. ATLAS povoľuje jeden útvar na účet.");
+            }
+        }
 
         var assignment = new RoleAssignment
         {

@@ -18,7 +18,12 @@ public sealed record DashboardDto(
     string? ScopeOrgUnitName = null,
     decimal TotalFlightHours = 0,
     IReadOnlyList<FlightHoursSliceDto>? FlightHoursByOrgUnit = null,
-    IReadOnlyList<FlightHoursSliceDto>? FlightHoursByUas = null);
+    IReadOnlyList<FlightHoursSliceDto>? FlightHoursByUas = null,
+    int ConfirmedMonthlyReports = 0,
+    int MissingMonthlyReports = 0,
+    int TotalTakeoffs = 0,
+    int TotalLandings = 0,
+    string FlightHoursSource = "monthly");
 
 public sealed record FleetSummaryDto(int TotalUas, int InService, int Suspended, int InMaintenance, int Draft);
 

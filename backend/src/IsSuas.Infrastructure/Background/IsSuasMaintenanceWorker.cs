@@ -31,10 +31,14 @@ public sealed class IsSuasMaintenanceWorker(
                 using var scope = scopeFactory.CreateScope();
                 var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
                 var documents = scope.ServiceProvider.GetRequiredService<IDocumentService>();
+                var monthlyDeadlines = scope.ServiceProvider.GetRequiredService<IMonthlyReportDeadlineService>();
                 var escalated = await notifications.RunEscalationsAsync(stoppingToken);
                 var expired = await documents.RefreshExpirationsAsync(stoppingToken);
-                if (escalated > 0 || expired > 0)
-                    logger.LogInformation("Background maintenance: escalations={Escalations}, expiredDocs={Expired}", escalated, expired);
+                var monthly = await monthlyDeadlines.RunRemindersAsync(stoppingToken);
+                if (escalated > 0 || expired > 0 || monthly > 0)
+                    logger.LogInformation(
+                        "Background maintenance: escalations={Escalations}, expiredDocs={Expired}, monthlyReminders={Monthly}",
+                        escalated, expired, monthly);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

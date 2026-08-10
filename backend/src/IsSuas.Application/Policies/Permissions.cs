@@ -45,4 +45,6 @@ public static class Permissions
     public const string ControlsClose = "controls.close";
     public const string NotificationsRead = "notifications.read";
     public const string NotificationsWrite = "notifications.write";
+    public const string GeoZonesRead = "geozones.read";
+    public const string GeoZonesWrite = "geozones.write";
 }

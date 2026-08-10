@@ -24,7 +24,8 @@ public sealed record UasDetailDto(
     UasDto Uas,
     IReadOnlyList<UasAssignmentDto> Assignments,
     IReadOnlyList<InstallationDto> Installations,
-    IReadOnlyList<UasStatusHistoryDto> StatusHistory);
+    IReadOnlyList<UasStatusHistoryDto> StatusHistory,
+    IReadOnlyList<PilotUasAuthorizationDto>? AuthorizedPilots = null);
 
 public sealed record CreateUasRequest(
     string SerialNumber,
@@ -36,6 +37,7 @@ public sealed record CreateUasRequest(
 
 public sealed record TransitionUasRequest(UasLifecycleStatus TargetStatus, string Reason, uint RowVersion);
 public sealed record AssignUasRequest(Guid OrgUnitId, DateTimeOffset ValidFrom, string Reason);
+public sealed record TransferUasRequest(Guid NewOrgUnitId, DateTimeOffset EffectiveAt, string Reason);
 
 public sealed record UasAssignmentDto(
     Guid Id,

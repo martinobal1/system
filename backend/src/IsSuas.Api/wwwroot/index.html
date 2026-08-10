@@ -47,18 +47,34 @@
       min-height: 100vh;
       display: grid;
       place-items: center;
+      position: relative;
+      overflow: hidden;
       background:
-        linear-gradient(155deg, #cfe0ec 0%, #e8f1f7 42%, #f2f7fa 100%);
+        radial-gradient(900px 420px at 12% 18%, rgba(13,143,122,0.14), transparent 55%),
+        radial-gradient(800px 480px at 88% 12%, rgba(43,123,185,0.18), transparent 50%),
+        linear-gradient(155deg, #c5d8e8 0%, #e8f1f7 42%, #f2f7fa 100%);
+    }
+    .login-shell::before {
+      content: "";
+      position: absolute;
+      inset: -20% auto auto -10%;
+      width: 55vmax;
+      height: 55vmax;
+      border-radius: 50%;
+      border: 1px solid rgba(15, 76, 110, 0.08);
+      pointer-events: none;
     }
     .login-card {
       width: min(420px, 92vw);
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(211,221,230,0.95);
+      border-radius: 16px;
+      box-shadow: 0 1px 2px rgba(20,36,51,0.04), 0 18px 40px rgba(20,36,51,0.1);
       padding: 2rem;
       display: grid;
       gap: 0.85rem;
+      position: relative;
+      backdrop-filter: blur(8px);
     }
     .brand {
       margin: 0;
@@ -67,7 +83,21 @@
       font-weight: 700;
       letter-spacing: -0.02em;
       color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
     }
+    .brand-mark {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, var(--primary-soft), var(--primary));
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(15, 76, 110, 0.28);
+    }
+    .brand-mark svg { width: 1.35rem; height: 1.35rem; display: block; }
     .login-card h1 { margin: 0; font-size: 1.25rem; font-family: var(--font-display); }
     .muted, .hint { color: var(--muted); margin: 0; }
     label { display: grid; gap: 0.35rem; }
@@ -103,65 +133,192 @@
       border: 1px solid #f5c2c0;
       border-radius: 8px;
     }
-    .app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+    .app { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
     .sidebar {
       background:
         linear-gradient(180deg, #14324a 0%, var(--sidebar) 48%, #0b1c2a 100%);
       color: var(--sidebar-ink);
-      padding: 1.25rem 0.75rem;
+      padding: 1.1rem 0.7rem 1.4rem;
       box-shadow: inset -1px 0 0 rgba(255,255,255,0.04);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(159, 192, 214, 0.35) transparent;
+    }
+    .sidebar::-webkit-scrollbar { width: 6px; }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(159, 192, 214, 0.35);
+      border-radius: 999px;
     }
     .sidebar-brand {
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: 1.3rem;
+      font-size: 1.22rem;
       letter-spacing: -0.02em;
-      padding: 0.5rem 0.75rem 1.35rem;
+      padding: 0.35rem 0.65rem 1.1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
     }
+    .sidebar-brand-mark {
+      flex: 0 0 auto;
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, rgba(13,143,122,0.45), rgba(43,123,185,0.35));
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #9ef0df;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    }
+    .sidebar-brand-mark svg { width: 1.25rem; height: 1.25rem; display: block; }
+    .sidebar-brand-text { min-width: 0; }
     .sidebar-brand span {
       display: block;
-      margin-top: 0.2rem;
-      font-size: 0.72rem;
+      margin-top: 0.18rem;
+      font-size: 0.68rem;
       font-weight: 500;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       color: #8fb0c8;
     }
-    .sidebar nav { display: grid; gap: 0.2rem; }
+    .sidebar nav { display: grid; gap: 0.12rem; }
+    .nav-section {
+      margin: 0.7rem 0.55rem 0.25rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.63rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7e9bb0;
+    }
+    .nav-section:first-child {
+      margin-top: 0.15rem;
+      padding-top: 0;
+      border-top: 0;
+    }
     .nav {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
       background: transparent;
       color: #d7e3ee;
       text-align: left;
       font-weight: 500;
-      border-radius: 8px;
+      border-radius: 9px;
       box-shadow: none;
+      padding: 0.52rem 0.65rem;
+      line-height: 1.25;
+      font-size: 0.9rem;
+      transition: background 0.14s ease, color 0.14s ease;
+    }
+    .nav .nav-ico {
+      flex: 0 0 auto;
+      width: 1.15rem;
+      height: 1.15rem;
+      opacity: 0.72;
+      color: #9ec0d6;
+      transition: opacity 0.14s ease, color 0.14s ease, transform 0.14s ease;
+    }
+    .nav .nav-ico svg {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
     .nav:hover { background: rgba(255,255,255,0.08); filter: none; box-shadow: none; }
+    .nav:hover .nav-ico { opacity: 0.95; color: #cfe3f0; transform: translateX(1px); }
     .nav.active {
-      background: linear-gradient(90deg, rgba(13, 143, 122, 0.35), rgba(43, 123, 185, 0.22));
+      background: linear-gradient(90deg, rgba(13, 143, 122, 0.38), rgba(43, 123, 185, 0.22));
       color: #fff;
       box-shadow: inset 3px 0 0 var(--accent);
       filter: none;
     }
-    main { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+    .nav.active .nav-ico { opacity: 1; color: #7fe0cf; }
+    main { display: grid; grid-template-rows: auto 1fr; min-width: 0; min-height: 100vh; }
     .topbar {
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(211, 221, 230, 0.9);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.9rem 1.35rem;
+      padding: 0.75rem 1.35rem;
+      position: sticky;
+      top: 0;
+      z-index: 40;
     }
-    .userbox { display: flex; gap: 0.75rem; align-items: center; }
+    .userbox { display: flex; gap: 0.65rem; align-items: center; }
+    .user-avatar {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #fff;
+      background: linear-gradient(145deg, var(--primary-soft), var(--primary));
+      border: 1px solid rgba(255,255,255,0.5);
+      box-shadow: 0 2px 8px rgba(15, 76, 110, 0.2);
+      flex-shrink: 0;
+    }
+    #display-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--ink);
+    }
+    #global-search-form {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0.2rem 0.25rem 0.2rem 0.65rem;
+      background: #f4f8fb;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+    #global-search-q {
+      border: 0 !important;
+      background: transparent !important;
+      outline: none !important;
+      box-shadow: none !important;
+      min-width: 150px;
+      padding: 0.4rem 0.35rem !important;
+    }
+    #global-search-btn {
+      border-radius: 999px !important;
+      padding: 0.4rem 0.8rem !important;
+    }
     #logout-btn {
       background: transparent;
       color: var(--primary);
       border: 1px solid var(--line);
       box-shadow: none;
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
     }
     #logout-btn:hover { background: var(--sky-soft); filter: none; }
-    .content { padding: 1.35rem 1.5rem 2rem; }
+    .content { padding: 1.35rem 1.5rem 2.25rem; }
+    .stack > * { animation: rise-in 0.28s ease both; }
+    .stack > *:nth-child(1) { animation-delay: 0.01s; }
+    .stack > *:nth-child(2) { animation-delay: 0.04s; }
+    .stack > *:nth-child(3) { animation-delay: 0.07s; }
+    .stack > *:nth-child(4) { animation-delay: 0.1s; }
+    .stack > *:nth-child(5) { animation-delay: 0.13s; }
+    .stack > *:nth-child(n+6) { animation-delay: 0.15s; }
+    @keyframes rise-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stack > *, .nav, .stat, .nav .nav-ico { animation: none !important; transition: none !important; }
+    }
     .panel, table {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -188,6 +345,17 @@
       text-transform: uppercase;
       letter-spacing: 0.03em;
       color: var(--muted);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .table-scroll {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      max-height: min(70vh, 720px);
+    }
+    .table-scroll thead th {
+      box-shadow: 0 1px 0 var(--line);
     }
     tr:last-child td { border-bottom: 0; }
     .msg {
@@ -224,6 +392,16 @@
       box-shadow: none;
     }
     button.secondary:hover { background: var(--sky-soft); filter: none; }
+    button.linkish {
+      background: none;
+      border: none;
+      box-shadow: none;
+      color: inherit;
+      padding: 0;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
     button.secondary:disabled {
       opacity: 1;
       background: var(--accent-soft);
@@ -262,6 +440,12 @@
       padding: 1rem 1.05rem;
       position: relative;
       overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .stat:hover {
+      transform: translateY(-2px);
+      border-color: #c5d7e6;
+      box-shadow: 0 4px 16px rgba(20, 36, 51, 0.1);
     }
     .stat::before {
       content: "";
@@ -400,6 +584,48 @@
     #dash-drone-map .leaflet-control-attribution {
       background: rgba(255,255,255,0.75);
       font-size: 0.65rem;
+    }
+    #flight-detail-map {
+      height: 360px;
+      width: 100%;
+      border-radius: 10px;
+      background: #1a3044;
+    }
+    #flight-detail-map .leaflet-control-attribution {
+      background: rgba(255,255,255,0.75);
+      font-size: 0.65rem;
+    }
+    .flight-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.75rem 1rem;
+    }
+    .flight-meta dt {
+      margin: 0;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .flight-meta dd {
+      margin: 0.15rem 0 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    tr.flight-row {
+      cursor: pointer;
+    }
+    tr.flight-row:hover td {
+      background: var(--sky-soft);
+    }
+    .flight-map-empty {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: var(--muted);
+      background: #f4f8fb;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
     }
     .weather-panel {
       background:
@@ -652,10 +878,11 @@
       justify-content: space-between;
       align-items: flex-end;
       gap: 0.85rem 1.25rem;
-      padding: 1rem 1.15rem;
-      background: var(--panel);
+      padding: 1.05rem 1.2rem;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(244,249,252,0.96) 100%);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
+      border-radius: 14px;
       box-shadow: var(--shadow);
       position: relative;
       overflow: hidden;
@@ -667,7 +894,16 @@
       width: 4px;
       background: linear-gradient(180deg, var(--sky), var(--accent));
     }
-    .page-head h2 { margin: 0; }
+    .page-head::after {
+      content: "";
+      position: absolute;
+      right: -40px; top: -50px;
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(43,123,185,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .page-head h2 { margin: 0; font-size: 1.28rem; }
     .page-head p { margin: 0.3rem 0 0; max-width: 42rem; }
     .chip-row {
       display: flex;
@@ -697,6 +933,22 @@
     .chip-ok { background: #e8f6ef; border-color: #b7e0c8; color: var(--ok); }
     .chip-warn { background: #fff7e6; border-color: #f0d9a8; color: var(--warn); }
     .chip-danger { background: #fdecea; border-color: #f5c2c0; color: var(--danger); }
+    select.m-auth-select {
+      min-height: 220px;
+      max-height: 320px;
+      width: 100%;
+      padding: 0.35rem;
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+    select.m-auth-select option {
+      padding: 0.35rem 0.45rem;
+      border-radius: 4px;
+    }
+    select.m-auth-select option:checked {
+      background: linear-gradient(180deg, var(--primary-soft), var(--primary));
+      color: #fff;
+    }
     .swatch {
       display: inline-block;
       width: 0.7rem;
@@ -815,6 +1067,99 @@
       box-shadow: 0 0 0 2px rgba(43, 123, 185, 0.2), inset 0 0 0 1px rgba(0,0,0,0.06);
       background: var(--swatch-color, var(--sky));
     }
+    .org-page { --org-pz:#1a6f9a; --org-hazz:#c45c26; --org-co:#2d6a4f; --org-root:#0f4c6e; }
+    .org-branch-bar { display:flex; flex-wrap:wrap; gap:0.4rem; margin:0.15rem 0 0.9rem; }
+    .org-branch-bar button {
+      padding:0.42rem 0.9rem; font-size:0.82rem; border-radius:999px; background:#fff;
+      color:var(--ink); border:1px solid var(--line); box-shadow:none; font-weight:600;
+    }
+    .org-branch-bar button:hover { filter:none; box-shadow:none; background:#eef5fa; }
+    .org-branch-bar button.is-on { color:#fff; border-color:transparent; }
+    .org-branch-bar button[data-branch="all"].is-on { background:linear-gradient(180deg,var(--primary-soft),var(--primary)); }
+    .org-branch-bar button[data-branch="pz"].is-on { background:linear-gradient(180deg,#2b8fbf,var(--org-pz)); }
+    .org-branch-bar button[data-branch="hazz"].is-on { background:linear-gradient(180deg,#e07a3a,var(--org-hazz)); }
+    .org-branch-bar button[data-branch="co"].is-on { background:linear-gradient(180deg,#3d9a6e,var(--org-co)); }
+    .org-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem; margin-bottom:0.9rem; }
+    .org-summary-card {
+      border-radius:14px; padding:0.8rem 0.95rem; border:1px solid var(--line); background:#fff; box-shadow:var(--shadow);
+    }
+    .org-summary-card .k { font-size:0.72rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted); }
+    .org-summary-card .v { margin-top:0.15rem; font-family:var(--font-display); font-size:1.4rem; font-weight:700; letter-spacing:-0.02em; }
+    .org-summary-card .s { margin-top:0.15rem; font-size:0.78rem; color:var(--muted); }
+    .org-summary-card.pz { border-top:3px solid var(--org-pz); }
+    .org-summary-card.hazz { border-top:3px solid var(--org-hazz); }
+    .org-summary-card.co { border-top:3px solid var(--org-co); }
+    .org-tree-shell {
+      background:linear-gradient(180deg,#fbfcfd 0%, #f4f7fa 100%);
+      border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+      padding:0.75rem 0.65rem 1rem; overflow:auto; max-height:min(72vh,860px);
+    }
+    .org-tree-list { list-style:none; margin:0; padding:0; }
+    .org-tree-list > li { margin:0; }
+    .org-tree-list .org-tree-list {
+      margin:0.1rem 0 0.35rem 0.85rem; padding-left:0.95rem;
+      border-left:2px solid #d9e4ee;
+      position:relative;
+    }
+    .org-row {
+      display:grid; grid-template-columns:1.6rem 1fr auto; gap:0.55rem; align-items:center;
+      padding:0.48rem 0.55rem; margin:0.18rem 0; border-radius:11px;
+      border:1px solid transparent; background:transparent;
+      transition:background .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .org-row:hover { background:#fff; border-color:#e2ebf2; box-shadow:0 2px 10px rgba(20,36,51,.05); }
+    .org-row:hover .org-row-actions { opacity:1; }
+    .org-row.is-root, .org-row.is-branch {
+      background:#fff; border-color:#e4edf4; box-shadow:0 1px 2px rgba(20,36,51,.04);
+      padding:0.65rem 0.7rem; margin:0.35rem 0;
+    }
+    .org-row.is-root { border-left:4px solid var(--org-root); }
+    .org-row.is-branch.pz { border-left:4px solid var(--org-pz); }
+    .org-row.is-branch.hazz { border-left:4px solid var(--org-hazz); }
+    .org-row.is-branch.co { border-left:4px solid var(--org-co); }
+    .org-row.is-kraj { background:rgba(255,255,255,.72); }
+    .org-row.is-inactive { opacity:.55; }
+    .org-toggle {
+      width:1.45rem; height:1.45rem; padding:0; border-radius:7px; background:#eaf0f5;
+      color:var(--primary); border:1px solid #d5e0ea; font-size:0.78rem; line-height:1; box-shadow:none;
+    }
+    .org-toggle:hover { filter:none; box-shadow:none; background:#dfeaf3; }
+    .org-toggle.is-leaf { visibility:hidden; }
+    .org-row-main { min-width:0; display:grid; gap:0.12rem; }
+    .org-row-title {
+      font-family:var(--font-display); font-weight:650; font-size:0.93rem; letter-spacing:-0.01em;
+      color:var(--ink); display:flex; flex-wrap:wrap; align-items:center; gap:0.35rem;
+    }
+    .org-row.is-root .org-row-title, .org-row.is-branch .org-row-title { font-size:1.02rem; font-weight:700; }
+    .org-row-sub {
+      display:flex; flex-wrap:wrap; gap:0.3rem; align-items:center; font-size:0.74rem; color:var(--muted);
+    }
+    .org-pill {
+      display:inline-flex; align-items:center; padding:0.08rem 0.45rem; border-radius:999px;
+      font-size:0.66rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase;
+    }
+    .org-pill.depth { background:#eef3f7; color:#5a6d7e; }
+    .org-pill.pz { background:#e3f1f8; color:var(--org-pz); }
+    .org-pill.hazz { background:#fceee6; color:var(--org-hazz); }
+    .org-pill.co { background:#e6f4ec; color:var(--org-co); }
+    .org-pill.root { background:#e8eef4; color:var(--org-root); }
+    .org-pill.on { background:#e6f5ec; color:var(--ok); }
+    .org-pill.off { background:#f6e8e6; color:var(--danger); }
+    .org-code {
+      font-family:ui-monospace,Consolas,monospace; font-size:0.7rem; font-weight:600;
+      color:#526778; background:#eef3f7; border-radius:5px; padding:0.05rem 0.35rem;
+    }
+    .org-kids {
+      color:#7a8b9a; font-weight:600; font-size:0.72rem; margin-left:0.15rem;
+    }
+    .org-row-actions { display:flex; gap:0.28rem; opacity:0; transition:opacity .12s ease; }
+    .org-row-actions button { padding:0.28rem 0.55rem; font-size:0.72rem; border-radius:7px; }
+    .org-empty { padding:1.2rem; text-align:center; color:var(--muted); }
+    @media (max-width:720px) {
+      .org-summary { grid-template-columns:1fr; }
+      .org-row { grid-template-columns:1.45rem 1fr; }
+      .org-row-actions { grid-column:1 / -1; opacity:1; justify-content:flex-start; }
+    }
     .section-card > h2::before {
       content: "";
       width: 0.55rem;
@@ -896,7 +1241,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* sticky table headers: see .table-scroll above */
 
     @media (max-width: 1100px) {
       .dash-charts-3 { grid-template-columns: 1fr; }
@@ -916,6 +1261,7 @@
         top: 0;
         left: 0;
         bottom: 0;
+        height: auto;
         width: min(300px, 86vw);
         z-index: 100;
         padding: 1rem 0.75rem 1.5rem;
@@ -947,6 +1293,11 @@
       }
       #display-name {
         display: none;
+      }
+      .user-avatar {
+        width: 1.85rem;
+        height: 1.85rem;
+        font-size: 0.65rem;
       }
       #logout-btn {
         padding: 0.45rem 0.7rem;
@@ -996,7 +1347,7 @@
 <body>
   <div id="login-view" class="login-shell">
     <form id="login-form" class="login-card">
-      <p class="brand">IS SUAS</p>
+      <p class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span>IS SUAS</p>
       <h1>Prihlasenie</h1>
       <p class="muted">Informacny system statnych bezpilotnych leteckych systemov</p>
       <label>Pouzivatelske meno
@@ -1017,25 +1368,37 @@
   <div id="app-view" class="app hidden">
     <button type="button" class="nav-backdrop" id="nav-backdrop" aria-label="Zavrieť menu"></button>
     <aside class="sidebar" id="app-sidebar">
-      <div class="sidebar-brand">IS SUAS<span>Evidencia UAS · ATLAS</span></div>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span>
+        <div class="sidebar-brand-text">IS SUAS<span>Evidencia UAS · ATLAS</span></div>
+      </div>
       <nav>
-        <button type="button" data-page="dashboard" class="nav active">Prehlad</button>
-        <button type="button" data-page="orgs" class="nav">Organizacna struktura</button>
-        <button type="button" data-page="accounts" class="nav">Prevadzkovatelia</button>
-        <button type="button" data-page="delegations" class="nav">Delegacie</button>
-        <button type="button" data-page="pilots" class="nav">Piloti</button>
-        <button type="button" data-page="operations" class="nav">Operacie</button>
-        <button type="button" data-page="flights" class="nav">Dennik letov</button>
-        <button type="button" data-page="defects" class="nav">Poruchy</button>
-        <button type="button" data-page="incidents" class="nav">Incidenty</button>
-        <button type="button" data-page="documents" class="nav">Dokumenty</button>
-        <button type="button" data-page="reports" class="nav">Reporty</button>
-        <button type="button" data-page="calendar" class="nav">Kalendar</button>
-        <button type="button" data-page="map" class="nav">Mapa</button>
-        <button type="button" data-page="admin" class="nav">Administracia</button>
-        <button type="button" data-page="uas" class="nav">Register UAS</button>
-        <button type="button" data-page="components" class="nav">Komponenty</button>
-        <button type="button" data-page="batteries" class="nav">Baterie</button>
+        <div class="nav-section">Prehlad</div>
+        <button type="button" data-page="dashboard" class="nav active"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Prehlad</button>
+        <div class="nav-section">Organizacia</div>
+        <button type="button" data-page="orgs" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/><path d="M7.5 7.5 9.5 9.5M14.5 14.5l2 2M16.5 7.5 14.5 9.5M9.5 14.5l-2 2"/></svg></span>Organizacna struktura</button>
+        <button type="button" data-page="monthly" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3M16 7V3M4 11h16"/><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 15h3M13 15h3M8 18h8"/></svg></span>Mesacny vykaz</button>
+        <button type="button" data-page="accounts" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Prevadzkovatelia</button>
+        <button type="button" data-page="delegations" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3 14 10"/><path d="M3 21l7-7"/><circle cx="9" cy="9" r="2"/><circle cx="15" cy="15" r="2"/></svg></span>Delegacie</button>
+        <div class="nav-section">Letova cinnost</div>
+        <button type="button" data-page="pilots" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M8 8h8"/><path d="M9.5 5.5 12 3l2.5 2.5"/></svg></span>Piloti</button>
+        <button type="button" data-page="operations" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h5l2-7 3 14 2-7h4"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>Operacie</button>
+        <button type="button" data-page="flights" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l4 2v2l-4-1-4 1v-2l4-2V3z"/><path d="M8 15c0 2.5 1.8 4.5 4 4.5s4-2 4-4.5"/><path d="M5 21h14"/></svg></span>Dennik letov</button>
+        <button type="button" data-page="calendar" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg></span>Kalendar</button>
+        <button type="button" data-page="map" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13L9 17l6 2.5L21 17V4l-6 2.5L9 4z"/><path d="M9 4v13M15 6.5v13"/></svg></span>Mapa</button>
+        <button type="button" data-page="geozones" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/><path d="M3 20h18" opacity=".45"/></svg></span>Mapa GEO zon</button>
+        <div class="nav-section">Flotila</div>
+        <button type="button" data-page="uas" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/><path d="M6.5 6.5 8.5 8.5M15.5 15.5l2 2M17.5 6.5 15.5 8.5M8.5 15.5l-2 2"/><circle cx="5" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="19" r="1.6"/></svg></span>Register UAS</button>
+        <button type="button" data-page="components" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9l-3.8 3.8z"/></svg></span>Komponenty</button>
+        <button type="button" data-page="batteries" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="7" width="12" height="14" rx="2"/><path d="M10 3h4v4h-4z"/><path d="M10 12h4M10 16h4"/></svg></span>Baterie</button>
+        <div class="nav-section">Bezpecnost</div>
+        <button type="button" data-page="defects" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Poruchy</button>
+        <button type="button" data-page="incidents" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></span>Incidenty</button>
+        <button type="button" data-page="documents" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></span>Dokumenty</button>
+        <button type="button" data-page="reports" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16V10"/><path d="M12 16V7"/><path d="M16 16v-4"/></svg></span>Reporty</button>
+        <div class="nav-section">Sprava</div>
+        <button type="button" data-page="geozones-admin" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V7l-8-4z"/><path d="M9 12h6M12 9v6"/></svg></span>Sprava GEO zon</button>
+        <button type="button" data-page="admin" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>Administracia</button>
       </nav>
     </aside>
     <main>
@@ -1051,6 +1414,7 @@
             <input id="global-search-q" type="search" placeholder="Hladat..." style="min-width:160px;padding:0.45rem 0.6rem" />
             <button type="submit" class="secondary" id="global-search-btn" style="padding:0.45rem 0.75rem">Hladat</button>
           </form>
+          <span class="user-avatar" id="user-avatar" aria-hidden="true">G</span>
           <span id="display-name"></span>
           <button id="logout-btn" type="button">Odhlasit</button>
         </div>
@@ -1066,7 +1430,16 @@
       /** @type {{ lat:number, lon:number, radiusM:number, label:string }|null} */
       pendingFlightLocation: null,
       openFlightForm: false,
-      mapStartPick: false
+      mapStartPick: false,
+      flightDetailId: null,
+      uasDetailId: null,
+      monthlyYear: null,
+      monthlyMonth: null,
+      monthlyOrgUnitId: null,
+      orgBranchFilter: 'all',
+      orgCollapsed: {},
+      dashboardScope: 'central',
+      dashboardOrgUnitId: null
     };
 
     const loginView = document.getElementById('login-view');
@@ -1120,6 +1493,14 @@
       loginView.classList.add('hidden');
       appView.classList.remove('hidden');
       displayNameEl.textContent = state.displayName;
+      var avatar = document.getElementById('user-avatar');
+      if (avatar) {
+        var parts = String(state.displayName || 'U').trim().split(/\s+/).filter(Boolean);
+        var initials = parts.length >= 2
+          ? (parts[0][0] + parts[1][0])
+          : String(parts[0] || 'U').slice(0, 2);
+        avatar.textContent = initials.toUpperCase();
+      }
       navigate('dashboard');
     }
 
@@ -1256,6 +1637,8 @@
       reports: 'Reporty',
       calendar: 'Kalendar',
       map: 'Mapa — VFR / vzdušné priestory',
+      geozones: 'Mapa GEO zon',
+      'geozones-admin': 'Sprava GEO zon',
       admin: 'Administracia',
       uas: 'Register UAS',
       components: 'Komponenty',
@@ -1274,7 +1657,7 @@
     async function navigate(page) {
       pageTitle.textContent = titles[page] || page;
       if (window.IsSuasDroneMap) window.IsSuasDroneMap.destroyMap();
-      content.classList.toggle('content-map', page === 'map');
+      content.classList.toggle('content-map', page === 'map' || page === 'geozones');
       content.innerHTML = '<div class="panel">Nacitavam...</div>';
       try {
         if (page === 'search') {
@@ -1328,8 +1711,12 @@
           const orgs = await api('/api/v1/org-units');
           const scope = state.dashboardScope || 'central';
           let selectedOrg = (typeof state.dashboardOrgUnitId === 'string') ? state.dashboardOrgUnitId : '';
-          const branchOrgs = orgs.filter(function (o) { return o.level === 1; });
-          const unitOrgs = orgs.filter(function (o) { return o.level >= 2; });
+          const branchOrgs = orgs.filter(function (o) {
+            return o.kind === 'BranchPz' || o.kind === 'BranchHazz' || o.kind === 'BranchCo' || o.kind === 1 || o.kind === 2 || o.kind === 3 || o.level === 1;
+          });
+          const unitOrgs = orgs.filter(function (o) {
+            return o.kind === 'Unit' || o.kind === 4 || o.level >= 2;
+          });
           if (scope === 'branch' && !selectedOrg && branchOrgs.length)
             selectedOrg = branchOrgs[0].id;
           if (scope === 'unit' && !selectedOrg && unitOrgs.length)
@@ -1430,13 +1817,14 @@
             weatherHtml +
             '<div class="stat-grid dash-stats">' +
             '<div class="stat"><div class="n">' + d.fleet.totalUas + '</div><div class="l">UAS celkom</div>' + fleetMeta + '</div>' +
-            '<div class="stat"><div class="n">' + (d.totalFlightHours != null ? Number(d.totalFlightHours).toFixed(1) : '0') + '</div><div class="l">Nalietane hodiny</div></div>' +
+            '<div class="stat"><div class="n">' + (d.totalFlightHours != null ? Number(d.totalFlightHours).toFixed(1) : '0') + '</div><div class="l">Nalet (mesacne)</div></div>' +
+            '<div class="stat"><div class="n">' + (d.totalTakeoffs != null ? d.totalTakeoffs : 0) + '</div><div class="l">Vzlety</div></div>' +
+            '<div class="stat"><div class="n">' + (d.confirmedMonthlyReports != null ? d.confirmedMonthlyReports : 0) + '</div><div class="l">Odovzdane vykazy</div></div>' +
+            '<div class="stat"><div class="n">' + (d.missingMonthlyReports != null ? d.missingMonthlyReports : 0) + '</div><div class="l">Chybajuce vykazy</div></div>' +
             '<div class="stat"><div class="n">' + d.operationsToday + '</div><div class="l">Operacie dnes</div></div>' +
             '<div class="stat"><div class="n">' + d.openDefects + '</div><div class="l">Poruchy</div></div>' +
             '<div class="stat"><div class="n">' + d.openIncidents + '</div><div class="l">Incidenty</div></div>' +
             '<div class="stat"><div class="n">' + d.unreadNotifications + '</div><div class="l">Neprecitane</div></div>' +
-            '<div class="stat"><div class="n">' + d.fleet.inService + '</div><div class="l">UAS v prevadzke</div></div>' +
-            '<div class="stat"><div class="n">' + d.fleet.totalUas + '</div><div class="l">Flotila</div></div>' +
             '</div>' +
             '</div>' +
             '<div class="dash-map-panel">' +
@@ -1603,91 +1991,197 @@
           return;
         }
         if (page === 'orgs') {
-          const items = await api('/api/v1/org-units');
+          const items = await api('/api/v1/org-units?includeInactive=true');
           const byId = {};
           items.forEach(function (o) { byId[o.id] = o; });
+          const childrenMap = {};
+          items.forEach(function (o) {
+            var pid = o.parentId || '__root__';
+            if (!childrenMap[pid]) childrenMap[pid] = [];
+            childrenMap[pid].push(o);
+          });
+          Object.keys(childrenMap).forEach(function (k) {
+            childrenMap[k].sort(function (a, b) {
+              return String(a.code || '').localeCompare(String(b.code || ''), 'sk');
+            });
+          });
 
+          if (!state.orgBranchFilter) state.orgBranchFilter = 'all';
+          if (!state.orgCollapsed) state.orgCollapsed = {};
+
+          function kindKey(o) {
+            var k = o.kind;
+            if (k === 'Root' || k === 0) return 'root';
+            if (k === 'BranchPz' || k === 1) return 'pz';
+            if (k === 'BranchHazz' || k === 2) return 'hazz';
+            if (k === 'BranchCo' || k === 3) return 'co';
+            return 'unit';
+          }
+          function kindLabel(o) {
+            var k = kindKey(o);
+            if (k === 'root') return 'MV SR';
+            if (k === 'pz') return 'Policajný zbor';
+            if (k === 'hazz') return 'HaZZ';
+            if (k === 'co') return 'Civilná ochrana';
+            return 'Útvar';
+          }
+          function depthLabel(o) {
+            var k = kindKey(o);
+            if (k !== 'unit') return kindLabel(o);
+            var code = String(o.code || '');
+            if (/^(KR-|HAZZ-KR-|CO-KR-)/.test(code) || /krajsk/i.test(o.name || '')) return 'Kraj';
+            if (/^(OR-|HAZZ-OR-|CO-OR-)/.test(code) || /okresn/i.test(o.name || '')) return 'Okres';
+            if (/útvar|stanica|pracovisko/i.test(o.name || '') || /^(UT-|HAZZ-ST-|CO-UT-)/.test(code)) return 'Útvar';
+            if (o.level <= 2) return 'Kraj / útvar';
+            if (o.level === 3) return 'Okres';
+            return 'Útvar';
+          }
+          function branchOf(o) {
+            var cur = o;
+            var guard = 0;
+            while (cur && guard++ < 20) {
+              var kk = kindKey(cur);
+              if (kk === 'pz' || kk === 'hazz' || kk === 'co') return kk;
+              if (kk === 'root') return 'root';
+              cur = cur.parentId ? byId[cur.parentId] : null;
+            }
+            return 'unit';
+          }
+          function countDesc(id) {
+            var kids = childrenMap[id] || [];
+            var n = kids.length;
+            kids.forEach(function (c) { n += countDesc(c.id); });
+            return n;
+          }
           function parentOptionsHtml(excludeId) {
-            return '<option value="">— koren (bez nadradeneho) —</option>' +
-              items.filter(function (o) { return o.id !== excludeId; }).map(function (o) {
+            return '<option value="">— koreň (bez nadradeného) —</option>' +
+              items.filter(function (o) { return o.id !== excludeId && o.isActive !== false; }).map(function (o) {
                 var pad = Array(Math.max(0, o.level) + 1).join('· ');
                 return '<option value="' + o.id + '">' + pad + o.code + ' — ' + o.name + '</option>';
               }).join('');
           }
 
-          function orgColor(o) {
-            // Krajské riaditeľstvá (a ostatné) — rovnaká paleta ako koláče na Prehľade
-            if (o && String(o.code || '').indexOf('KR-') === 0) return colorForKey(o.code);
-            if (o && o.parentId && byId[o.parentId] && String(byId[o.parentId].code || '').indexOf('KR-') === 0)
-              return colorForKey(byId[o.parentId].code);
-            return levelColor(o ? o.level : 0);
+          function inFilter(o) {
+            var f = state.orgBranchFilter;
+            if (f === 'all') return true;
+            var b = branchOf(o);
+            if (kindKey(o) === 'root') return true;
+            return b === f;
           }
 
-          var krUnits = items.filter(function (o) {
-            return String(o.code || '').indexOf('KR-') === 0 || /krajsk/i.test(o.name || '');
+          function renderNode(o) {
+            if (!inFilter(o) && kindKey(o) !== 'root') return '';
+            var kidsAll = childrenMap[o.id] || [];
+            var kids = kidsAll;
+            if (state.orgBranchFilter !== 'all') {
+              kids = kidsAll.filter(function (c) {
+                var b = branchOf(c);
+                var ck = kindKey(c);
+                return b === state.orgBranchFilter || ck === state.orgBranchFilter;
+              });
+            }
+            var hasKids = kids.length > 0;
+            var collapsed = !!state.orgCollapsed[o.id];
+            if (hasKids && state.orgCollapsed[o.id] === undefined) {
+              // default: collapse below kraj (level >= 2 for units under branch)
+              collapsed = o.level >= 2 && kindKey(o) === 'unit';
+              state.orgCollapsed[o.id] = collapsed;
+            }
+            var kk = kindKey(o);
+            var br = branchOf(o);
+            var rowClass = 'org-row'
+              + (kk === 'root' ? ' is-root' : '')
+              + (kk === 'pz' || kk === 'hazz' || kk === 'co' ? ' is-branch ' + kk : '')
+              + (/kraj/i.test(depthLabel(o)) ? ' is-kraj' : '')
+              + (o.isActive === false ? ' is-inactive' : '');
+            var desc = countDesc(o.id);
+            var actions = o.isActive === false
+              ? '<button type="button" class="secondary org-reactivate" data-id="' + o.id + '">Aktivovať</button>'
+              : '<button type="button" class="secondary org-edit" data-id="' + o.id + '">Upraviť</button>' +
+                '<button type="button" class="secondary org-remove" data-id="' + o.id +
+                '" data-name="' + String(o.name).replace(/"/g, '&quot;') + '">Deaktivovať</button>';
+            var html = '<li><div class="' + rowClass + '" data-id="' + o.id + '">' +
+              '<button type="button" class="org-toggle' + (hasKids ? '' : ' is-leaf') + '" data-toggle="' + o.id +
+              '" aria-label="Rozbaliť">' + (collapsed ? '▸' : '▾') + '</button>' +
+              '<div class="org-row-main">' +
+              '<div class="org-row-title">' + o.name +
+              (hasKids ? '<span class="org-kids">' + desc + '</span>' : '') +
+              '</div>' +
+              '<div class="org-row-sub">' +
+              '<span class="org-code">' + o.code + '</span>' +
+              '<span class="org-pill ' + (kk === 'unit' ? br : kk) + '">' + depthLabel(o) + '</span>' +
+              '<span class="org-pill ' + (o.isActive === false ? 'off' : 'on') + '">' +
+              (o.isActive === false ? 'Neaktívny' : 'Aktívny') + '</span>' +
+              '</div></div>' +
+              '<div class="org-row-actions">' + actions + '</div></div>';
+            if (hasKids && !collapsed) {
+              html += '<ul class="org-tree-list">' + kids.map(renderNode).join('') + '</ul>';
+            }
+            html += '</li>';
+            return html;
+          }
+
+          var roots = (childrenMap['__root__'] || []).slice();
+          // also include nodes without parent listed
+          items.filter(function (o) { return !o.parentId; }).forEach(function (o) {
+            if (!roots.some(function (r) { return r.id === o.id; })) roots.push(o);
           });
-          var legendUnits = krUnits.length ? krUnits : items.filter(function (o) { return o.level === 1 || o.level === 2; }).slice(0, 12);
-          var maxLevel = items.reduce(function (m, o) { return Math.max(m, o.level || 0); }, 0);
 
-          const rows = items.map(function (o) {
-            var parent = o.parentId && byId[o.parentId] ? byId[o.parentId] : null;
-            var color = orgColor(o);
-            var parentHtml = parent
-              ? '<span class="entity-label">' + swatchHtml(orgColor(parent)) +
-                '<span>' + parent.code + '</span></span>'
-              : '—';
-            return '<tr class="row-tint" style="--row-accent:' + color + '">' +
-              '<td><span class="entity-label">' + swatchHtml(color, 'swatch-lg') +
-              '<span class="code">' + o.code + '</span></span></td>' +
-              '<td><span class="org-tree-name" style="--org-level:' + o.level +
-              ';--swatch-color:' + color + '">' +
-              '<span class="swatch swatch-lg"></span>' +
-              '<span>' + o.name + '</span>' +
-              '<span class="level-pill">úroveň ' + o.level + '</span></span></td>' +
-              '<td>' + parentHtml + '</td>' +
-              '<td><div class="row-actions">' +
-              '<button type="button" class="secondary org-edit" data-id="' + o.id + '">Upravit</button>' +
-              '<button type="button" class="secondary org-remove" data-id="' + o.id +
-              '" data-name="' + String(o.name).replace(/"/g, '&quot;') + '">Odstranit</button>' +
-              '</div></td></tr>';
-          }).join('') || '<tr><td colspan="4">Zatial ziadne utvary</td></tr>';
-
-          var legendHtml = legendUnits.length
-            ? '<div class="color-legend">' +
-              legendUnits.map(function (o) {
-                return '<span class="chip">' + swatchHtml(orgColor(o), 'swatch-lg') +
-                  ' ' + o.name.replace(/^Krajské riaditeľstvo\s+/i, 'KR ') + '</span>';
-              }).join('') + '</div>'
-            : '';
+          function countInBranch(branch) {
+            return items.filter(function (o) {
+              return o.isActive !== false && branchOf(o) === branch && kindKey(o) === 'unit';
+            }).length;
+          }
+          var inactiveCount = items.filter(function (o) { return o.isActive === false; }).length;
+          var treeHtml = roots.map(renderNode).join('') || '<div class="org-empty">Zatiaľ žiadne útvary</div>';
 
           content.innerHTML =
-            '<div class="stack">' +
+            '<div class="stack org-page">' +
             pageHead(
-              'Organizacna struktura',
-              'Hierarchia útvarov s farbami podľa krajských riaditeľstiev (rovnaká paleta ako na Prehľade).',
-              chipHtml('Útvary', items.length, 'chip-soft') +
-              chipHtml('Úrovne', maxLevel + 1) +
-              chipHtml('Krajské', krUnits.length || '—', 'chip-ok')
+              'Organizačná štruktúra',
+              'MV SR → zložky → kraj → okres → útvar. Strom je spravovateľný; filtre pomáhajú rýchlo prejsť zložky.',
+              chipHtml('Uzly', items.length, 'chip-soft') +
+              chipHtml('Neaktívne', inactiveCount) +
+              chipHtml('Úrovne', (items.reduce(function (m, o) { return Math.max(m, o.level || 0); }, 0) + 1), 'chip-ok')
             ) +
+            '<div class="org-summary">' +
+            '<div class="org-summary-card pz"><div class="k">Policajný zbor</div><div class="v">' + countInBranch('pz') + '</div><div class="s">aktívne útvary v strome</div></div>' +
+            '<div class="org-summary-card hazz"><div class="k">HaZZ</div><div class="v">' + countInBranch('hazz') + '</div><div class="s">aktívne útvary v strome</div></div>' +
+            '<div class="org-summary-card co"><div class="k">Civilná ochrana</div><div class="v">' + countInBranch('co') + '</div><div class="s">aktívne útvary v strome</div></div>' +
+            '</div>' +
+            '<div class="org-branch-bar">' +
+            '<button type="button" data-branch="all"' + (state.orgBranchFilter === 'all' ? ' class="is-on"' : '') + '>Celý strom</button>' +
+            '<button type="button" data-branch="pz"' + (state.orgBranchFilter === 'pz' ? ' class="is-on"' : '') + '>Policajný zbor</button>' +
+            '<button type="button" data-branch="hazz"' + (state.orgBranchFilter === 'hazz' ? ' class="is-on"' : '') + '>HaZZ</button>' +
+            '<button type="button" data-branch="co"' + (state.orgBranchFilter === 'co' ? ' class="is-on"' : '') + '>Civilná ochrana</button>' +
+            '</div>' +
             '<div class="toolbar">' +
-            '<button type="button" id="org-add-btn">Pridat utvar</button>' +
+            '<button type="button" id="org-add-btn">Pridať útvar</button>' +
+            '<button type="button" class="secondary" id="org-expand">Rozbaliť všetko</button>' +
+            '<button type="button" class="secondary" id="org-collapse">Zbaliť kraje</button>' +
             '</div>' +
             '<div id="org-msg"></div>' +
             '<div id="org-panel" class="form-panel hidden">' +
-            '<h3 id="org-panel-title">Novy utvar</h3>' +
+            '<h3 id="org-panel-title">Nový útvar</h3>' +
             '<form id="org-form" class="form-grid">' +
             '<input type="hidden" id="org-id" value="" />' +
             '<input type="hidden" id="org-rv" value="" />' +
             '<input type="hidden" id="org-orig-parent" value="" />' +
-            '<label>Kod<input id="org-code" required placeholder="napr. KR-TT" maxlength="64" /></label>' +
-            '<label>Nazov<input id="org-name" required placeholder="napr. Krajsky riaditelstvo Trnava" maxlength="200" /></label>' +
-            '<label class="full">Nadradeny utvar<select id="org-parent">' + parentOptionsHtml(null) + '</select></label>' +
+            '<label>Kód<input id="org-code" required placeholder="napr. OR-BA-1" maxlength="64" /></label>' +
+            '<label>Názov<input id="org-name" required placeholder="napr. Okresné riaditeľstvo Bratislava I" maxlength="200" /></label>' +
+            '<label>Typ<select id="org-kind">' +
+            '<option value="4">Útvar</option>' +
+            '<option value="1">Zložka PZ</option>' +
+            '<option value="2">Zložka HaZZ</option>' +
+            '<option value="3">Zložka CO</option>' +
+            '<option value="0">Koreň (MV)</option>' +
+            '</select></label>' +
+            '<label class="full">Nadradený útvar<select id="org-parent">' + parentOptionsHtml(null) + '</select></label>' +
             '<div class="full toolbar">' +
-            '<button type="submit" id="org-submit">Ulozit</button>' +
-            '<button type="button" class="secondary" id="org-cancel">Zrusit</button>' +
+            '<button type="submit">Uložiť</button>' +
+            '<button type="button" class="secondary" id="org-cancel">Zrušiť</button>' +
             '</div></form></div>' +
-            legendHtml +
-            sectionCard('Strom útvarov', makeTable(['Kod', 'Nazov', 'Nadradeny', 'Akcie'], rows, true), '#2b7bb9') +
+            '<div class="org-tree-shell"><ul class="org-tree-list">' + treeHtml + '</ul></div>' +
             '</div>';
 
           function openOrgForm(mode, org) {
@@ -1697,23 +2191,26 @@
             var parentEl = document.getElementById('org-parent');
             document.getElementById('org-msg').innerHTML = '';
             if (mode === 'edit' && org) {
-              title.textContent = 'Upravit utvar';
+              title.textContent = 'Upraviť útvar';
               document.getElementById('org-id').value = org.id;
               document.getElementById('org-rv').value = String(org.rowVersion);
               document.getElementById('org-orig-parent').value = org.parentId || '';
               codeEl.value = org.code;
               codeEl.readOnly = true;
               document.getElementById('org-name').value = org.name;
+              document.getElementById('org-kind').disabled = true;
               parentEl.innerHTML = parentOptionsHtml(org.id);
               parentEl.value = org.parentId || '';
             } else {
-              title.textContent = 'Novy utvar';
+              title.textContent = 'Nový útvar';
               document.getElementById('org-id').value = '';
               document.getElementById('org-rv').value = '';
               document.getElementById('org-orig-parent').value = '';
               codeEl.value = '';
               codeEl.readOnly = false;
               document.getElementById('org-name').value = '';
+              document.getElementById('org-kind').disabled = false;
+              document.getElementById('org-kind').value = '4';
               parentEl.innerHTML = parentOptionsHtml(null);
               parentEl.value = '';
             }
@@ -1721,18 +2218,50 @@
             document.getElementById('org-name').focus();
           }
 
+          content.querySelectorAll('.org-branch-bar button').forEach(function (btn) {
+            btn.onclick = function () {
+              state.orgBranchFilter = btn.dataset.branch;
+              navigate('orgs');
+            };
+          });
+          document.getElementById('org-expand').onclick = function () {
+            items.forEach(function (o) { state.orgCollapsed[o.id] = false; });
+            navigate('orgs');
+          };
+          document.getElementById('org-collapse').onclick = function () {
+            items.forEach(function (o) {
+              state.orgCollapsed[o.id] = o.level >= 2 && kindKey(o) === 'unit';
+            });
+            navigate('orgs');
+          };
+          content.querySelectorAll('[data-toggle]').forEach(function (btn) {
+            btn.onclick = function () {
+              var id = btn.dataset.toggle;
+              state.orgCollapsed[id] = !state.orgCollapsed[id];
+              navigate('orgs');
+            };
+          });
+
           document.getElementById('org-add-btn').onclick = function () { openOrgForm('create'); };
           document.getElementById('org-cancel').onclick = function () {
             document.getElementById('org-panel').classList.add('hidden');
           };
-
           content.querySelectorAll('.org-edit').forEach(function (btn) {
             btn.onclick = function () {
               var org = byId[btn.dataset.id];
               if (org) openOrgForm('edit', org);
             };
           });
-
+          content.querySelectorAll('.org-reactivate').forEach(function (btn) {
+            btn.onclick = async function () {
+              try {
+                await api('/api/v1/org-units/' + btn.dataset.id + '/reactivate', { method: 'POST', body: '{}' });
+                navigate('orgs');
+              } catch (err) {
+                document.getElementById('org-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
           document.getElementById('org-form').onsubmit = async function (ev) {
             ev.preventDefault();
             var msg = document.getElementById('org-msg');
@@ -1740,15 +2269,15 @@
             var name = document.getElementById('org-name').value.trim();
             var parentVal = document.getElementById('org-parent').value || null;
             try {
-              if (!name) throw new Error('Vyplnte nazov');
+              if (!name) throw new Error('Vyplňte názov');
               if (!id) {
                 var code = document.getElementById('org-code').value.trim();
-                if (!code) throw new Error('Vyplnte kod a nazov');
+                if (!code) throw new Error('Vyplňte kód a názov');
+                var kind = Number(document.getElementById('org-kind').value);
                 await api('/api/v1/org-units', {
                   method: 'POST',
-                  body: JSON.stringify({ code: code, name: name, parentId: parentVal })
+                  body: JSON.stringify({ code: code, name: name, parentId: parentVal, kind: kind })
                 });
-                msg.innerHTML = '<div class="msg">Utvar bol pridany.</div>';
               } else {
                 var rv = Number(document.getElementById('org-rv').value);
                 var origParent = document.getElementById('org-orig-parent').value || null;
@@ -1761,32 +2290,224 @@
                     method: 'POST',
                     body: JSON.stringify({
                       newParentId: parentVal,
-                      reason: 'Uprava z UI',
+                      reason: 'Úprava z UI',
                       rowVersion: updated.rowVersion
                     })
                   });
                 }
-                msg.innerHTML = '<div class="msg">Utvar bol upraveny.</div>';
               }
               navigate('orgs');
             } catch (err) {
-              msg.innerHTML = '<div class="error">' + (err.message || 'Ulozenie zlyhalo') + '</div>';
+              msg.innerHTML = '<div class="error">' + (err.message || 'Uloženie zlyhalo') + '</div>';
             }
           };
-
           content.querySelectorAll('.org-remove').forEach(function (btn) {
             btn.onclick = async function () {
-              var msg = document.getElementById('org-msg');
-              if (!confirmAction('Naozaj odstranit utvar „' + (btn.dataset.name || '') + '“?')) return;
+              if (!confirmAction('Naozaj deaktivovať útvar „' + (btn.dataset.name || '') + '“?')) return;
               try {
                 await api('/api/v1/org-units/' + btn.dataset.id, { method: 'DELETE' });
-                msg.innerHTML = '<div class="msg">Utvar bol odstraneny.</div>';
                 navigate('orgs');
               } catch (err) {
-                msg.innerHTML = '<div class="error">' + (err.message || 'Odstranenie zlyhalo') + '</div>';
+                document.getElementById('org-msg').innerHTML = '<div class="error">' + (err.message || 'Deaktivácia zlyhala') + '</div>';
               }
             };
           });
+          return;
+        }
+        if (page === 'monthly') {
+          const now = new Date();
+          const year = state.monthlyYear || (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
+          const month = state.monthlyMonth || (now.getMonth() === 0 ? 12 : now.getMonth());
+          state.monthlyYear = year;
+          state.monthlyMonth = month;
+
+          const orgs = await api('/api/v1/org-units');
+          const unitOrgs = orgs.filter(function (o) {
+            return o.isActive !== false && (o.kind === 'Unit' || o.kind === 4 || o.level >= 2);
+          });
+          if (!state.monthlyOrgUnitId) {
+            var prefer = unitOrgs.find(function (o) { return String(o.code || '').indexOf('KR-') === 0; })
+              || unitOrgs.find(function (o) { return o.code === 'UTVAR-A'; })
+              || unitOrgs[0];
+            state.monthlyOrgUnitId = prefer ? prefer.id : null;
+          }
+          if (!state.monthlyOrgUnitId) {
+            content.innerHTML = '<div class="error">Žiadny útvar na výkaz. Najprv vytvorte útvar v organizačnej štruktúre.</div>';
+            return;
+          }
+
+          const draftUrl = '/api/v1/monthly-flight-reports/draft?year=' + year + '&month=' + month +
+            '&orgUnitId=' + encodeURIComponent(state.monthlyOrgUnitId);
+          const report = await api(draftUrl, { method: 'POST', body: '{}' });
+          const auths = await api('/api/v1/pilot-uas-authorizations?orgUnitId=' + encodeURIComponent(report.orgUnitId) + '&activeOnly=true');
+          const statusText = report.status === 'Confirmed' || report.status === 1 ? 'Potvrdeny'
+            : (report.status === 'NoActivity' || report.status === 2 ? 'Bez letovej cinnosti' : 'Koncept');
+          const lineRows = (report.lines || []).map(function (l, idx) {
+            return '<tr data-idx="' + idx + '">' +
+              '<td>' + l.pilotName + '</td><td>' + l.uasLabel + '</td>' +
+              '<td>' + l.hours + ':' + String(l.minutes).padStart(2, '0') + '</td>' +
+              '<td>' + l.takeoffs + '/' + l.landings + '</td>' +
+              '<td>' + l.operationalFlights + '/' + l.trainingFlights + '/' + l.otherFlights + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Ziadne riadky — pridajte pilot×UAS</td></tr>';
+
+          const authOpts = (auths || []).map(function (a) {
+            return '<option value="' + a.pilotId + '|' + a.uasId + '">' + a.pilotName + ' × ' + a.uasLabel + '</option>';
+          }).join('') || '<option value="">— žiadne oprávnenia pre tento útvar —</option>';
+
+          const orgOpts = unitOrgs.map(function (o) {
+            return '<option value="' + o.id + '"' + (o.id === report.orgUnitId ? ' selected' : '') + '>' +
+              o.code + ' — ' + o.name + '</option>';
+          }).join('');
+
+          content.innerHTML = '<div class="stack">' +
+            pageHead('Mesacny vykaz', 'Súhrn letovej činnosti útvaru za mesiac. Štatistiky na Prehľade čítajú len potvrdené výkazy.',
+              chipHtml('Utvar', report.orgUnitName || '—', 'chip-soft') +
+              chipHtml('Obdobie', month + '/' + year) +
+              chipHtml('Stav', statusText, 'chip-ok') +
+              chipHtml('Oprávnenia', (auths || []).length)) +
+            '<div class="toolbar">' +
+            '<label>Utvar <select id="m-org" style="width:auto;min-width:220px">' + orgOpts + '</select></label>' +
+            '<label>Rok <input id="m-year" type="number" value="' + year + '" style="width:90px" /></label>' +
+            '<label>Mesiac <input id="m-month" type="number" min="1" max="12" value="' + month + '" style="width:70px" /></label>' +
+            '<button type="button" class="secondary" id="m-reload">Nacitat</button>' +
+            '</div><div id="m-msg"></div>' +
+            ((auths || []).length ? '' : '<div class="error">Pre vybraný útvar nie sú žiadne oprávnenia pilot×UAS. Vyberte krajský útvar (KR-…) alebo reštartujte API kvôli seedu.</div>') +
+            makeTable(['Pilot', 'UAS', 'Cas', 'Vzlet/prist.', 'Ucely O/V/I'], lineRows) +
+            '<div class="toolbar">' +
+            '<button type="button" id="m-reveal-add">Pridat riadok</button> ' +
+            '<button type="button" id="m-confirm">Potvrdit vykaz</button>' +
+            '<button type="button" class="secondary" id="m-none">Bez letovej cinnosti</button>' +
+            '</div>' +
+            '<div id="m-add-panel" class="form-panel hidden">' +
+            '<div class="toolbar" style="justify-content:space-between;margin:0">' +
+            '<h3 style="margin:0">Novy riadok vykazu</h3>' +
+            '<button type="button" class="secondary" id="m-hide-add">Skryt</button></div>' +
+            '<form id="m-add" class="form-grid">' +
+            '<label class="full">Hladat pilota / UAS' +
+            '<input id="m-auth-q" type="search" placeholder="Zadajte meno pilota alebo oznacenie UAS…" autocomplete="off" />' +
+            '</label>' +
+            '<label class="full">Opravnenie (pilot × UAS)' +
+            '<select id="m-auth" size="10" class="m-auth-select">' + authOpts + '</select>' +
+            '<span class="muted" id="m-auth-count" style="font-size:0.8rem">Zobrazenych ' + (auths || []).length + ' z ' + (auths || []).length + '</span>' +
+            '</label>' +
+            '<label>Hodiny<input id="m-h" type="number" min="0" value="1" /></label>' +
+            '<label>Minuty<input id="m-min" type="number" min="0" max="59" value="0" /></label>' +
+            '<label>Vzlety<input id="m-to" type="number" min="0" value="1" /></label>' +
+            '<label>Pristatia<input id="m-la" type="number" min="0" value="1" /></label>' +
+            '<label>Operacne<input id="m-op" type="number" min="0" value="1" /></label>' +
+            '<label>Vycvik<input id="m-tr" type="number" min="0" value="0" /></label>' +
+            '<label>Ine<input id="m-ot" type="number" min="0" value="0" /></label>' +
+            '<div class="full toolbar">' +
+            '<button type="submit">Ulozit riadok</button>' +
+            '<button type="button" class="secondary" id="m-cancel-add">Zrusit</button>' +
+            '</div></form></div>' +
+            '</div>';
+
+          var authSelect = document.getElementById('m-auth');
+          var authCountEl = document.getElementById('m-auth-count');
+          var allAuthOptions = Array.prototype.slice.call(authSelect.options).map(function (o) {
+            return { value: o.value, text: (o.textContent || '').trim() };
+          });
+
+          function filterAuthOptions() {
+            var q = (document.getElementById('m-auth-q').value || '').trim().toLowerCase();
+            var prev = authSelect.value;
+            authSelect.innerHTML = '';
+            var visible = 0;
+            var keep = null;
+            allAuthOptions.forEach(function (opt) {
+              if (q && opt.text.toLowerCase().indexOf(q) < 0) return;
+              var o = document.createElement('option');
+              o.value = opt.value;
+              o.textContent = opt.text || '—';
+              authSelect.appendChild(o);
+              visible++;
+              if (opt.value === prev) keep = o;
+            });
+            if (keep) keep.selected = true;
+            else if (authSelect.options.length) authSelect.selectedIndex = 0;
+            authCountEl.textContent = 'Zobrazenych ' + visible + ' z ' + allAuthOptions.length +
+              (q ? ' (filter: „' + q.replace(/[<>]/g, '') + '“)' : '') +
+              ' — zoznam sa da skrolovat';
+          }
+
+          document.getElementById('m-auth-q').oninput = filterAuthOptions;
+
+          function showAddPanel() {
+            document.getElementById('m-add-panel').classList.remove('hidden');
+            document.getElementById('m-reveal-add').classList.add('hidden');
+            document.getElementById('m-auth-q').focus();
+          }
+          function hideAddPanel() {
+            document.getElementById('m-add-panel').classList.add('hidden');
+            document.getElementById('m-reveal-add').classList.remove('hidden');
+          }
+          document.getElementById('m-reveal-add').onclick = showAddPanel;
+          document.getElementById('m-hide-add').onclick = hideAddPanel;
+          document.getElementById('m-cancel-add').onclick = hideAddPanel;
+
+          document.getElementById('m-reload').onclick = function () {
+            state.monthlyYear = Number(document.getElementById('m-year').value);
+            state.monthlyMonth = Number(document.getElementById('m-month').value);
+            state.monthlyOrgUnitId = document.getElementById('m-org').value;
+            navigate('monthly');
+          };
+          document.getElementById('m-org').onchange = function () {
+            state.monthlyOrgUnitId = document.getElementById('m-org').value;
+            navigate('monthly');
+          };
+          document.getElementById('m-add').onsubmit = async function (ev) {
+            ev.preventDefault();
+            var msg = document.getElementById('m-msg');
+            try {
+              var pair = (document.getElementById('m-auth').value || '').split('|');
+              if (pair.length !== 2 || !pair[0] || !pair[1]) throw new Error('Vyberte opravnenie pilot×UAS');
+              var lines = (report.lines || []).map(function (l) {
+                return {
+                  lineId: l.id, pilotId: l.pilotId, uasId: l.uasId, hours: l.hours, minutes: l.minutes,
+                  takeoffs: l.takeoffs, landings: l.landings, operationalFlights: l.operationalFlights,
+                  trainingFlights: l.trainingFlights, otherFlights: l.otherFlights, note: l.note
+                };
+              });
+              lines.push({
+                pilotId: pair[0], uasId: pair[1],
+                hours: Number(document.getElementById('m-h').value) || 0,
+                minutes: Number(document.getElementById('m-min').value) || 0,
+                takeoffs: Number(document.getElementById('m-to').value) || 0,
+                landings: Number(document.getElementById('m-la').value) || 0,
+                operationalFlights: Number(document.getElementById('m-op').value) || 0,
+                trainingFlights: Number(document.getElementById('m-tr').value) || 0,
+                otherFlights: Number(document.getElementById('m-ot').value) || 0,
+                note: null
+              });
+              await api('/api/v1/monthly-flight-reports/' + report.id, {
+                method: 'PUT',
+                body: JSON.stringify({ note: report.note, lines: lines })
+              });
+              navigate('monthly');
+            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+          };
+          document.getElementById('m-confirm').onclick = async function () {
+            try {
+              await api('/api/v1/monthly-flight-reports/' + report.id + '/confirm', {
+                method: 'POST', body: JSON.stringify({ rowVersion: report.rowVersion })
+              });
+              navigate('monthly');
+            } catch (err) {
+              document.getElementById('m-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+          document.getElementById('m-none').onclick = async function () {
+            if (!confirmAction('Označit mesiac ako bez letovej činnosti?')) return;
+            try {
+              await api('/api/v1/monthly-flight-reports/' + report.id + '/no-activity', {
+                method: 'POST', body: JSON.stringify({ rowVersion: report.rowVersion, note: 'Bez letovej činnosti' })
+              });
+              navigate('monthly');
+            } catch (err) {
+              document.getElementById('m-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
           return;
         }
         if (page === 'accounts') {
@@ -1881,6 +2602,186 @@
           return;
         }
         if (page === 'flights') {
+          if (state.flightDetailId) {
+            let detail;
+            try {
+              detail = await api('/api/v1/flights/' + state.flightDetailId);
+            } catch (err) {
+              state.flightDetailId = null;
+              content.innerHTML = '<div class="error">' + (err.message || 'Let sa nenasiel') +
+                '</div><div class="toolbar"><button type="button" class="secondary" id="fl-back">Spat</button></div>';
+              document.getElementById('fl-back').onclick = function () { navigate('flights'); };
+              return;
+            }
+            const f = detail.flight;
+            const track = detail.trackPoints || [];
+            const imports = detail.telemetryImports || [];
+            function fmtDt(iso) {
+              if (!iso) return '—';
+              return new Date(iso).toLocaleString('sk-SK');
+            }
+            function fmtDur(m) {
+              if (m == null) return '—';
+              return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+            }
+            function metaItem(label, val) {
+              return '<div><dt>' + label + '</dt><dd>' + (val || '—') + '</dd></div>';
+            }
+            var hasCoords = f.locationLat != null && f.locationLon != null &&
+              isFinite(Number(f.locationLat)) && isFinite(Number(f.locationLon));
+            var trackRows = track.map(function (p, i) {
+              return '<tr><td>' + (i + 1) + '</td><td>' + fmtDt(p.recordedAt) +
+                '</td><td>' + Number(p.latitude).toFixed(5) + '</td><td>' + Number(p.longitude).toFixed(5) +
+                '</td><td>' + (p.altitudeMeters != null ? Number(p.altitudeMeters).toFixed(0) + ' m' : '—') +
+                '</td><td>' + (p.speedMps != null ? Number(p.speedMps).toFixed(1) + ' m/s' : '—') + '</td></tr>';
+            }).join('') || '<tr><td colspan="6">Bez zaznamu trate</td></tr>';
+            var telemRows = imports.map(function (t) {
+              return '<tr><td>' + (t.fileName || '—') + '</td><td>' + statusBadge(t.status) +
+                '</td><td>' + fmtDt(t.receivedAt) + '</td><td>' + (t.processingMessage || '—') + '</td></tr>';
+            }).join('') || '<tr><td colspan="4">Bez importov telemetrie</td></tr>';
+            var notesBlock = '';
+            if (detail.postFlightNotes || detail.checklistResult || detail.deviationNotes) {
+              notesBlock =
+                '<div class="form-panel"><h3>Poznamky po lete</h3><dl class="flight-meta">' +
+                metaItem('Checklist', detail.checklistResult) +
+                metaItem('Poznamky', detail.postFlightNotes) +
+                metaItem('Odchylky', detail.deviationNotes) +
+                '</dl></div>';
+            }
+            content.innerHTML =
+              '<div class="stack">' +
+              pageHead('Detail letu', (f.flightNumber || String(f.id).substring(0, 8)) +
+                (f.purpose ? ' · ' + f.purpose : ''),
+                chipHtml('Stav', statusLabelSk(f.status), 'chip-soft') +
+                chipHtml('Utvar', f.orgUnitName || '—')) +
+              '<div class="toolbar">' +
+              '<button type="button" class="secondary" id="fl-back">Spat na dennik</button> ' +
+              '<a class="secondary" id="fl-export-track" href="/api/v1/flights/' + f.id +
+              '/track?format=geojson" style="display:inline-flex;align-items:center;padding:0.5rem 0.9rem;text-decoration:none;border-radius:10px;border:1px solid var(--line);color:var(--primary);background:#fff">Export trate (GeoJSON)</a>' +
+              '</div>' +
+              '<div class="form-panel"><h3>Zakladne udaje</h3><dl class="flight-meta">' +
+              metaItem('Cislo letu', f.flightNumber) +
+              metaItem('Dron', f.uasLabel) +
+              metaItem('Pilot', f.pilotName) +
+              metaItem('Utvar', f.orgUnitName) +
+              metaItem('Vzlet', fmtDt(f.takeoffAt)) +
+              metaItem('Pristatie', fmtDt(f.landingAt)) +
+              metaItem('Trvanie', fmtDur(f.durationMinutes)) +
+              metaItem('Ucel', f.purpose || f.standaloneReason) +
+              metaItem('Lokalita', f.location) +
+              metaItem('Suradnice', hasCoords
+                ? Number(f.locationLat).toFixed(5) + ', ' + Number(f.locationLon).toFixed(5)
+                : null) +
+              metaItem('Polomer', f.locationRadiusMeters != null
+                ? Math.round(Number(f.locationRadiusMeters)) + ' m' : null) +
+              metaItem('Vzdialenost', f.distanceMeters != null
+                ? Math.round(Number(f.distanceMeters)) + ' m' : null) +
+              metaItem('Max. vyska', f.maxAltitudeMeters != null
+                ? Math.round(Number(f.maxAltitudeMeters)) + ' m' : null) +
+              '</dl></div>' +
+              '<div class="chart-panel"><h3 style="margin:0 0 0.65rem">Mapa letu</h3>' +
+              (hasCoords || track.length
+                ? '<div id="flight-detail-map"></div>'
+                : '<div class="flight-map-empty">Tento let nema suradnice ani trasu na mape.</div>') +
+              '</div>' +
+              notesBlock +
+              sectionCard('Trasa (' + track.length + ' bodov)',
+                makeTable(['#', 'Cas', 'Lat', 'Lon', 'Vyska', 'Rychlost'], trackRows, true), '#2b7bb9') +
+              sectionCard('Telemetria',
+                makeTable(['Subor', 'Stav', 'Prijate', 'Sprava'], telemRows, true), '#0d8f7a') +
+              '</div>';
+
+            document.getElementById('fl-back').onclick = function () {
+              state.flightDetailId = null;
+              if (window.IsSuasDroneMap) window.IsSuasDroneMap.destroyMap();
+              navigate('flights');
+            };
+            var exportLink = document.getElementById('fl-export-track');
+            if (exportLink) {
+              exportLink.onclick = async function (ev) {
+                ev.preventDefault();
+                try {
+                  var res = await fetch('/api/v1/flights/' + f.id + '/track?format=geojson', {
+                    headers: { Authorization: 'Bearer ' + state.token }
+                  });
+                  if (!res.ok) throw new Error('Export zlyhal');
+                  var blob = await res.blob();
+                  var url = URL.createObjectURL(blob);
+                  var a = document.createElement('a');
+                  a.href = url;
+                  a.download = (f.flightNumber || 'flight') + '-track.geojson';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  alert(err.message || 'Export trate zlyhal');
+                }
+              };
+            }
+
+            if (hasCoords || track.length) {
+              try {
+                await ensureMapLibs();
+                var center = hasCoords
+                  ? [Number(f.locationLat), Number(f.locationLon)]
+                  : [Number(track[0].latitude), Number(track[0].longitude)];
+                var map = window.IsSuasDroneMap.initMap('flight-detail-map', {
+                  token: state.token,
+                  center: center,
+                  zoom: hasCoords ? 13 : 12
+                });
+                if (map && window.L) {
+                  var bounds = [];
+                  if (hasCoords) {
+                    var ll = [Number(f.locationLat), Number(f.locationLon)];
+                    var radius = Number(f.locationRadiusMeters) || 1000;
+                    window.L.circle(ll, {
+                      radius: radius,
+                      color: '#0d8f7a',
+                      weight: 2,
+                      fillColor: '#0d8f7a',
+                      fillOpacity: 0.18
+                    }).addTo(map).bindPopup(f.location || f.flightNumber || 'Oblast letu');
+                    window.L.circleMarker(ll, {
+                      radius: 8,
+                      color: '#0d8f7a',
+                      fillColor: '#0d8f7a',
+                      fillOpacity: 0.9
+                    }).addTo(map).bindPopup(
+                      '<b>' + (f.flightNumber || 'Let') + '</b><br>' +
+                      (f.purpose || '') +
+                      (f.location ? '<br>' + f.location : '')
+                    );
+                    bounds.push(ll);
+                  }
+                  if (track.length) {
+                    var latlngs = track.map(function (p) {
+                      return [Number(p.latitude), Number(p.longitude)];
+                    });
+                    window.L.polyline(latlngs, {
+                      color: '#b42318',
+                      weight: 3,
+                      opacity: 0.85
+                    }).addTo(map);
+                    window.L.circleMarker(latlngs[0], {
+                      radius: 6, color: '#0d6b3c', fillColor: '#0d6b3c', fillOpacity: 1
+                    }).addTo(map).bindPopup('Zaciatok trate');
+                    window.L.circleMarker(latlngs[latlngs.length - 1], {
+                      radius: 6, color: '#b42318', fillColor: '#b42318', fillOpacity: 1
+                    }).addTo(map).bindPopup('Koniec trate');
+                    bounds = bounds.concat(latlngs);
+                  }
+                  if (bounds.length > 1) {
+                    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
+                  } else if (bounds.length === 1) {
+                    map.setView(bounds[0], 13);
+                  }
+                  setTimeout(function () { map.invalidateSize(); }, 80);
+                }
+              } catch (_) { /* mapa volitelna */ }
+            }
+            return;
+          }
+
           const items = await api('/api/v1/flights');
           const orgs = await api('/api/v1/org-units');
           const uasList = await loadUasOptions(200);
@@ -1907,9 +2808,11 @@
             var dur = f.durationMinutes != null
               ? (Math.floor(f.durationMinutes / 60) + 'h ' + (f.durationMinutes % 60) + 'm')
               : '—';
-            return '<tr class="row-tint" style="--row-accent:' + colorForKey(f.uasLabel || f.flightNumber || f.id) + '">' +
-              '<td><span class="entity-label">' + swatchHtml(colorForKey(f.flightNumber || f.id)) +
-              '<b>' + (f.flightNumber || String(f.id).substring(0, 8)) + '</b></span></td>' +
+            return '<tr class="row-tint flight-row" data-id="' + f.id + '" style="--row-accent:' +
+              colorForKey(f.uasLabel || f.flightNumber || f.id) + '" title="Otvorit detail letu">' +
+              '<td><button type="button" class="linkish flight-open" data-id="' + f.id + '">' +
+              '<span class="entity-label">' + swatchHtml(colorForKey(f.flightNumber || f.id)) +
+              '<b>' + (f.flightNumber || String(f.id).substring(0, 8)) + '</b></span></button></td>' +
               '<td>' + dateStr + '</td>' +
               '<td>' + timeStr + '</td>' +
               '<td>' + (f.uasLabel ? entityLabelHtml(f.uasLabel, f.uasLabel) : '—') + '</td>' +
@@ -1931,7 +2834,7 @@
 
           content.innerHTML =
             '<div class="stack">' +
-            pageHead('Dennik letov', 'Cislo letu, datum, dron, pilot, trvanie, lokalita a ucel',
+            pageHead('Dennik letov', 'Kliknite na let pre detail, mapu a trasu',
               chipHtml('Lety', items.length, 'chip-soft')) +
             '<div class="chart-panel">' +
             '<div class="toolbar" style="margin:0">' +
@@ -2105,6 +3008,24 @@
               msg.innerHTML = '<div class="error">' + err.message + '</div>';
             }
           };
+
+          function openFlightDetail(id) {
+            if (!id) return;
+            state.flightDetailId = id;
+            navigate('flights');
+          }
+          content.querySelectorAll('.flight-row').forEach(function (row) {
+            row.onclick = function (ev) {
+              if (ev.target.closest('button') && !ev.target.closest('.flight-open')) return;
+              openFlightDetail(row.dataset.id);
+            };
+          });
+          content.querySelectorAll('.flight-open').forEach(function (btn) {
+            btn.onclick = function (ev) {
+              ev.stopPropagation();
+              openFlightDetail(btn.dataset.id);
+            };
+          });
           return;
         }
         if (page === 'defects') {
@@ -2586,6 +3507,7 @@
             '<h3>Preddefinovany report</h3>' +
             '<form id="rep-form" class="form-grid">' +
             '<label>Typ<select id="rep-type">' +
+            '<option value="MONTHLY">Mesacne vykazy</option>' +
             '<option value="UAS">UAS</option><option value="PILOTS">Piloti</option>' +
             '<option value="FLIGHTS">Lety</option><option value="OPERATIONS">Operacie</option>' +
             '<option value="BATTERIES">Baterie</option>' +
@@ -2777,6 +3699,317 @@
           bindChartTooltips(content);
           return;
         }
+        if (page === 'geozones') {
+          var mapPayload = null;
+          try {
+            mapPayload = await api('/api/v1/geo-zones/map');
+          } catch (err) {
+            content.innerHTML = '<div class="stack"><div class="error">' + (err.message || 'Nepodarilo sa nacitat GEO zony') + '</div></div>';
+            return;
+          }
+          var versionLabel = mapPayload.dataVersionDate
+            ? new Date(mapPayload.dataVersionDate).toLocaleDateString('sk-SK')
+            : '—';
+          var importedLabel = mapPayload.importedAt
+            ? new Date(mapPayload.importedAt).toLocaleString('sk-SK')
+            : '—';
+          content.innerHTML =
+            '<div class="map-shell">' +
+            '<div class="map-toolbar">' +
+            '<h2>GEO zony · Dopravny urad SR</h2>' +
+            '<form class="map-search" id="geo-search-form">' +
+            '<input type="search" id="geo-search-q" placeholder="Hladat obec / lokalitu (SK)…" />' +
+            '<button type="submit">Hladat</button></form>' +
+            '<button type="button" class="secondary" id="geo-home">Slovensko</button>' +
+            '<label class="geo-layer-toggle"><input type="checkbox" id="geo-layer-toggle" checked /> GEO zony</label>' +
+            '<span class="map-coords" id="geo-version">Verzia: ' + versionLabel +
+            ' · ' + (mapPayload.zoneCount || 0) + ' zon · import ' + importedLabel + '</span>' +
+            '</div>' +
+            '<div class="map-body geo-map-body">' +
+            '<aside class="map-legend geo-detail" id="geo-detail">' +
+            '<p class="hint">Kliknite na zonu pre detail.</p></aside>' +
+            '<div class="map-canvas-wrap">' +
+            '<div id="geo-zones-map"></div>' +
+            '<div id="map-fallback" class="map-fallback hidden"></div>' +
+            '</div></div>' +
+            '<p class="geo-disclaimer">' + (mapPayload.disclaimerSk || '') + '</p>' +
+            '</div>';
+
+          await ensureMapLibs();
+          if (!window.IsSuasDroneMap || !window.L) {
+            content.innerHTML = '<div class="stack"><div class="error">Mapovy modul sa nenačítal.</div></div>';
+            return;
+          }
+
+          var map = window.IsSuasDroneMap.initMap('geo-zones-map', {
+            token: state.token,
+            center: [48.7, 19.5],
+            zoom: 7,
+            onError: function (msg) {
+              var el = document.getElementById('map-fallback');
+              if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+            }
+          });
+
+          // Simplified Slovakia border (approx.)
+          var skBorder = {
+            type: 'Feature',
+            properties: { name: 'Slovensko' },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[
+                [16.833, 48.0], [17.15, 48.58], [18.85, 49.4], [19.7, 49.5],
+                [21.3, 49.55], [22.55, 49.08], [22.15, 48.4], [21.2, 48.4],
+                [20.2, 48.1], [18.85, 47.75], [17.85, 47.75], [17.1, 47.85],
+                [16.833, 48.0]
+              ]]
+            }
+          };
+          window.L.geoJSON(skBorder, {
+            style: { color: '#334155', weight: 2, fill: false, dashArray: '6 4' }
+          }).addTo(map);
+
+          function zoneColor(type) {
+            var t = String(type || '').toLowerCase();
+            if (t.indexOf('zakaz') >= 0 || t.indexOf('prohibit') >= 0 || t.indexOf('no') >= 0) return '#b42318';
+            if (t.indexOf('obmedz') >= 0 || t.indexOf('restrict') >= 0) return '#c47b1a';
+            if (t.indexOf('podmien') >= 0 || t.indexOf('condit') >= 0) return '#2b7bb9';
+            return '#0d8f7a';
+          }
+
+          function showZoneDetail(props) {
+            props = props || {};
+            function row(label, val) {
+              if (val == null || val === '') return '';
+              return '<div class="geo-prop"><dt>' + label + '</dt><dd>' + String(val) + '</dd></div>';
+            }
+            var html = '<h3>' + (props.name || 'GEO zona') + '</h3><dl class="geo-props">' +
+              row('Typ', props.zoneType) +
+              row('Obmedzenie', props.restrictionDescription) +
+              row('Podmienky letu', props.flightConditions) +
+              row('Horizontalne hranice', props.horizontalLimits) +
+              row('Vyskove obmedzenie', props.verticalLimits) +
+              row('Platnost od', props.validFrom ? new Date(props.validFrom).toLocaleString('sk-SK') : null) +
+              row('Platnost do', props.validTo ? new Date(props.validTo).toLocaleString('sk-SK') : null) +
+              row('Kontakt / urad', props.authorityContact) +
+              row('Zdroj', props.sourceLabel || 'Dopravny urad SR') +
+              row('Datum importu', props.importDate ? new Date(props.importDate).toLocaleString('sk-SK') : importedLabel) +
+              row('Verzia udajov', props.dataVersionDate || versionLabel) +
+              '</dl>';
+            document.getElementById('geo-detail').innerHTML = html;
+          }
+
+          var geoLayer = null;
+          try {
+            var fc = typeof mapPayload.featureCollectionGeoJson === 'string'
+              ? JSON.parse(mapPayload.featureCollectionGeoJson)
+              : mapPayload.featureCollectionGeoJson;
+            geoLayer = window.L.geoJSON(fc, {
+              style: function (feature) {
+                var c = zoneColor(feature && feature.properties && feature.properties.zoneType);
+                return { color: c, weight: 2, fillColor: c, fillOpacity: 0.28 };
+              },
+              pointToLayer: function (feature, latlng) {
+                return window.L.circleMarker(latlng, {
+                  radius: 7,
+                  color: zoneColor(feature.properties && feature.properties.zoneType),
+                  fillOpacity: 0.85
+                });
+              },
+              onEachFeature: function (feature, layer) {
+                layer.on('click', function () {
+                  showZoneDetail(feature.properties || {});
+                  try { map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 12 }); } catch (_) {}
+                });
+                var tip = (feature.properties && feature.properties.name) || 'GEO zona';
+                layer.bindTooltip(tip, { sticky: true });
+              }
+            }).addTo(map);
+            if (geoLayer.getLayers().length) {
+              try { map.fitBounds(geoLayer.getBounds(), { padding: [30, 30], maxZoom: 10 }); } catch (_) {}
+            }
+          } catch (err) {
+            document.getElementById('geo-detail').innerHTML =
+              '<div class="error">Nepodarilo sa vykreslit GEO zony: ' + (err.message || err) + '</div>';
+          }
+
+          document.getElementById('geo-layer-toggle').onchange = function () {
+            if (!geoLayer || !map) return;
+            if (this.checked) {
+              if (!map.hasLayer(geoLayer)) geoLayer.addTo(map);
+            } else if (map.hasLayer(geoLayer)) {
+              map.removeLayer(geoLayer);
+            }
+          };
+          document.getElementById('geo-home').onclick = function () {
+            window.IsSuasDroneMap.goHome();
+          };
+          document.getElementById('geo-search-form').onsubmit = function (ev) {
+            ev.preventDefault();
+            window.IsSuasDroneMap.searchPlace(document.getElementById('geo-search-q').value);
+          };
+          setTimeout(function () { if (map) map.invalidateSize(); }, 80);
+          return;
+        }
+
+        if (page === 'geozones-admin') {
+          var imports = [];
+          var loadErr = null;
+          try {
+            imports = await api('/api/v1/geo-zones/imports');
+          } catch (err) {
+            loadErr = err.message || 'Nemate opravnenie na spravu GEO zon (vyžaduje sa centralny spravca).';
+          }
+
+          function statusSk(s) {
+            var n = Number(s);
+            if (s === 'Preview' || n === 0) return 'Nahľad';
+            if (s === 'Active' || n === 1) return 'Aktivna';
+            if (s === 'Superseded' || n === 2) return 'Nahradena';
+            if (s === 'Failed' || n === 3) return 'Chyba';
+            return String(s);
+          }
+
+          var rows = (imports || []).map(function (i) {
+            var active = i.isActiveVersion || i.status === 1 || i.status === 'Active';
+            return '<tr class="row-tint" style="--row-accent:' + (active ? '#0d8f7a' : '#94a3b8') + '">' +
+              '<td>' + (i.fileName || '—') + '</td>' +
+              '<td>' + (i.dataVersionDate ? new Date(i.dataVersionDate).toLocaleDateString('sk-SK') : '—') + '</td>' +
+              '<td>' + (i.importedAt ? new Date(i.importedAt).toLocaleString('sk-SK') : '—') + '</td>' +
+              '<td>' + (i.importedByUserName || '—') + '</td>' +
+              '<td>' + (i.zoneCount != null ? i.zoneCount : '—') + '</td>' +
+              '<td>' + statusBadge(statusSk(i.status)) + (active ? ' <span class="chip chip-soft">aktualna</span>' : '') + '</td>' +
+              '<td>' + (i.resultMessage || '—') + '</td>' +
+              '<td><div class="row-actions">' +
+              ((i.status === 0 || i.status === 'Preview')
+                ? '<button type="button" class="secondary geo-activate" data-id="' + i.id + '">Aktivovat</button>' +
+                  '<button type="button" class="secondary geo-discard" data-id="' + i.id + '">Zrusit</button>'
+                : '—') +
+              '</div></td></tr>';
+          }).join('') || '<tr><td colspan="8">Zatial ziadne importy</td></tr>';
+
+          content.innerHTML =
+            '<div class="stack">' +
+            pageHead('Sprava GEO zon', 'Import ZIP/KML zo stranok Dopravneho uradu SR. Iba centralny spravca.',
+              chipHtml('Importy', imports.length, 'chip-soft')) +
+            (loadErr ? '<div class="error">' + loadErr + '</div>' : '') +
+            '<div class="form-panel">' +
+            '<h3>Importovat GEO zony</h3>' +
+            '<p class="muted">Stiahnite aktualny ZIP/KML z <a href="https://letectvo.nsat.sk/bezpilotne-letectvo/zemepisne-oblasti-uas/" target="_blank" rel="noopener">letectvo.nsat.sk</a>, nahrajte sem a potvrdte aktivaciu.</p>' +
+            '<form id="geo-import-form" class="form-grid">' +
+            '<label>Datum verzie udajov<input id="geo-version-date" type="date" /></label>' +
+            '<label class="full">Subor ZIP alebo KML<input id="geo-file" type="file" accept=".kml,.zip,application/vnd.google-earth.kml+xml,application/zip" required /></label>' +
+            '<div class="full toolbar"><button type="submit">Importovat (nahľad)</button></div>' +
+            '</form>' +
+            '<div id="geo-import-msg"></div>' +
+            '<div id="geo-preview" class="hidden"></div>' +
+            '</div>' +
+            sectionCard('Historia importov',
+              makeTable(['Subor', 'Verzia udajov', 'Import', 'Pouzivatel', 'Zony', 'Vysledok', 'Sprava', 'Akcie'], rows, true),
+              '#2b7bb9') +
+            '</div>';
+
+          if (loadErr) return;
+
+          document.getElementById('geo-import-form').onsubmit = async function (ev) {
+            ev.preventDefault();
+            var msg = document.getElementById('geo-import-msg');
+            var preview = document.getElementById('geo-preview');
+            var fileInput = document.getElementById('geo-file');
+            var file = fileInput.files && fileInput.files[0];
+            if (!file) {
+              msg.innerHTML = '<div class="error">Vyberte subor</div>';
+              return;
+            }
+            msg.innerHTML = '<div class="msg">Spracuvam subor…</div>';
+            preview.classList.add('hidden');
+            try {
+              var buf = await file.arrayBuffer();
+              var bytes = new Uint8Array(buf);
+              var chunk = 0x8000;
+              var parts = [];
+              for (var i = 0; i < bytes.length; i += chunk) {
+                parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length))));
+              }
+              var b64 = btoa(parts.join(''));
+              var versionDate = document.getElementById('geo-version-date').value || null;
+              var created = await api('/api/v1/geo-zones/imports/preview', {
+                method: 'POST',
+                body: JSON.stringify({
+                  fileName: file.name,
+                  contentBase64: b64,
+                  dataVersionDate: versionDate
+                })
+              });
+              msg.innerHTML = '<div class="msg">Nahľad pripraveny.</div>';
+              preview.classList.remove('hidden');
+              preview.innerHTML =
+                '<div class="form-panel" style="margin-top:0.75rem">' +
+                '<h3>Nahľad importu</h3>' +
+                '<dl class="flight-meta">' +
+                '<div><dt>Subor</dt><dd>' + created.fileName + '</dd></div>' +
+                '<div><dt>Verzia udajov</dt><dd>' +
+                (created.dataVersionDate ? new Date(created.dataVersionDate).toLocaleDateString('sk-SK') : '—') +
+                '</dd></div>' +
+                '<div><dt>Pocet zon</dt><dd>' + created.zoneCount + '</dd></div>' +
+                '<div><dt>Stav</dt><dd>' + statusSk(created.status) + '</dd></div>' +
+                '</dl>' +
+                '<div class="toolbar" style="margin-top:0.75rem">' +
+                '<button type="button" id="geo-preview-activate">Potvrdit aktivaciu</button> ' +
+                '<button type="button" class="secondary" id="geo-preview-discard">Zrusit nahľad</button> ' +
+                '<button type="button" class="secondary" id="geo-preview-map">Otvorit mapu</button>' +
+                '</div></div>';
+              document.getElementById('geo-preview-activate').onclick = async function () {
+                try {
+                  await api('/api/v1/geo-zones/imports/' + created.id + '/activate', { method: 'POST', body: '{}' });
+                  navigate('geozones-admin');
+                } catch (e) {
+                  msg.innerHTML = '<div class="error">' + e.message + '</div>';
+                }
+              };
+              document.getElementById('geo-preview-discard').onclick = async function () {
+                try {
+                  await api('/api/v1/geo-zones/imports/' + created.id + '/discard', { method: 'POST', body: '{}' });
+                  navigate('geozones-admin');
+                } catch (e) {
+                  msg.innerHTML = '<div class="error">' + e.message + '</div>';
+                }
+              };
+              document.getElementById('geo-preview-map').onclick = function () {
+                document.querySelectorAll('.nav').forEach(function (b) {
+                  b.classList.toggle('active', b.dataset.page === 'geozones');
+                });
+                navigate('geozones');
+              };
+            } catch (err) {
+              msg.innerHTML = '<div class="error">' + (err.message || 'Import zlyhal') +
+                '. Aktivna verzia nebola nahradena.</div>';
+            }
+          };
+
+          content.querySelectorAll('.geo-activate').forEach(function (btn) {
+            btn.onclick = async function () {
+              try {
+                await api('/api/v1/geo-zones/imports/' + btn.dataset.id + '/activate', { method: 'POST', body: '{}' });
+                navigate('geozones-admin');
+              } catch (err) {
+                document.getElementById('geo-import-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          content.querySelectorAll('.geo-discard').forEach(function (btn) {
+            btn.onclick = async function () {
+              try {
+                await api('/api/v1/geo-zones/imports/' + btn.dataset.id + '/discard', { method: 'POST', body: '{}' });
+                navigate('geozones-admin');
+              } catch (err) {
+                document.getElementById('geo-import-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+          });
+          return;
+        }
+
         if (page === 'map') {
           var startPick = !!state.mapStartPick;
           state.mapStartPick = false;
@@ -3089,19 +4322,80 @@
           return;
         }
         if (page === 'uas') {
+          if (state.uasDetailId) {
+            const detail = await api('/api/v1/uas/' + state.uasDetailId);
+            const u = detail.uas;
+            const orgs = await api('/api/v1/org-units');
+            const hist = (detail.assignments || []).map(function (a) {
+              return '<tr><td>' + a.orgUnitName + '</td><td>' + new Date(a.validFrom).toLocaleDateString('sk-SK') +
+                '</td><td>' + (a.validTo ? new Date(a.validTo).toLocaleDateString('sk-SK') : '—') +
+                '</td><td>' + (a.reason || '') + '</td></tr>';
+            }).join('') || '<tr><td colspan="4">Bez historie</td></tr>';
+            const pilots = (detail.authorizedPilots || []).map(function (p) {
+              return '<tr><td>' + p.pilotName + '</td><td>' + new Date(p.validFrom).toLocaleDateString('sk-SK') +
+                '</td><td>' + (p.validTo ? new Date(p.validTo).toLocaleDateString('sk-SK') : 'platne') + '</td></tr>';
+            }).join('') || '<tr><td colspan="3">Ziadni opravneni piloti</td></tr>';
+            const orgOpts = orgs.map(function (o) {
+              return '<option value="' + o.id + '"' + (o.id === u.owningOrgUnitId ? ' selected' : '') + '>' +
+                o.code + ' — ' + o.name + '</option>';
+            }).join('');
+            content.innerHTML = '<div class="stack">' +
+              pageHead('Detail UAS', (u.registrationNumber || u.serialNumber) + ' · ' + u.manufacturer + ' ' + u.model,
+                chipHtml('Stav', statusLabelSk(u.status), 'chip-soft') +
+                chipHtml('Utvar', u.owningOrgUnitName || '—')) +
+              '<div class="toolbar"><button type="button" class="secondary" id="uas-back">Spat na zoznam</button></div>' +
+              '<div id="uas-msg"></div>' +
+              '<div class="form-panel"><h3>Transfer na iny utvar</h3>' +
+              '<form id="uas-transfer" class="form-grid">' +
+              '<label class="full">Novy utvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
+              '<label class="full">Dovod<input id="uas-reason" required placeholder="Dovod transferu" /></label>' +
+              '<div class="full toolbar"><button type="submit">Presunut UAS</button></div></form></div>' +
+              sectionCard('Historia pridelení', makeTable(['Utvar', 'Od', 'Do', 'Dovod'], hist), '#2b7bb9') +
+              sectionCard('Opravneni piloti', makeTable(['Pilot', 'Od', 'Do'], pilots), '#0d8f7a') +
+              '</div>';
+            document.getElementById('uas-back').onclick = function () {
+              state.uasDetailId = null;
+              navigate('uas');
+            };
+            document.getElementById('uas-transfer').onsubmit = async function (ev) {
+              ev.preventDefault();
+              try {
+                await api('/api/v1/uas/' + u.id + '/transfer', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    newOrgUnitId: document.getElementById('uas-new-org').value,
+                    effectiveAt: new Date().toISOString(),
+                    reason: document.getElementById('uas-reason').value.trim()
+                  })
+                });
+                navigate('uas');
+              } catch (err) {
+                document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+              }
+            };
+            return;
+          }
           const data = await api('/api/v1/uas?page=1&pageSize=50');
           const list = data.items || [];
           const rows = list.map(function (u) {
             var key = u.registrationNumber || u.serialNumber;
             return '<tr class="row-tint" style="--row-accent:' + colorForKey(key) + '">' +
-              '<td><span class="entity-label">' + swatchHtml(colorForKey(key)) +
-              '<span>' + (u.registrationNumber || '-') + '</span></span></td><td>' + u.serialNumber +
-              '</td><td>' + u.manufacturer + ' ' + u.model + '</td><td>' + statusBadge(u.status) + '</td></tr>';
-          }).join('') || '<tr><td colspan="4">Zatial ziadne UAS</td></tr>';
+              '<td><button type="button" class="linkish uas-open" data-id="' + u.id + '">' +
+              '<span class="entity-label">' + swatchHtml(colorForKey(key)) +
+              '<span>' + (u.registrationNumber || '-') + '</span></span></button></td><td>' + u.serialNumber +
+              '</td><td>' + u.manufacturer + ' ' + u.model + '</td><td>' + (u.owningOrgUnitName || '—') +
+              '</td><td>' + statusBadge(u.status) + '</td></tr>';
+          }).join('') || '<tr><td colspan="5">Zatial ziadne UAS</td></tr>';
           content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
-            pageHead('Register UAS', 'Evidencia bezpilotných lietadiel a ich stavov.',
+            pageHead('Register UAS', 'Evidencia bezpilotných lietadiel, priradenie útvaru a história transferov.',
               chipHtml('UAS', list.length, 'chip-soft')) +
-            makeTable(['Evid. oznacenie', 'Vyrobne cislo', 'Vyrobca / model', 'Stav'], rows) + '</div>';
+            makeTable(['Evid. oznacenie', 'Vyrobne cislo', 'Vyrobca / model', 'Utvar', 'Stav'], rows) + '</div>';
+          content.querySelectorAll('.uas-open').forEach(function (btn) {
+            btn.onclick = function () {
+              state.uasDetailId = btn.dataset.id;
+              navigate('uas');
+            };
+          });
           return;
         }
         if (page === 'components') {

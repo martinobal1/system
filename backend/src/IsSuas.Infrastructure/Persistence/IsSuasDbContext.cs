@@ -3,6 +3,7 @@ using IsSuas.Domain.Controls;
 using IsSuas.Domain.Documents;
 using IsSuas.Domain.Fleet;
 using IsSuas.Domain.Flights;
+using IsSuas.Domain.GeoZones;
 using IsSuas.Domain.Identity;
 using IsSuas.Domain.Integrations;
 using IsSuas.Domain.Maintenance;
@@ -111,6 +112,12 @@ public class IsSuasDbContext(DbContextOptions<IsSuasDbContext> options) : DbCont
     public DbSet<FormAnswer> FormAnswers => Set<FormAnswer>();
     public DbSet<RiskAssessment> RiskAssessments => Set<RiskAssessment>();
     public DbSet<OfficialReport> OfficialReports => Set<OfficialReport>();
+    public DbSet<PilotUasAuthorization> PilotUasAuthorizations => Set<PilotUasAuthorization>();
+    public DbSet<MonthlyFlightReport> MonthlyFlightReports => Set<MonthlyFlightReport>();
+    public DbSet<MonthlyFlightReportLine> MonthlyFlightReportLines => Set<MonthlyFlightReportLine>();
+    public DbSet<MonthlyFlightReportChangeLog> MonthlyFlightReportChangeLogs => Set<MonthlyFlightReportChangeLog>();
+    public DbSet<GeoZoneImport> GeoZoneImports => Set<GeoZoneImport>();
+    public DbSet<GeoZone> GeoZones => Set<GeoZone>();
     public DbSet<IntegrationConnector> IntegrationConnectors => Set<IntegrationConnector>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

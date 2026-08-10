@@ -45,6 +45,10 @@ public static class DependencyInjection
         services.AddSingleton<IAirspaceMapAdapter, OfflineAirspaceMapAdapter>();
         services.AddSingleton<IWeatherProvider, OfflineShmuWeatherProvider>();
         services.AddScoped<IReportingService, ReportingService>();
+        services.AddScoped<IPilotUasAuthorizationService, PilotUasAuthorizationService>();
+        services.AddScoped<IMonthlyFlightReportService, MonthlyFlightReportService>();
+        services.AddScoped<IMonthlyReportDeadlineService, MonthlyReportDeadlineService>();
+        services.AddScoped<IGeoZoneService, GeoZoneService>();
         services.AddScoped<IControlAuditService, ControlAuditService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<IConfigRuleService, ConfigRuleService>();

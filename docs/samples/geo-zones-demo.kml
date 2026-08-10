@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>UAS GEO zóny — demo ATLAS</name>
+    <Placemark>
+      <name>BR-CTR-DEMO</name>
+      <description>Demonstračná zóna — Bratislava CTR (zjednodušená). Obmedzenie letov UAS bez povolenia.</description>
+      <ExtendedData>
+        <Data name="zoneType"><value>Obmedzenie</value></Data>
+        <Data name="restriction"><value>Let UAS len so súhlasom riadiacej zložky</value></Data>
+        <Data name="flightConditions"><value>Pred letom overiť NOTAM a kontaktovať príslušný subjekt</value></Data>
+        <Data name="lowerLimit"><value>GND</value></Data>
+        <Data name="upperLimit"><value>150 m AGL</value></Data>
+        <Data name="authority"><value>Dopravný úrad SR (demo)</value></Data>
+        <Data name="validFrom"><value>2026-01-01</value></Data>
+      </ExtendedData>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              17.00,48.10,0
+              17.25,48.10,0
+              17.25,48.25,0
+              17.00,48.25,0
+              17.00,48.10,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    <Placemark>
+      <name>ZA-ZAKAZ-DEMO</name>
+      <description>Demonstračná zakázaná zóna — Žilina.</description>
+      <ExtendedData>
+        <Data name="zoneType"><value>Zákaz</value></Data>
+        <Data name="restriction"><value>Zákaz letov UAS</value></Data>
+        <Data name="verticalLimit"><value>GND – 120 m AGL</value></Data>
+        <Data name="authority"><value>Dopravný úrad SR (demo)</value></Data>
+      </ExtendedData>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              18.70,49.18,0
+              18.85,49.18,0
+              18.85,49.28,0
+              18.70,49.28,0
+              18.70,49.18,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

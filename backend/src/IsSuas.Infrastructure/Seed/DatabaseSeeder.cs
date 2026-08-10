@@ -1,6 +1,7 @@
 using IsSuas.Domain.Common;
 using IsSuas.Domain.Enums;
 using IsSuas.Domain.Identity;
+using IsSuas.Domain.Reporting;
 using IsSuas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,7 @@ public static class DatabaseSeeder
             await EnsureAccessCatalogAsync(db);
             await EnsureRetentionRulesAsync(db);
             await EnsureNotificationCatalogAsync(db);
+            await EnsureAtlasOrgStructureAsync(db);
             var existingBranch = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-PZ");
             var existingA = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-A");
             var existingB = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-B");
@@ -37,6 +39,8 @@ public static class DatabaseSeeder
                     : new List<Guid> { existingA.Id, existingB.Id };
                 await EnsureDemoFleetVolumeAsync(db, existingPool, existingA.Id, existingB.Id);
                 await EnsureDemoPilotsAndFlightsAsync(db, existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
+                await EnsurePilotUasAuthorizationsAsync(db);
+                await EnsureDemoMonthlyReportsAsync(db);
                 var existingGestor = await db.Accounts.FirstOrDefaultAsync(a => a.UserName == "gestor");
                 if (existingGestor is not null)
                 {
@@ -65,7 +69,7 @@ public static class DatabaseSeeder
         };
         db.Roles.AddRange(roles);
 
-        var root = new OrgUnit { Code = "MVSR", Name = "Ministerstvo vnútra SR", Path = "/", Level = 0 };
+        var root = new OrgUnit { Code = "MVSR", Name = "Ministerstvo vnútra SR", Kind = OrgUnitKind.Root, Path = "/", Level = 0 };
         db.OrgUnits.Add(root);
         await db.SaveChangesAsync();
         root.Path = $"/{root.Id}/";
@@ -73,17 +77,38 @@ public static class DatabaseSeeder
         var branchPz = new OrgUnit
         {
             Code = "ZLOZKA-PZ",
-            Name = "Polícia — demo zložka",
+            Name = "Policajný zbor",
+            Kind = OrgUnitKind.BranchPz,
             ParentId = root.Id,
             Level = 1,
             Path = "/"
         };
-        db.OrgUnits.Add(branchPz);
+        var branchHazz = new OrgUnit
+        {
+            Code = "ZLOZKA-HAZZ",
+            Name = "Hasičský a záchranný zbor",
+            Kind = OrgUnitKind.BranchHazz,
+            ParentId = root.Id,
+            Level = 1,
+            Path = "/"
+        };
+        var branchCo = new OrgUnit
+        {
+            Code = "ZLOZKA-CO",
+            Name = "Civilná ochrana",
+            Kind = OrgUnitKind.BranchCo,
+            ParentId = root.Id,
+            Level = 1,
+            Path = "/"
+        };
+        db.OrgUnits.AddRange(branchPz, branchHazz, branchCo);
         await db.SaveChangesAsync();
         branchPz.Path = $"{root.Path.TrimEnd('/')}/{branchPz.Id}/";
+        branchHazz.Path = $"{root.Path.TrimEnd('/')}/{branchHazz.Id}/";
+        branchCo.Path = $"{root.Path.TrimEnd('/')}/{branchCo.Id}/";
 
-        var unitA = new OrgUnit { Code = "UTVAR-A", Name = "Útvar A", ParentId = branchPz.Id, Level = 2, Path = "/" };
-        var unitB = new OrgUnit { Code = "UTVAR-B", Name = "Útvar B", ParentId = branchPz.Id, Level = 2, Path = "/" };
+        var unitA = new OrgUnit { Code = "UTVAR-A", Name = "Útvar A", Kind = OrgUnitKind.Unit, ParentId = branchPz.Id, Level = 2, Path = "/" };
+        var unitB = new OrgUnit { Code = "UTVAR-B", Name = "Útvar B", Kind = OrgUnitKind.Unit, ParentId = branchPz.Id, Level = 2, Path = "/" };
         db.OrgUnits.AddRange(unitA, unitB);
         await db.SaveChangesAsync();
         unitA.Path = $"{branchPz.Path.TrimEnd('/')}/{unitA.Id}/";
@@ -208,6 +233,8 @@ public static class DatabaseSeeder
         var orgPool = krs.Select(k => k.Id).ToList();
         await EnsureDemoFleetVolumeAsync(db, orgPool, unitA.Id, unitB.Id);
         await EnsureDemoPilotsAndFlightsAsync(db, krs);
+        await EnsurePilotUasAuthorizationsAsync(db);
+        await EnsureDemoMonthlyReportsAsync(db);
         await EnsureDemoDefectsAsync(db, gestor.Id);
         await EnsureDemoCalendarOperationsAsync(db, gestor.Id, krs);
         await EnsureDemoCriticalAlertsAsync(db, gestor.Id);
@@ -471,6 +498,7 @@ public static class DatabaseSeeder
                 {
                     Code = code,
                     Name = name,
+                    Kind = OrgUnitKind.Unit,
                     ParentId = branchPz.Id,
                     Level = 2,
                     Path = "/"
@@ -929,7 +957,9 @@ public static class DatabaseSeeder
             ("controls.write", "Zápis kontrol", "MOD-15"),
             ("controls.close", "Uzavretie kontrol", "MOD-15"),
             ("notifications.read", "Čítanie notifikácií", "MOD-11"),
-            ("notifications.write", "Zápis notifikácií", "MOD-11")
+            ("notifications.write", "Zápis notifikácií", "MOD-11"),
+            ("geozones.read", "Čítanie GEO zón", "MOD-19"),
+            ("geozones.write", "Import GEO zón", "MOD-19")
         };
 
         var existing = await db.Permissions.ToDictionaryAsync(p => p.Code, StringComparer.Ordinal);
@@ -959,7 +989,7 @@ public static class DatabaseSeeder
                 "flights.read", "maintenance.read", "safety.read", "safety.sensitive.read",
                 "documents.read", "documents.sensitive.read", "reports.read", "integrations.read",
                 "system.info.read", "controls.read", "controls.write", "controls.close",
-                "notifications.read"
+                "notifications.read", "geozones.read"
             ],
             [SystemRole.UnitAdministrator] =
             [
@@ -969,13 +999,13 @@ public static class DatabaseSeeder
                 "operations.write", "flights.read", "flights.write", "maintenance.read", "maintenance.write",
                 "safety.read", "safety.write", "documents.read", "documents.write", "reports.read",
                 "reports.write", "system.info.read", "controls.read",
-                "notifications.read", "notifications.write"
+                "notifications.read", "notifications.write", "geozones.read"
             ],
             [SystemRole.Approver] =
             [
                 "lookups.read", "uas.read", "uas.approve", "pilots.read", "operations.read",
                 "operations.approve", "flights.read", "safety.read", "documents.read", "reports.read",
-                "reports.official", "notifications.read"
+                "reports.official", "notifications.read", "geozones.read"
             ],
             [SystemRole.SystemAdministrator] =
             [
@@ -998,5 +1028,185 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureAtlasOrgStructureAsync(IsSuasDbContext db)
+    {
+        var root = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "MVSR");
+        if (root is null) return;
+
+        root.Kind = OrgUnitKind.Root;
+
+        var branchPz = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-PZ");
+        if (branchPz is not null)
+        {
+            branchPz.Kind = OrgUnitKind.BranchPz;
+            if (branchPz.Name.Contains("demo", StringComparison.OrdinalIgnoreCase))
+                branchPz.Name = "Policajný zbor";
+        }
+
+        async Task EnsureBranch(string code, string name, OrgUnitKind kind)
+        {
+            var existing = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == code);
+            if (existing is not null)
+            {
+                existing.Kind = kind;
+                return;
+            }
+
+            var branch = new OrgUnit
+            {
+                Code = code,
+                Name = name,
+                Kind = kind,
+                ParentId = root.Id,
+                Level = 1,
+                Path = "/"
+            };
+            db.OrgUnits.Add(branch);
+            await db.SaveChangesAsync();
+            branch.Path = $"{root.Path.TrimEnd('/')}/{branch.Id}/";
+            await db.SaveChangesAsync();
+        }
+
+        await EnsureBranch("ZLOZKA-HAZZ", "Hasičský a záchranný zbor", OrgUnitKind.BranchHazz);
+        await EnsureBranch("ZLOZKA-CO", "Civilná ochrana", OrgUnitKind.BranchCo);
+
+        var units = await db.OrgUnits.Where(o =>
+            o.Code != "MVSR" && o.Code != "ZLOZKA-PZ" && o.Code != "ZLOZKA-HAZZ" && o.Code != "ZLOZKA-CO").ToListAsync();
+        foreach (var u in units)
+        {
+            if (u.Code.StartsWith("KR-", StringComparison.Ordinal) || u.Code.StartsWith("UTVAR-", StringComparison.Ordinal))
+                u.Kind = OrgUnitKind.Unit;
+            else if (u.Level >= 2)
+                u.Kind = OrgUnitKind.Unit;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsurePilotUasAuthorizationsAsync(IsSuasDbContext db)
+    {
+        var now = DateTimeOffset.UtcNow.AddYears(-1);
+        var existingPairs = await db.PilotUasAuthorizations.AsNoTracking()
+            .Where(a => a.IsActive)
+            .Select(a => new { a.PilotId, a.UasId })
+            .ToListAsync();
+        var pairSet = existingPairs.Select(x => (x.PilotId, x.UasId)).ToHashSet();
+
+        var pilots = await db.Pilots.AsNoTracking().Where(p => p.IsActive).ToListAsync();
+        var drones = await db.UasAircraft.AsNoTracking()
+            .Where(u => u.IsActive && u.OwningOrgUnitId != null)
+            .ToListAsync();
+        var dronesBySerial = drones
+            .GroupBy(d => d.SerialNumber, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var dronesByOrg = drones
+            .GroupBy(d => d.OwningOrgUnitId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var added = 0;
+        foreach (var pilot in pilots)
+        {
+            Guid? uasId = null;
+            Guid? orgId = null;
+
+            if (!string.IsNullOrWhiteSpace(pilot.Notes)
+                && pilot.Notes.StartsWith("PrimaryUas:", StringComparison.OrdinalIgnoreCase))
+            {
+                var serial = pilot.Notes["PrimaryUas:".Length..].Trim();
+                if (dronesBySerial.TryGetValue(serial, out var primary)
+                    && primary.OwningOrgUnitId == pilot.OrgUnitId)
+                {
+                    uasId = primary.Id;
+                    orgId = pilot.OrgUnitId;
+                }
+            }
+
+            if (uasId is null && dronesByOrg.TryGetValue(pilot.OrgUnitId, out var orgDrones) && orgDrones.Count > 0)
+            {
+                var pick = orgDrones[Math.Abs(HashCode.Combine(pilot.Id)) % orgDrones.Count];
+                uasId = pick.Id;
+                orgId = pilot.OrgUnitId;
+            }
+
+            if (uasId is null || orgId is null)
+                continue;
+            if (pairSet.Contains((pilot.Id, uasId.Value)))
+                continue;
+
+            db.PilotUasAuthorizations.Add(new PilotUasAuthorization
+            {
+                PilotId = pilot.Id,
+                UasId = uasId.Value,
+                OrgUnitId = orgId.Value,
+                ValidFrom = now,
+                Note = "Seed oprávnenie pilot×UAS"
+            });
+            pairSet.Add((pilot.Id, uasId.Value));
+            added++;
+        }
+
+        if (added > 0)
+            await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureDemoMonthlyReportsAsync(IsSuasDbContext db)
+    {
+        var auths = await db.PilotUasAuthorizations.AsNoTracking()
+            .Where(a => a.IsActive)
+            .ToListAsync();
+        if (auths.Count == 0) return;
+
+        var now = DateTimeOffset.UtcNow;
+        var periods = new[]
+        {
+            (Year: now.AddMonths(-1).Year, Month: now.AddMonths(-1).Month, Status: MonthlyFlightReportStatus.Confirmed),
+            (Year: now.Year, Month: now.Month, Status: MonthlyFlightReportStatus.Draft)
+        };
+
+        foreach (var (year, month, status) in periods)
+        {
+            foreach (var group in auths.GroupBy(a => a.OrgUnitId).Take(8))
+            {
+                var exists = await db.MonthlyFlightReports.AnyAsync(r =>
+                    r.IsActive && r.OrgUnitId == group.Key && r.Year == year && r.Month == month);
+                if (exists) continue;
+
+                var report = new MonthlyFlightReport
+                {
+                    OrgUnitId = group.Key,
+                    Year = year,
+                    Month = month,
+                    Status = status,
+                    ConfirmedAt = status == MonthlyFlightReportStatus.Confirmed ? now.AddDays(-2) : null,
+                    Note = status == MonthlyFlightReportStatus.Confirmed ? "Seed potvrdený výkaz" : "Seed koncept"
+                };
+                db.MonthlyFlightReports.Add(report);
+                await db.SaveChangesAsync();
+
+                var i = 0;
+                foreach (var auth in group.Take(status == MonthlyFlightReportStatus.Draft ? 2 : 4))
+                {
+                    i++;
+                    db.MonthlyFlightReportLines.Add(new MonthlyFlightReportLine
+                    {
+                        ReportId = report.Id,
+                        PilotId = auth.PilotId,
+                        UasId = auth.UasId,
+                        Hours = 2 + (i % 5),
+                        Minutes = 15 * (i % 4),
+                        Takeoffs = 3 + i,
+                        Landings = 3 + i,
+                        OperationalFlights = 2,
+                        TrainingFlights = 1,
+                        OtherFlights = 0,
+                        Note = "Seed"
+                    });
+                }
+
+                await db.SaveChangesAsync();
+            }
+        }
     }
 }

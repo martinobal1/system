@@ -124,38 +124,46 @@ public sealed class ReportingService(
             .Take(10)
             .ToListAsync(cancellationToken);
 
-        var closedFlights = await db.Flights.AsNoTracking()
-            .Include(f => f.OrgUnit)
-            .Include(f => f.Uas)
-            .Where(f => f.IsActive && f.Status == FlightStatus.Closed && f.DurationMinutes != null && f.DurationMinutes > 0)
+        // Flight hours / takeoffs from confirmed monthly reports (ATLAS v1 source of truth).
+        var monthlyReports = await db.MonthlyFlightReports.AsNoTracking()
+            .Include(r => r.OrgUnit)
+            .Include(r => r.Lines.Where(l => l.IsActive)).ThenInclude(l => l.Uas)
+            .Where(r => r.IsActive
+                && (r.Status == MonthlyFlightReportStatus.Confirmed || r.Status == MonthlyFlightReportStatus.NoActivity))
             .ToListAsync(cancellationToken);
-        closedFlights = closedFlights.Where(f => InScope(f.OrgUnit.Path)).ToList();
+        monthlyReports = monthlyReports.Where(r => InScope(r.OrgUnit.Path)).ToList();
 
-        var totalFlightHours = Math.Round((decimal)closedFlights.Sum(f => f.DurationMinutes!.Value) / 60m, 1);
+        var activeLines = monthlyReports
+            .Where(r => r.Status == MonthlyFlightReportStatus.Confirmed)
+            .SelectMany(r => r.Lines.Where(l => l.IsActive).Select(l => (Report: r, Line: l)))
+            .ToList();
 
-        var byOrg = closedFlights
-            .GroupBy(f => new { f.OrgUnitId, f.OrgUnit.Code, f.OrgUnit.Name })
+        var totalFlightHours = Math.Round(activeLines.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1);
+        var totalTakeoffs = activeLines.Sum(x => x.Line.Takeoffs);
+        var totalLandings = activeLines.Sum(x => x.Line.Landings);
+
+        var byOrg = activeLines
+            .GroupBy(x => new { x.Report.OrgUnitId, x.Report.OrgUnit.Code, x.Report.OrgUnit.Name })
             .Select(g => new FlightHoursSliceDto(
                 g.Key.Code,
                 g.Key.Name,
-                Math.Round(g.Sum(x => x.DurationMinutes!.Value) / 60m, 1),
-                g.Count()))
+                Math.Round(g.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1),
+                g.Sum(x => x.Line.Takeoffs + x.Line.Landings)))
             .OrderByDescending(x => x.Hours)
             .ToList();
 
-        var byUasRaw = closedFlights
-            .Where(f => f.UasId != null)
-            .GroupBy(f => new
+        var byUasRaw = activeLines
+            .GroupBy(x => new
             {
-                Id = f.UasId!.Value,
-                Label = f.Uas!.RegistrationNumber ?? f.Uas.SerialNumber,
-                Serial = f.Uas.SerialNumber
+                Id = x.Line.UasId,
+                Label = x.Line.Uas.RegistrationNumber ?? x.Line.Uas.SerialNumber,
+                Serial = x.Line.Uas.SerialNumber
             })
             .Select(g => new FlightHoursSliceDto(
                 g.Key.Serial,
                 g.Key.Label,
-                Math.Round(g.Sum(x => x.DurationMinutes!.Value) / 60m, 1),
-                g.Count()))
+                Math.Round(g.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1),
+                g.Sum(x => x.Line.Takeoffs)))
             .OrderByDescending(x => x.Hours)
             .ToList();
 
@@ -174,6 +182,18 @@ public sealed class ReportingService(
                 rest.Sum(x => x.FlightCount)));
             byUas = top;
         }
+
+        var unitIdsInScope = await db.OrgUnits.AsNoTracking()
+            .Where(o => o.IsActive && o.Kind == OrgUnitKind.Unit)
+            .ToListAsync(cancellationToken);
+        unitIdsInScope = unitIdsInScope.Where(o => InScope(o.Path)).ToList();
+        var prev = now.AddMonths(-1);
+        var submittedPrev = monthlyReports
+            .Where(r => r.Year == prev.Year && r.Month == prev.Month)
+            .Select(r => r.OrgUnitId)
+            .ToHashSet();
+        var confirmedCount = submittedPrev.Count;
+        var missingCount = unitIdsInScope.Count(u => !submittedPrev.Contains(u.Id));
 
         var roleHint = currentUser.Roles.Select(r => r.RoleCode).FirstOrDefault() ?? "User";
 
@@ -195,7 +215,12 @@ public sealed class ReportingService(
             scopeOrgName,
             totalFlightHours,
             byOrg,
-            byUas);
+            byUas,
+            confirmedCount,
+            missingCount,
+            totalTakeoffs,
+            totalLandings,
+            "monthly");
     }
 
     public async Task<IReadOnlyList<CalendarItemDto>> GetCalendarAsync(
@@ -226,7 +251,8 @@ public sealed class ReportingService(
             "DEFECTS" => await ReportDefectsAsync(request, dataAsOf, cancellationToken),
             "INCIDENTS" => await ReportIncidentsAsync(request, dataAsOf, cancellationToken),
             "OPERATIONS" => await ReportOperationsAsync(request, dataAsOf, cancellationToken),
-            _ => throw new ValidationException("Neznámy typ reportu. Povolené: UAS, PILOTS, FLIGHTS, BATTERIES, MAINTENANCE, DEFECTS, INCIDENTS, OPERATIONS.")
+            "MONTHLY" => await ReportMonthlyAsync(request, dataAsOf, cancellationToken),
+            _ => throw new ValidationException("Neznámy typ reportu. Povolené: UAS, PILOTS, FLIGHTS, BATTERIES, MAINTENANCE, DEFECTS, INCIDENTS, OPERATIONS, MONTHLY.")
         };
     }
 
@@ -340,6 +366,43 @@ public sealed class ReportingService(
         var entity = await db.OfficialReports.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, cancellationToken)
             ?? throw new NotFoundException("Oficiálny výkaz nebol nájdený.");
         return MapOfficial(entity);
+    }
+
+    private async Task<ReportDto> ReportMonthlyAsync(ReportRequest request, DateTimeOffset dataAsOf, CancellationToken ct)
+    {
+        var query = db.MonthlyFlightReports.AsNoTracking()
+            .Include(r => r.OrgUnit)
+            .Include(r => r.Lines.Where(l => l.IsActive))
+            .Where(r => r.IsActive
+                && (r.Status == MonthlyFlightReportStatus.Confirmed || r.Status == MonthlyFlightReportStatus.NoActivity));
+        if (request.OrgUnitId is Guid oid)
+            query = query.Where(r => r.OrgUnitId == oid);
+        var items = await query.ToListAsync(ct);
+        items = items.Where(r => policy.CanAccessOrgUnit(r.OrgUnit.Path)).ToList();
+        if (request.From is DateTimeOffset from)
+            items = items.Where(r => new DateTime(r.Year, r.Month, 1) >= from.Date).ToList();
+        if (request.To is DateTimeOffset to)
+            items = items.Where(r => new DateTime(r.Year, r.Month, 1) <= to.Date).ToList();
+
+        var lines = items.Where(r => r.Status == MonthlyFlightReportStatus.Confirmed)
+            .SelectMany(r => r.Lines.Where(l => l.IsActive)).ToList();
+        var hours = Math.Round(lines.Sum(l => l.Hours + l.Minutes / 60m), 1);
+        var rows = new List<ReportRowDto>
+        {
+            new("monthly_reports", "Potvrdené / bez činnosti výkazy", items.Count, "ks", "monthly"),
+            new("monthly_hours", "Nálet (h) z mesačných výkazov", hours, "h", "monthly"),
+            new("monthly_takeoffs", "Vzlety", lines.Sum(l => l.Takeoffs), "ks", "monthly"),
+            new("monthly_landings", "Pristátia", lines.Sum(l => l.Landings), "ks", "monthly"),
+            new("monthly_operational", "Operačné lety", lines.Sum(l => l.OperationalFlights), "ks", "monthly"),
+            new("monthly_training", "Výcvikové lety", lines.Sum(l => l.TrainingFlights), "ks", "monthly")
+        };
+        return new ReportDto("MONTHLY", "Mesačné výkazy letovej činnosti", dataAsOf, ReportRules.Version, rows,
+            new Dictionary<string, decimal>
+            {
+                ["monthly_reports"] = items.Count,
+                ["monthly_hours"] = hours,
+                ["monthly_takeoffs"] = lines.Sum(l => l.Takeoffs)
+            });
     }
 
     private async Task<ReportDto> ReportUasAsync(ReportRequest request, DateTimeOffset dataAsOf, CancellationToken ct)

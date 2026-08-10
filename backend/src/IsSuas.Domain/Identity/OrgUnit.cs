@@ -1,4 +1,5 @@
 using IsSuas.Domain.Common;
+using IsSuas.Domain.Enums;
 
 namespace IsSuas.Domain.Identity;
 
@@ -6,6 +7,7 @@ public class OrgUnit : AuditableEntity
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public OrgUnitKind Kind { get; set; } = OrgUnitKind.Unit;
     public Guid? ParentId { get; set; }
     public OrgUnit? Parent { get; set; }
     public ICollection<OrgUnit> Children { get; set; } = new List<OrgUnit>();

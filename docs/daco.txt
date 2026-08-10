@@ -1,0 +1,139 @@
+DOPLNENIE ATLAS-U – ZOBRAZENIE GEO ZÓN DOPRAVNÉHO ÚRADU
+
+1. Cieľ
+
+Do systému ATLAS požadujeme doplniť mapu, na ktorej sa zobrazia aktuálne zemepisné oblasti UAS – GEO zóny zverejňované Dopravným úradom SR.
+
+Dopravný úrad zverejňuje GEO zóny vo formáte KML zabalenom v ZIP súbore:
+
+https://letectvo.nsat.sk/bezpilotne-letectvo/zemepisne-oblasti-uas/
+
+KML súbor sa nemá otvárať prostredníctvom Google Earth. ATLAS musí vedieť údaje z KML načítať a zobraziť na vlastnej mape.
+
+2. Rozsah prvej verzie
+
+V prvej verzii požadujeme:
+
+* ručný import ZIP alebo KML súboru,
+* zobrazenie GEO zón na mape,
+* zobrazenie informácií o konkrétnej zóne,
+* uloženie dátumu a verzie importovaných údajov,
+* zachovanie predchádzajúcich verzií importu.
+
+Automatické sťahovanie súboru zo stránky Dopravného úradu sa zatiaľ nepožaduje.
+
+3. Import GEO zón
+
+Funkcia importu bude dostupná iba centrálnemu správcovi ATLAS-u.
+
+Postup:
+
+1. Správca stiahne aktuálny ZIP/KML zo stránky Dopravného úradu.
+2. V ATLAS-e otvorí „Správa GEO zón“.
+3. Stlačí „Importovať GEO zóny“.
+4. Vyberie ZIP alebo KML súbor.
+5. Systém súbor spracuje a zobrazí náhľad importu.
+6. Náhľad zobrazí dátum verzie a počet načítaných zón.
+7. Správca potvrdí aktiváciu novej verzie.
+8. Nová verzia sa zobrazí na mape používateľom.
+9. Predchádzajúca verzia zostane uložená v histórii.
+
+Ak súbor nemožno spracovať, systém import neaktivuje a zobrazí zrozumiteľnú chybu.
+
+4. Mapa GEO zón
+
+V ATLAS-e vznikne obrazovka „Mapa GEO zón“.
+
+Mapa bude obsahovať:
+
+* bežný mapový podklad,
+* hranice Slovenskej republiky,
+* farebne zobrazené GEO zóny,
+* možnosť priblíženia a oddialenia,
+* možnosť presúvania mapy,
+* vyhľadanie lokality alebo obce,
+* zapnutie a vypnutie vrstvy GEO zón,
+* informáciu o dátume aktuálnej verzie údajov.
+
+5. Detail GEO zóny
+
+Po kliknutí na zónu systém zobrazí dostupné údaje načítané z KML, najmä:
+
+* názov alebo identifikátor zóny,
+* typ zóny,
+* opis obmedzenia,
+* podmienky vykonania letu,
+* horizontálne hranice,
+* výškové obmedzenie,
+* začiatok platnosti,
+* koniec platnosti,
+* kontaktný alebo povoľujúci subjekt, ak je uvedený,
+* zdroj údajov,
+* dátum importu.
+
+Ak niektorý údaj v KML nie je uvedený, pole sa nezobrazí alebo sa označí ako neuvedené.
+
+6. História importov
+
+Pri každom importe systém uloží:
+
+* názov importovaného súboru,
+* dátum verzie údajov,
+* dátum a čas importu,
+* používateľa, ktorý import vykonal,
+* počet importovaných zón,
+* výsledok importu,
+* informáciu, ktorá verzia je aktuálne aktívna.
+
+V systéme môže byť aktívna iba jedna verzia GEO zón.
+
+Centrálny správca musí vedieť zobraziť zoznam predchádzajúcich importov.
+
+7. Prepojenie s plánovaným letom – ďalšia etapa
+
+V ďalšej etape sa mapa prepojí s plánovaním letu.
+
+Používateľ zakreslí bod, trasu alebo plochu plánovaného letu. Systém následne overí, či zakreslený priestor zasahuje do niektorej GEO zóny.
+
+Ak dôjde k prekrytiu, systém:
+
+* zvýrazní dotknutú GEO zónu,
+* zobrazí jej názov a podmienky,
+* upozorní používateľa na potrebu preverenia obmedzení.
+
+Systém nebude automaticky rozhodovať, že let je povolený alebo zakázaný. Poskytne iba upozornenie a informácie o zistenej GEO zóne.
+
+Táto funkcia nie je súčasťou prvej verzie, ale riešenie má byť navrhnuté tak, aby sa dala neskôr doplniť.
+
+8. Upozornenie používateľa
+
+Pod mapou bude uvedený text:
+
+„Zobrazené GEO zóny pochádzajú z údajov Dopravného úradu SR a zodpovedajú verzii uvedenej v aplikácii. Mapa nenahrádza úplnú predletovú prípravu ani kontrolu aktuálneho využitia vzdušného priestoru.“
+
+9. Technické riešenie
+
+Odporúčaný postup:
+
+* ZIP súbor rozbaliť na serveri,
+* KML spracovať na serveri,
+* geometrie previesť na GeoJSON alebo uložiť ako priestorové údaje do databázy,
+* mapu zobraziť pomocou Leaflet alebo MapLibre,
+* nepoužívať Google Earth ako súčasť systému,
+* nezobrazovať KML iba ako externý odkaz,
+* pôvodný importovaný súbor zachovať pre audit a spätnú kontrolu.
+
+10. Akceptačné podmienky
+
+Funkcia sa považuje za dokončenú, ak:
+
+1. centrálny správca dokáže nahrať ZIP alebo KML súbor Dopravného úradu,
+2. systém dokáže súbor spracovať bez použitia Google Earth,
+3. GEO zóny sa správne zobrazia na mape,
+4. po kliknutí na zónu sa zobrazia dostupné informácie,
+5. používateľ vidí dátum aktuálnej verzie údajov,
+6. systém uchová informácie o vykonanom importe,
+7. bežný používateľ nemôže meniť ani importovať GEO zóny,
+8. chybný súbor nenahradí aktuálne platnú verziu,
+9. predchádzajúce importy zostanú evidované,
+10. mapa obsahuje upozornenie, že nenahrádza úplnú predletovú prípravu.

@@ -87,7 +87,14 @@ public sealed class PilotService(
     public async Task<PilotDto> CreateAsync(CreatePilotRequest request, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.PilotsWrite);
-        var org = await db.OrgUnits.FirstOrDefaultAsync(o => o.Id == request.OrgUnitId && o.IsActive, cancellationToken)
+        var orgId = request.OrgUnitId;
+        if (!currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.CentralGestor)))
+        {
+            var home = currentUser.Roles.FirstOrDefault(r => r.GrantsBusinessDataAccess)
+                ?? throw new ValidationException("Účet nemá priradený útvar.");
+            orgId = home.OrgUnitId;
+        }
+        var org = await db.OrgUnits.FirstOrDefaultAsync(o => o.Id == orgId && o.IsActive, cancellationToken)
             ?? throw new NotFoundException("Útvar nebol nájdený.");
         policy.EnsureOrgAccess(org.Path);
 
