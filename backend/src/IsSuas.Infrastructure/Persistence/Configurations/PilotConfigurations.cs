@@ -10,6 +10,9 @@ internal sealed class PilotConfiguration : IEntityTypeConfiguration<Pilot>
     {
         AuditableConfig.Configure(builder);
         builder.Property(x => x.LicenseNumber).HasMaxLength(64);
+        builder.Property(x => x.PersonalBadgeNumber).HasMaxLength(64);
+        builder.Property(x => x.GestorCertificateNumber).HasMaxLength(64);
+        builder.Property(x => x.LogbookNumber).HasMaxLength(64);
         builder.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.OrgUnit).WithMany().HasForeignKey(x => x.OrgUnitId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => x.PersonId);
@@ -36,6 +39,7 @@ internal sealed class PilotCertificateConfiguration : IEntityTypeConfiguration<P
         builder.Property(x => x.CertificateTypeCode).HasMaxLength(64).IsRequired();
         builder.Property(x => x.TitleSk).HasMaxLength(256).IsRequired();
         builder.Property(x => x.ExternalNumber).HasMaxLength(128);
+        builder.Property(x => x.MtowOrValidityText).HasMaxLength(128);
         builder.HasOne(x => x.Pilot).WithMany(x => x.Certificates).HasForeignKey(x => x.PilotId);
         builder.HasIndex(x => new { x.PilotId, x.CertificateTypeCode, x.Version }).IsUnique();
     }

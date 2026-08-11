@@ -12,6 +12,12 @@ public class Pilot : AuditableEntity
     public Guid OrgUnitId { get; set; }
     public OrgUnit OrgUnit { get; set; } = null!;
     public string? LicenseNumber { get; set; }
+    /// <summary>ČOZ — číslo osobnej známky.</summary>
+    public string? PersonalBadgeNumber { get; set; }
+    /// <summary>Číslo osvedčenia gestora (Osv. ges.).</summary>
+    public string? GestorCertificateNumber { get; set; }
+    /// <summary>Evidenčné číslo denníka PnD.</summary>
+    public string? LogbookNumber { get; set; }
     public PilotStatus Status { get; set; } = PilotStatus.Draft;
     public DateTimeOffset? CurrencyValidUntil { get; set; }
     public DateTimeOffset? LastFlightAt { get; set; }
@@ -59,6 +65,8 @@ public class PilotCertificate : AuditableEntity
     public DateTimeOffset? ValidTo { get; set; }
     public Guid? SupersedesCertificateId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Pre register A2/STS: MTOW alebo text platnosti osvedčenia.</summary>
+    public string? MtowOrValidityText { get; set; }
     public ICollection<CertificateScope> Scopes { get; set; } = new List<CertificateScope>();
 }
 

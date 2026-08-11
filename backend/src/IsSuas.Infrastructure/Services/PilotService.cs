@@ -712,10 +712,48 @@ public sealed class PilotService(
         return "Pilot nie je spôsobilý.";
     }
 
-    private PilotDto Map(Pilot p) =>
-        new(p.Id, p.PersonId, p.Person.FirstName, p.Person.LastName, p.Person.Email, p.OrgUnitId, p.OrgUnit.Name,
-            p.LicenseNumber, p.Status, p.CurrencyValidUntil, p.LastFlightAt,
-            PilotEligibility.CanAssignToOperation(p, clock.UtcNow), p.IsActive, p.RowVersion);
+    private PilotDto Map(Pilot p)
+    {
+        var now = clock.UtcNow;
+        var activeCerts = p.Certificates
+            .Where(c => c.IsActive && c.Status == CertificateStatus.Issued
+                && (c.ValidFrom is null || c.ValidFrom <= now)
+                && (c.ValidTo is null || c.ValidTo >= now))
+            .ToList();
+
+        var certCodes = activeCerts
+            .Select(c => NormalizeCertCode(c.CertificateTypeCode))
+            .Where(c => c is "A1_A3" or "A2" or "STS")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c switch { "A1_A3" => 0, "A2" => 1, _ => 2 })
+            .ToList();
+
+        var certItems = activeCerts
+            .Select(c => new PilotCertListItemDto(
+                NormalizeCertCode(c.CertificateTypeCode),
+                c.ExternalNumber,
+                c.ValidTo,
+                c.MtowOrValidityText))
+            .Where(c => c.CertificateTypeCode is "A1_A3" or "A2" or "STS")
+            .GroupBy(c => c.CertificateTypeCode, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(c => c.CertificateTypeCode switch { "A1_A3" => 0, "A2" => 1, _ => 2 })
+            .ToList();
+
+        return new(p.Id, p.PersonId, p.Person.FirstName, p.Person.LastName, p.Person.Email, p.OrgUnitId, p.OrgUnit.Name,
+            p.LicenseNumber, p.PersonalBadgeNumber, p.GestorCertificateNumber, p.LogbookNumber,
+            p.Status, p.CurrencyValidUntil, p.LastFlightAt,
+            PilotEligibility.CanAssignToOperation(p, now), p.IsActive, p.RowVersion, certCodes, certItems);
+    }
+
+    private static string NormalizeCertCode(string code)
+    {
+        var c = (code ?? "").Trim().ToUpperInvariant().Replace('-', '_').Replace('/', '_').Replace(' ', '_');
+        if (c is "A1A3" or "A1_A3" or "OPEN_A1_A3" or "A1" or "A3") return "A1_A3";
+        if (c is "A2" or "OPEN_A2") return "A2";
+        if (c is "STS" or "STS01" or "STS_01" or "STS02" or "STS_02" or "STANDARD_SCENARIO") return "STS";
+        return c;
+    }
 
     private static PilotQualificationDto MapQualification(PilotQualification q) =>
         new(q.Id, q.QualificationCode, q.NameSk, q.ValidFrom, q.ValidTo, q.Issuer, q.IsActive,
@@ -728,7 +766,8 @@ public sealed class PilotService(
     private static PilotCertificateDto MapCertificate(PilotCertificate c) =>
         new(c.Id, c.CertificateTypeCode, c.TitleSk, c.ExternalNumber, c.Version, c.Status,
             c.IssuedAt, c.ValidFrom, c.ValidTo, c.IsActive,
-            c.Scopes.OrderByDescending(s => s.ValidFrom).Select(MapScope).ToList());
+            c.Scopes.OrderByDescending(s => s.ValidFrom).Select(MapScope).ToList(),
+            c.MtowOrValidityText);
 
     private static CertificateScopeDto MapScope(CertificateScope s) =>
         new(s.Id, s.ScopeTypeCode, s.UasTypeCode, s.OperationTypeCode, s.FunctionTypeCode,

@@ -53,7 +53,7 @@ public sealed class FleetService(
             throw new ForbiddenException("Systémový administrátor nemá automatický prístup k vecnému obsahu.");
 
         page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, 500);
 
         var query = db.UasAircraft.AsNoTracking().Include(x => x.OwningOrgUnit).Where(x => x.IsActive);
         if (!string.IsNullOrWhiteSpace(search))
@@ -62,10 +62,17 @@ public sealed class FleetService(
             query = query.Where(x =>
                 x.SerialNumber.Contains(s) ||
                 (x.RegistrationNumber != null && x.RegistrationNumber.Contains(s)) ||
+                (x.CertificateNumber != null && x.CertificateNumber.Contains(s)) ||
+                (x.LogbookNumber != null && x.LogbookNumber.Contains(s)) ||
+                (x.InventoryAssetNumber != null && x.InventoryAssetNumber.Contains(s)) ||
+                x.Manufacturer.Contains(s) ||
                 x.Model.Contains(s));
         }
 
-        var all = await query.OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        var all = await query
+            .OrderBy(x => x.RegistrationNumber ?? x.SerialNumber)
+            .ThenBy(x => x.SerialNumber)
+            .ToListAsync(cancellationToken);
         var filtered = all.Where(x => x.OwningOrgUnit is null || policy.CanAccessOrgUnit(x.OwningOrgUnit.Path)).ToList();
         var total = filtered.Count;
         var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).Select(MapUas).ToList();
@@ -147,6 +154,9 @@ public sealed class FleetService(
             UasTypeCode = request.UasTypeCode,
             OwningOrgUnitId = request.OwningOrgUnitId,
             Notes = request.Notes,
+            CertificateNumber = string.IsNullOrWhiteSpace(request.CertificateNumber) ? null : request.CertificateNumber.Trim(),
+            LogbookNumber = string.IsNullOrWhiteSpace(request.LogbookNumber) ? null : request.LogbookNumber.Trim(),
+            InventoryAssetNumber = string.IsNullOrWhiteSpace(request.InventoryAssetNumber) ? null : request.InventoryAssetNumber.Trim(),
             Status = UasLifecycleStatus.Draft,
             CreatedBy = currentUser.AccountId,
             UpdatedBy = currentUser.AccountId
@@ -185,10 +195,17 @@ public sealed class FleetService(
 
         var before = MapUas(uas);
         var year = clock.UtcNow.Year;
-        var seq = await db.UasAircraft.CountAsync(x => x.RegistrationNumber != null && x.RegistrationNumber.StartsWith($"SUAS-{year}-"), cancellationToken) + 1;
-        uas.RegistrationNumber = $"SUAS-{year}-{seq:D5}";
+        var seq = await db.UasAircraft.CountAsync(x => x.RegistrationNumber != null && x.RegistrationNumber.StartsWith($"OM-UAS-{year}-"), cancellationToken) + 1;
+        uas.RegistrationNumber = $"OM-UAS-{year}-{seq:D5}";
+        if (string.IsNullOrWhiteSpace(uas.CertificateNumber))
+            uas.CertificateNumber = $"OSV-{year}-{seq:D5}";
+        if (string.IsNullOrWhiteSpace(uas.LogbookNumber))
+            uas.LogbookNumber = $"DN-{year}-{seq:D5}";
+        if (string.IsNullOrWhiteSpace(uas.InventoryAssetNumber))
+            uas.InventoryAssetNumber = $"IM-{year}-{seq:D5}";
         uas.Status = UasLifecycleStatus.Registered;
         uas.RegisteredAt = clock.UtcNow;
+        uas.DeregisteredAt = null;
         uas.ApprovedByAccountId = currentUser.AccountId;
         uas.UpdatedBy = currentUser.AccountId;
         db.UasStatusHistories.Add(new UasStatusHistory
@@ -219,6 +236,8 @@ public sealed class FleetService(
         var before = MapUas(uas);
         var from = uas.Status;
         uas.Status = request.TargetStatus;
+        if (request.TargetStatus == UasLifecycleStatus.Decommissioned)
+            uas.DeregisteredAt ??= clock.UtcNow;
         uas.UpdatedBy = currentUser.AccountId;
         db.UasStatusHistories.Add(new UasStatusHistory
         {
@@ -837,7 +856,8 @@ public sealed class FleetService(
         currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.CentralGestor));
 
     private static UasDto MapUas(Uas x) =>
-        new(x.Id, x.RegistrationNumber, x.SerialNumber, x.Manufacturer, x.Model, x.UasTypeCode, x.Status,
+        new(x.Id, x.RegistrationNumber, x.CertificateNumber, x.DeregisteredAt, x.SerialNumber, x.Manufacturer, x.Model,
+            x.UasTypeCode, x.LogbookNumber, x.InventoryAssetNumber, x.Status,
             x.OwningOrgUnitId, x.OwningOrgUnit?.Name, x.Notes, x.RegisteredAt, x.SubmittedByAccountId,
             x.TotalFlightCount, x.TotalFlightMinutes, x.IsActive, x.RowVersion);
 

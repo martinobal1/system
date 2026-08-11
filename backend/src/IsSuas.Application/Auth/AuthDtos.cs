@@ -9,7 +9,8 @@ public sealed record LoginResponse(
     string DisplayName,
     int AccessLevel,
     string LicenseStatus,
-    IReadOnlyList<string> RoleCodes);
+    IReadOnlyList<string> RoleCodes,
+    Guid PersonId);
 public sealed record SsoStartResponse(string Status, string Message, string? RedirectUrl, string? ReturnUrl);
 public sealed record SsoCallbackResponse(
     string AccessToken,
@@ -20,6 +21,7 @@ public sealed record SsoCallbackResponse(
     string? ReturnUrl,
     int AccessLevel = 1,
     string LicenseStatus = "NotApplicable",
-    IReadOnlyList<string>? RoleCodes = null);
+    IReadOnlyList<string>? RoleCodes = null,
+    Guid PersonId = default);
 public sealed record ReauthRequest(string Password);
 public sealed record ReauthResponse(string ReauthToken, DateTimeOffset ExpiresAt);

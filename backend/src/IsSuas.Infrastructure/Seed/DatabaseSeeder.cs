@@ -40,6 +40,7 @@ public static class DatabaseSeeder
                     : new List<Guid> { existingA.Id, existingB.Id };
                 await EnsureDemoFleetVolumeAsync(db, existingPool, existingA.Id, existingB.Id);
                 await EnsureDemoPilotsAndFlightsAsync(db, existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
+                await EnsurePilotOpenCategoryCertificatesAsync(db);
                 await EnsurePilotUasAuthorizationsAsync(db);
                 await EnsureDemoMonthlyReportsAsync(db);
                 var existingGestor = await db.Accounts.FirstOrDefaultAsync(a => a.UserName == "gestor");
@@ -52,6 +53,7 @@ public static class DatabaseSeeder
                 }
             }
             await EnsureNamedLoginUsersAsync(db, logger);
+            await EnsureFlightGpsLocationsAsync(db, logger);
             await db.SaveChangesAsync();
             logger.LogInformation("Database already seeded.");
             return;
@@ -211,9 +213,9 @@ public static class DatabaseSeeder
         db.PilotCertificates.Add(new IsSuas.Domain.Pilots.PilotCertificate
         {
             PilotId = fitPilot.Id,
-            CertificateTypeCode = "REMOTE_PILOT",
-            TitleSk = "Osvedčenie pilota na diaľku",
-            ExternalNumber = "OSV-2026-001",
+            CertificateTypeCode = "A1_A3",
+            TitleSk = "Preukaz pilota na diaľku — kategória A1/A3",
+            ExternalNumber = "OSV-A1A3-2026-001",
             Version = 1,
             Status = IsSuas.Domain.Enums.CertificateStatus.Issued,
             IssuedAt = DateTimeOffset.UtcNow.AddMonths(-2),
@@ -222,9 +224,21 @@ public static class DatabaseSeeder
         });
         db.PilotCertificates.Add(new IsSuas.Domain.Pilots.PilotCertificate
         {
+            PilotId = fitPilot.Id,
+            CertificateTypeCode = "A2",
+            TitleSk = "Preukaz pilota na diaľku — kategória A2",
+            ExternalNumber = "OSV-A2-2026-001",
+            Version = 1,
+            Status = IsSuas.Domain.Enums.CertificateStatus.Issued,
+            IssuedAt = DateTimeOffset.UtcNow.AddMonths(-1),
+            ValidFrom = DateTimeOffset.UtcNow.AddMonths(-1),
+            ValidTo = DateTimeOffset.UtcNow.AddYears(1)
+        });
+        db.PilotCertificates.Add(new IsSuas.Domain.Pilots.PilotCertificate
+        {
             PilotId = unfitPilot.Id,
-            CertificateTypeCode = "REMOTE_PILOT",
-            TitleSk = "Osvedčenie (exspirované)",
+            CertificateTypeCode = "A1_A3",
+            TitleSk = "Preukaz A1/A3 (exspirovaný)",
             Version = 1,
             Status = IsSuas.Domain.Enums.CertificateStatus.Expired,
             IssuedAt = DateTimeOffset.UtcNow.AddYears(-2),
@@ -237,6 +251,7 @@ public static class DatabaseSeeder
         var orgPool = krs.Select(k => k.Id).ToList();
         await EnsureDemoFleetVolumeAsync(db, orgPool, unitA.Id, unitB.Id);
         await EnsureDemoPilotsAndFlightsAsync(db, krs);
+        await EnsurePilotOpenCategoryCertificatesAsync(db);
         await EnsurePilotUasAuthorizationsAsync(db);
         await EnsureDemoMonthlyReportsAsync(db);
         await EnsureDemoDefectsAsync(db, gestor.Id);
@@ -328,7 +343,219 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync();
         await EnsureAccessCatalogAsync(db);
         await EnsureNamedLoginUsersAsync(db, logger);
+        await EnsureFlightGpsLocationsAsync(db, logger);
         logger.LogInformation("Seed completed. Demo password: Heslo123!");
+    }
+
+    /// <summary>
+    /// Doplní chýbajúce GPS súradnice v denníku letov a normalizuje Location na „lat, lon“.
+    /// </summary>
+    private static async Task EnsureFlightGpsLocationsAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var spots = new (double Lat, double Lon)[]
+        {
+            (48.17380, 16.97820), (48.17000, 17.20000), (48.37740, 17.58830), (48.59000, 17.83000),
+            (48.34420, 18.09630), (47.76300, 18.12800), (48.89550, 18.05230), (48.77500, 18.62500),
+            (49.22300, 18.73900), (49.06500, 18.92200), (48.73200, 19.14000), (48.63900, 19.13900),
+            (48.99800, 21.24000), (49.05500, 20.29700), (48.73600, 21.21200), (48.75500, 21.92000),
+            (47.98600, 18.16300), (49.43800, 18.78900), (48.21500, 18.60700), (48.94500, 20.56800),
+            (48.12550, 17.11050), (48.14860, 17.10770), (49.18700, 18.86200), (48.71640, 21.26110)
+        };
+
+        var flights = await db.Flights
+            .Where(f => f.IsActive)
+            .OrderBy(f => f.FlightNumber)
+            .ThenBy(f => f.Id)
+            .ToListAsync();
+
+        var fixedMissing = 0;
+        var normalized = 0;
+        for (var i = 0; i < flights.Count; i++)
+        {
+            var f = flights[i];
+            var hasLat = f.LocationLat is >= -90 and <= 90;
+            var hasLon = f.LocationLon is >= -180 and <= 180;
+            if (!hasLat || !hasLon)
+            {
+                // Skús vytiahnuť zo starého textu „… 48.12°N, 17.11°E …“
+                if (!TryParseGpsFromLocation(f.Location, out var parsedLat, out var parsedLon))
+                {
+                    var s = spots[i % spots.Length];
+                    // jemné rozptýlenie podľa indexu, aby neboli všetky rovnaké
+                    parsedLat = s.Lat + ((i % 7) - 3) * 0.0021;
+                    parsedLon = s.Lon + ((i % 5) - 2) * 0.0027;
+                }
+                f.LocationLat = Math.Round(parsedLat, 5);
+                f.LocationLon = Math.Round(parsedLon, 5);
+                if (f.LocationRadiusMeters is null or < 50)
+                    f.LocationRadiusMeters = 1000;
+                fixedMissing++;
+            }
+
+            var gpsText = $"{f.LocationLat:0.00000}, {f.LocationLon:0.00000}";
+            if (!string.Equals(f.Location, gpsText, StringComparison.Ordinal))
+            {
+                f.Location = gpsText;
+                normalized++;
+            }
+        }
+
+        if (fixedMissing > 0 || normalized > 0)
+        {
+            await db.SaveChangesAsync();
+            logger.LogInformation(
+                "Flight GPS backfill: {Missing} missing coords filled, {Normalized} location texts normalized.",
+                fixedMissing, normalized);
+        }
+    }
+
+    private static bool TryParseGpsFromLocation(string? location, out double lat, out double lon)
+    {
+        lat = 0;
+        lon = 0;
+        if (string.IsNullOrWhiteSpace(location)) return false;
+
+        // „48.12550, 17.11050“
+        var simple = System.Text.RegularExpressions.Regex.Match(
+            location,
+            @"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$");
+        if (simple.Success &&
+            double.TryParse(simple.Groups[1].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lat) &&
+            double.TryParse(simple.Groups[2].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lon))
+            return lat is >= -90 and <= 90 && lon is >= -180 and <= 180;
+
+        // „… 48.1255°N, 17.1105°E …“
+        var deg = System.Text.RegularExpressions.Regex.Match(
+            location,
+            @"(-?\d+(?:\.\d+)?)\s*°?\s*([NnSs])\s*[,;\s]+\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EeWw])",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (deg.Success &&
+            double.TryParse(deg.Groups[1].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lat) &&
+            double.TryParse(deg.Groups[3].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lon))
+        {
+            if (deg.Groups[2].Value is "S" or "s") lat = -lat;
+            if (deg.Groups[4].Value is "W" or "w") lon = -lon;
+            return lat is >= -90 and <= 90 && lon is >= -180 and <= 180;
+        }
+
+        // „… 48.1255, 17.1105 …“ vnútri textu
+        var embedded = System.Text.RegularExpressions.Regex.Match(
+            location,
+            @"(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})");
+        if (embedded.Success &&
+            double.TryParse(embedded.Groups[1].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lat) &&
+            double.TryParse(embedded.Groups[2].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out lon))
+            return lat is >= -90 and <= 90 && lon is >= -180 and <= 180;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Oficiálny register UAS podľa reálneho inventára (počty modelov).
+    /// </summary>
+    private static async Task EnsureOfficialUasInventoryAsync(
+        IsSuasDbContext db,
+        IReadOnlyList<Guid> orgPool,
+        DateTimeOffset now,
+        Random rng)
+    {
+        var fleet = new (string Maker, string Model, string Type, int Count)[]
+        {
+            ("DJI", "Mavic 2 Enterprise Dual", "MULTI_ROTOR", 13),
+            ("DJI", "Mavic 2 Zoom", "MULTI_ROTOR", 54),
+            ("DJI", "Matrice 300 RTK", "MULTI_ROTOR", 11),
+            ("DJI", "Matrice 350 RTK", "MULTI_ROTOR", 29),
+            ("DJI", "Matrice 30T", "MULTI_ROTOR", 9),
+            ("DJI", "Mavic 3E", "MULTI_ROTOR", 26),
+            ("DJI", "Mavic 3T", "MULTI_ROTOR", 39),
+            ("DJI", "Mavic 2 Pro", "MULTI_ROTOR", 1),
+            ("Loki", "MKII", "MULTI_ROTOR", 2),
+            ("DJI", "Matrice 600 Pro", "MULTI_ROTOR", 1),
+            ("Primoco", "One 150", "FIXED_WING", 2),
+            ("DJI", "Avata 2", "MULTI_ROTOR", 20),
+            ("DJI", "Mini 4 Pro", "MULTI_ROTOR", 14),
+            ("DJI", "Mavic 4 Pro", "MULTI_ROTOR", 5),
+            ("DJI", "Matrice 4T", "MULTI_ROTOR", 2),
+            ("DJI", "Matrice 4TD", "MULTI_ROTOR", 3),
+            ("DJI", "Mini 5 Pro", "MULTI_ROTOR", 9),
+            ("DJI", "FlyCart 30", "MULTI_ROTOR", 4),
+            ("DJI", "Mavic 3 Pro", "MULTI_ROTOR", 1),
+            ("DJI", "Matrice 210 RTK", "MULTI_ROTOR", 2)
+        };
+
+        var expected = fleet.Sum(x => x.Count);
+        var officialCount = await db.UasAircraft.CountAsync(u =>
+            u.IsActive && u.Notes != null && u.Notes.StartsWith("SEED-REG-"));
+        if (officialCount >= expected)
+            return;
+
+        // Vyradiť staré demo UAS zo zoznamu (neoficiálny seed)
+        var demos = await db.UasAircraft
+            .Where(u => u.IsActive && (
+                u.SerialNumber.StartsWith("DEMO-UAS-") ||
+                (u.Notes != null && u.Notes.StartsWith("Seed demo"))))
+            .ToListAsync();
+        foreach (var d in demos)
+            d.IsActive = false;
+        if (demos.Count > 0)
+            await db.SaveChangesAsync();
+
+        officialCount = await db.UasAircraft.CountAsync(u =>
+            u.IsActive && u.Notes != null && u.Notes.StartsWith("SEED-REG-"));
+        if (officialCount >= expected)
+            return;
+
+        static string ModelSlug(string model) =>
+            model.Replace(" ", "", StringComparison.Ordinal)
+                .Replace("-", "", StringComparison.Ordinal)
+                .ToUpperInvariant();
+
+        var seq = officialCount;
+        foreach (var spec in fleet)
+        {
+            var existingOfModel = await db.UasAircraft.CountAsync(u =>
+                u.IsActive &&
+                u.Notes != null && u.Notes.StartsWith("SEED-REG-") &&
+                u.Manufacturer == spec.Maker &&
+                u.Model == spec.Model);
+            var need = spec.Count - existingOfModel;
+            if (need <= 0) continue;
+
+            var slug = ModelSlug(spec.Model);
+            for (var i = 1; i <= need; i++)
+            {
+                seq++;
+                var unitIdx = ((seq - 1) % orgPool.Count);
+                // ~3 % vyradených pre ukážku stĺpca „Dátum výmazu“
+                var decommissioned = seq % 33 == 0;
+                db.UasAircraft.Add(new Domain.Fleet.Uas
+                {
+                    SerialNumber = $"SN-{slug}-{existingOfModel + i:000}-{seq:00000}",
+                    Manufacturer = spec.Maker,
+                    Model = spec.Model,
+                    UasTypeCode = spec.Type,
+                    RegistrationNumber = $"OM-UAS-2026-{seq:00000}",
+                    CertificateNumber = $"OSV-2026-{seq:00000}",
+                    LogbookNumber = $"DN-2026-{seq:00000}",
+                    InventoryAssetNumber = $"IM-2026-{seq:00000}",
+                    Status = decommissioned ? UasLifecycleStatus.Decommissioned : UasLifecycleStatus.InService,
+                    OwningOrgUnitId = orgPool[unitIdx],
+                    RegisteredAt = now.AddDays(-rng.Next(30, 900)),
+                    DeregisteredAt = decommissioned ? now.AddDays(-rng.Next(1, 120)) : null,
+                    Notes = $"SEED-REG-{seq:00000}",
+                    TotalFlightCount = decommissioned ? rng.Next(10, 80) : rng.Next(0, 200),
+                    TotalFlightMinutes = decommissioned ? rng.Next(100, 2000) : rng.Next(0, 5000)
+                });
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     /// <summary>
@@ -347,55 +574,7 @@ public static class DatabaseSeeder
 
         Guid OrgFor(int i) => pool[(i - 1) % pool.Count];
 
-        var manufacturers = new (string Maker, string Model, string Type)[]
-        {
-            ("DJI", "M300 RTK", "MULTI_ROTOR"),
-            ("DJI", "M30T", "MULTI_ROTOR"),
-            ("DJI", "Air 3", "MULTI_ROTOR"),
-            ("DJI", "Avata 2", "MULTI_ROTOR"),
-            ("Parrot", "Anafi USA", "MULTI_ROTOR"),
-            ("Parrot", "Anafi Ai", "MULTI_ROTOR"),
-            ("Autel", "Evo Max 4T", "MULTI_ROTOR"),
-            ("Autel", "Evo II Dual", "MULTI_ROTOR"),
-            ("Skydio", "X2D", "MULTI_ROTOR"),
-            ("Quantum", "Vector", "FIXED_WING"),
-            ("Wingtra", "WingtraOne GEN II", "FIXED_WING"),
-            ("Freefly", "Astro", "MULTI_ROTOR")
-        };
-
-        var uasStatuses = new[]
-        {
-            UasLifecycleStatus.InService, UasLifecycleStatus.InService, UasLifecycleStatus.InService,
-            UasLifecycleStatus.InService, UasLifecycleStatus.InMaintenance, UasLifecycleStatus.InStorage,
-            UasLifecycleStatus.Suspended, UasLifecycleStatus.Damaged, UasLifecycleStatus.Draft,
-            UasLifecycleStatus.Registered
-        };
-
-        var existingUas = await db.UasAircraft.CountAsync(x => x.IsActive);
-        if (existingUas < target)
-        {
-            var next = existingUas + 1;
-            for (var i = next; i <= target; i++)
-            {
-                var spec = manufacturers[(i - 1) % manufacturers.Length];
-                var status = uasStatuses[(i - 1) % uasStatuses.Length];
-                db.UasAircraft.Add(new Domain.Fleet.Uas
-                {
-                    SerialNumber = $"DEMO-UAS-{i:000}",
-                    Manufacturer = spec.Maker,
-                    Model = spec.Model,
-                    UasTypeCode = spec.Type,
-                    RegistrationNumber = status == UasLifecycleStatus.Draft ? null : $"SUAS-2026-{i:00000}",
-                    Status = status,
-                    OwningOrgUnitId = OrgFor(i),
-                    RegisteredAt = status == UasLifecycleStatus.Draft ? null : now.AddDays(-rng.Next(10, 400)),
-                    Notes = $"Seed demo UAS {i}",
-                    TotalFlightCount = 0,
-                    TotalFlightMinutes = 0
-                });
-            }
-            await db.SaveChangesAsync();
-        }
+        await EnsureOfficialUasInventoryAsync(db, pool, now, rng);
 
         var componentTypes = new (string Code, string Name)[]
         {
@@ -603,15 +782,28 @@ public static class DatabaseSeeder
         }
 
         // Denník: presne 100 uzavretých letov (pilot lietá len na svojom drone).
-        var locations = new[]
+        var locations = new (string Gps, double Lat, double Lon)[]
         {
-            "Bratislava — Devínska Kobyla", "Bratislava — letisko Ivanka", "Trnava — Modranka",
-            "Piešťany — cvičný priestor", "Nitra — Zobor", "Komárno — Dunaj",
-            "Trenčín — Brezina", "Prievidza — Handlová", "Žilina — Strečno",
-            "Martin — Turčianska kotlina", "Banská Bystrica — Urpín", "Zvolen — Sliač",
-            "Prešov — Cemjata", "Poprad — Tatry", "Košice — Bankov", "Michalovce — Zemplín",
-            "Nové Zámky — poľnohospodársky areál", "Čadca — Kysuce", "Levice — Hron",
-            "Spišská Nová Ves — Hornád"
+            ("48.17380, 16.97820", 48.17380, 16.97820),
+            ("48.17000, 17.20000", 48.17000, 17.20000),
+            ("48.37740, 17.58830", 48.37740, 17.58830),
+            ("48.59000, 17.83000", 48.59000, 17.83000),
+            ("48.34420, 18.09630", 48.34420, 18.09630),
+            ("47.76300, 18.12800", 47.76300, 18.12800),
+            ("48.89550, 18.05230", 48.89550, 18.05230),
+            ("48.77500, 18.62500", 48.77500, 18.62500),
+            ("49.22300, 18.73900", 49.22300, 18.73900),
+            ("49.06500, 18.92200", 49.06500, 18.92200),
+            ("48.73200, 19.14000", 48.73200, 19.14000),
+            ("48.63900, 19.13900", 48.63900, 19.13900),
+            ("48.99800, 21.24000", 48.99800, 21.24000),
+            ("49.05500, 20.29700", 49.05500, 20.29700),
+            ("48.73600, 21.21200", 48.73600, 21.21200),
+            ("48.75500, 21.92000", 48.75500, 21.92000),
+            ("47.98600, 18.16300", 47.98600, 18.16300),
+            ("49.43800, 18.78900", 49.43800, 18.78900),
+            ("48.21500, 18.60700", 48.21500, 18.60700),
+            ("48.94500, 20.56800", 48.94500, 20.56800)
         };
         var purposes = new[]
         {
@@ -628,10 +820,14 @@ public static class DatabaseSeeder
             var minutes = 20 + rng.Next(0, 101); // 20–120 min
             var takeoff = now.AddDays(-(i % 120)).AddHours(-(i % 14)).AddMinutes(-(i * 7) % 60);
             var landing = takeoff.AddMinutes(minutes);
+            var loc = locations[i % locations.Length];
             db.Flights.Add(new Domain.Flights.Flight
             {
                 FlightNumber = $"LET-2026-{(i + 1):0000}",
-                Location = locations[i % locations.Length],
+                Location = loc.Gps,
+                LocationLat = loc.Lat,
+                LocationLon = loc.Lon,
+                LocationRadiusMeters = 800 + rng.Next(0, 1200),
                 Purpose = purposes[i % purposes.Length],
                 StandaloneReason = "SEED-DIARY",
                 OrgUnitId = orgId,
@@ -999,7 +1195,7 @@ public static class DatabaseSeeder
             [SystemRole.UnitAdministrator] =
             [
                 "orgunits.read", "orgunits.write", "accounts.read", "accounts.write", "roles.assign",
-                "lookups.read", "uas.read", "uas.write", "components.read", "components.write",
+                "lookups.read", "uas.read", "components.read", "components.write",
                 "batteries.read", "batteries.write", "pilots.read", "pilots.write", "operations.read",
                 "operations.write", "flights.read", "flights.write", "maintenance.read", "maintenance.write",
                 "safety.read", "safety.write", "documents.read", "documents.write", "reports.read",
@@ -1098,7 +1294,106 @@ public static class DatabaseSeeder
 
         await db.SaveChangesAsync();
         await EnsureMartinPilotAndFlightsAsync(db, logger);
+        await EnsurePilotOpenCategoryCertificatesAsync(db);
         logger.LogInformation("Ensured named login users martin (L3) and janko.novak (L2) under KR-BA.");
+    }
+
+    /// <summary>
+    /// Doplní PnD preukazy: A1/A3 (všetci), A2 (časť, bez nutnosti STS), STS (menšia časť, A2 nie je povinné).
+    /// Zároveň doplní ČOZ / Osv. ges. / č. denníka.
+    /// </summary>
+    private static async Task EnsurePilotOpenCategoryCertificatesAsync(IsSuasDbContext db)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var pilots = await db.Pilots
+            .Include(p => p.Certificates)
+            .Include(p => p.Person)
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.LicenseNumber)
+            .ToListAsync();
+
+        var i = 0;
+        foreach (var pilot in pilots)
+        {
+            i++;
+            var key = pilot.LicenseNumber ?? pilot.Id.ToString("N")[..8];
+            if (string.IsNullOrWhiteSpace(pilot.PersonalBadgeNumber))
+                pilot.PersonalBadgeNumber = $"ČOZ-{i:00000}";
+            if (string.IsNullOrWhiteSpace(pilot.GestorCertificateNumber))
+                pilot.GestorCertificateNumber = $"GES-{i:00000}";
+            if (string.IsNullOrWhiteSpace(pilot.LogbookNumber))
+                pilot.LogbookNumber = $"DN-PnD-{i:00000}";
+
+            EnsureIssuedCert(db, pilot, "A1_A3", "Preukaz pilota na diaľku — kategória A1/A3",
+                $"DU-A1A3-{key}", now);
+
+            // A2: ~40 % pilotov + Martin — STS nie je povinné
+            var wantsA2 = string.Equals(pilot.LicenseNumber, "PIL-MARTIN-001", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(pilot.LicenseNumber, "PIL-001", StringComparison.OrdinalIgnoreCase)
+                || i % 5 == 0
+                || i % 5 == 2;
+            if (wantsA2)
+            {
+                EnsureIssuedCert(db, pilot, "A2", "Preukaz pilota na diaľku — kategória A2",
+                    $"DU-A2-{key}", now);
+            }
+
+            // STS: ~15 % — môže byť aj bez A2 (i % 7 == 0), alebo s A2 (i % 7 == 3)
+            var wantsSts = i % 7 == 0 || i % 7 == 3;
+            if (string.Equals(pilot.LicenseNumber, "PIL-MARTIN-001", StringComparison.OrdinalIgnoreCase))
+                wantsSts = false; // Martin = A1/A3 + A2 bez STS
+            if (wantsSts)
+            {
+                var mtow = (i % 2 == 0) ? "MTOW 25 kg" : $"platné do {now.AddYears(1):dd.MM.yyyy}";
+                EnsureIssuedCert(db, pilot, "STS", "Osvedčenie STS (štandardizované scenáre)",
+                    $"EU-STS-{key}", now, mtow);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static void EnsureIssuedCert(
+        IsSuasDbContext db,
+        Domain.Pilots.Pilot pilot,
+        string typeCode,
+        string titleSk,
+        string externalNumber,
+        DateTimeOffset now,
+        string? mtowOrValidityText = null)
+    {
+        var existing = pilot.Certificates.FirstOrDefault(c =>
+            c.CertificateTypeCode == typeCode && c.IsActive);
+        if (existing is not null)
+        {
+            if (existing.Status != CertificateStatus.Issued)
+                existing.Status = CertificateStatus.Issued;
+            if (existing.ValidTo is null || existing.ValidTo < now)
+            {
+                existing.ValidFrom = now.AddMonths(-2);
+                existing.ValidTo = now.AddYears(1);
+                existing.IssuedAt ??= now.AddMonths(-2);
+            }
+            if (string.IsNullOrWhiteSpace(existing.ExternalNumber))
+                existing.ExternalNumber = externalNumber;
+            if (!string.IsNullOrWhiteSpace(mtowOrValidityText) && string.IsNullOrWhiteSpace(existing.MtowOrValidityText))
+                existing.MtowOrValidityText = mtowOrValidityText;
+            return;
+        }
+
+        db.PilotCertificates.Add(new Domain.Pilots.PilotCertificate
+        {
+            PilotId = pilot.Id,
+            CertificateTypeCode = typeCode,
+            TitleSk = titleSk,
+            ExternalNumber = externalNumber,
+            Version = 1,
+            Status = CertificateStatus.Issued,
+            IssuedAt = now.AddMonths(-2),
+            ValidFrom = now.AddMonths(-2),
+            ValidTo = now.AddYears(1),
+            MtowOrValidityText = mtowOrValidityText
+        });
     }
 
     private static async Task EnsureMartinPilotAndFlightsAsync(IsSuasDbContext db, ILogger logger)
@@ -1180,7 +1475,6 @@ public static class DatabaseSeeder
             var s = spots[i];
             var takeoff = now.AddDays(-(i + 1) * 2).AddHours(-(8 + i % 5));
             var landing = takeoff.AddMinutes(25 + i * 7);
-            var rLabel = $" · r={s.Radius:0} m";
             var flight = new Domain.Flights.Flight
             {
                 StandaloneReason = "SEED-MARTIN",
@@ -1188,7 +1482,7 @@ public static class DatabaseSeeder
                 UasId = uas?.Id,
                 PilotId = pilot.Id,
                 FlightNumber = $"LET-MARTIN-{(i + 1):00}",
-                Location = $"{s.Label} · {s.Lat:0.0000}°N, {s.Lon:0.0000}°E{rLabel}",
+                Location = $"{s.Lat:0.00000}, {s.Lon:0.00000}",
                 LocationLat = s.Lat,
                 LocationLon = s.Lon,
                 LocationRadiusMeters = s.Radius,

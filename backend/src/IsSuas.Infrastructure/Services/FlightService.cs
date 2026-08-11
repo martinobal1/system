@@ -154,12 +154,9 @@ public sealed class FlightService(
         if (lat is < -90 or > 90 || lon is < -180 or > 180)
             throw new ValidationException("Neplatné súradnice lokality.");
 
-        var locationText = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim();
-        if (locationText is null && lat is not null && lon is not null)
-        {
-            var rLabel = radius is null ? "" : $" · r={radius:0} m";
-            locationText = $"{lat:0.0000}°N, {lon:0.0000}°E{rLabel}";
-        }
+        var locationText = lat is not null && lon is not null
+            ? $"{lat:0.00000}, {lon:0.00000}"
+            : null;
 
         var flight = new Flight
         {

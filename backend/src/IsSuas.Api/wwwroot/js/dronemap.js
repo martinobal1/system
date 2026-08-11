@@ -489,8 +489,7 @@
       lat: state.flightPick.lat,
       lon: state.flightPick.lon,
       radiusM: state.flightPick.radiusM,
-      label: state.flightPick.lat.toFixed(4) + '°N, ' + state.flightPick.lon.toFixed(4) +
-        '°E · r=' + Math.round(state.flightPick.radiusM) + ' m'
+      label: state.flightPick.lat.toFixed(5) + ', ' + state.flightPick.lon.toFixed(5)
     };
   }
 

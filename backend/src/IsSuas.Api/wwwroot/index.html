@@ -155,30 +155,46 @@
       border-radius: 999px;
     }
     .sidebar-brand {
-      padding: 0.5rem 0.55rem 1.25rem;
+      padding: 0.55rem 0.55rem 1.15rem;
       display: flex;
       justify-content: center;
       align-items: center;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 12px;
+      color: inherit;
+      font: inherit;
     }
+    .sidebar-brand:hover {
+      background: transparent;
+      filter: none;
+      box-shadow: none;
+    }
+    .sidebar-brand:hover .sidebar-brand-mark {
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+    }
+    .sidebar-brand:active { transform: none; }
     .sidebar-brand-mark {
       width: 100%;
-      max-width: 210px;
+      max-width: 220px;
       height: auto;
-      border-radius: 0;
+      border-radius: 12px;
       display: block;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: visible;
-      padding: 0;
+      background: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+      padding: 0.65rem 0.75rem;
     }
     .sidebar-brand-mark img {
       width: 100%;
       height: auto;
-      max-height: 5.75rem;
+      max-height: 5.5rem;
       object-fit: contain;
       display: block;
-      filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
+      filter: none;
     }
     .sidebar nav { display: grid; gap: 0.12rem; }
     .nav-section {
@@ -734,6 +750,20 @@
       gap: 0.75rem;
     }
     .chart-panel h2 { margin: 0; }
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .table-scroll table {
+      min-width: 1180px;
+      font-size: 0.84rem;
+    }
+    .table-scroll thead th {
+      white-space: normal;
+      line-height: 1.25;
+      vertical-align: bottom;
+      max-width: 9.5rem;
+    }
     .pie-layout {
       display: grid;
       grid-template-columns: minmax(160px, 200px) 1fr;
@@ -921,6 +951,70 @@
       color: var(--primary);
     }
     .chip-ok { background: #e8f6ef; border-color: #b7e0c8; color: var(--ok); }
+    .cert-badges { display: inline-flex; flex-wrap: wrap; gap: 0.28rem; align-items: center; }
+    .cert-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.18rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .cert-badge::before {
+      content: "";
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
+    }
+    .cert-badge.a1a3 {
+      background: #e6f7f3;
+      border-color: #9ed9cb;
+      color: #0a6b5c;
+    }
+    .cert-badge.a2 {
+      background: #fff3e0;
+      border-color: #f0c48a;
+      color: #9a5b00;
+    }
+    .cert-badge.sts {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+      color: #3730a3;
+    }
+    .reg-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0.15rem 0 0.85rem;
+    }
+    .reg-tab {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .reg-tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .cert-badge.none {
+      background: #f1f5f9;
+      border-color: #d8dee6;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .cert-badge.none::before { display: none; }
     .chip-warn { background: #fff7e6; border-color: #f0d9a8; color: var(--warn); }
     .chip-danger { background: #fdecea; border-color: #f5c2c0; color: var(--danger); }
     select.m-auth-select {
@@ -1383,9 +1477,9 @@
   <div id="app-view" class="app hidden">
     <button type="button" class="nav-backdrop" id="nav-backdrop" aria-label="Zavrieť menu"></button>
     <aside class="sidebar" id="app-sidebar">
-      <div class="sidebar-brand">
+      <button type="button" class="sidebar-brand" id="sidebar-brand-home" title="Prejsť na prehľad" aria-label="Prejsť na prehľad">
         <span class="sidebar-brand-mark"><img src="/assets/logominv.png" alt="IS SUAS" /></span>
-      </div>
+      </button>
       <nav id="app-nav">
         <div class="nav-section" data-nav-section="overview">Prehlad</div>
         <button type="button" data-page="dashboard" data-roles="1,2" class="nav active"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Prehlad</button>
@@ -1393,7 +1487,7 @@
         <button type="button" data-page="orgs" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/><path d="M7.5 7.5 9.5 9.5M14.5 14.5l2 2M16.5 7.5 14.5 9.5M9.5 14.5l-2 2"/></svg></span>Organizacna struktura</button>
         <button type="button" data-page="accounts" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Prevadzkovatelia</button>
         <div class="nav-section" data-nav-section="flight">Letova cinnost</div>
-        <button type="button" data-page="pilots" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M8 8h8"/><path d="M9.5 5.5 12 3l2.5 2.5"/></svg></span>Piloti</button>
+        <button type="button" data-page="pilots" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M8 8h8"/><path d="M9.5 5.5 12 3l2.5 2.5"/></svg></span>Register PnD</button>
         <button type="button" data-page="operations" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h5l2-7 3 14 2-7h4"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>Operacie</button>
         <button type="button" data-page="flights" data-roles="1,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l4 2v2l-4-1-4 1v-2l4-2V3z"/><path d="M8 15c0 2.5 1.8 4.5 4 4.5s4-2 4-4.5"/><path d="M5 21h14"/></svg></span>Dennik letov</button>
         <button type="button" data-page="map" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13L9 17l6 2.5L21 17V4l-6 2.5L9 4z"/><path d="M9 4v13M15 6.5v13"/></svg></span>VFR mapa</button>
@@ -1437,6 +1531,8 @@
     const state = {
       token: localStorage.getItem('issuas.token'),
       displayName: localStorage.getItem('issuas.name') || '',
+      userName: localStorage.getItem('issuas.userName') || '',
+      personId: localStorage.getItem('issuas.personId') || '',
       accessLevel: Number(localStorage.getItem('issuas.accessLevel') || '1') || 1,
       licenseStatus: localStorage.getItem('issuas.licenseStatus') || 'NotApplicable',
       /** @type {{ lat:number, lon:number, radiusM:number, label:string }|null} */
@@ -1446,6 +1542,7 @@
       flightDetailId: null,
       uasDetailId: null,
       pilotDetailId: null,
+      pilotRegisterTab: 'open', // 'open' = A1/A3·A2 | 'sts' = A2·STS
       monthlyYear: null,
       monthlyMonth: null,
       monthlyOrgUnitId: null,
@@ -1554,15 +1651,34 @@
     function logout(clearStorage = true) {
       state.token = null;
       state.displayName = '';
+      state.userName = '';
+      state.personId = '';
       state.accessLevel = 1;
       state.licenseStatus = 'NotApplicable';
       if (clearStorage) {
         localStorage.removeItem('issuas.token');
         localStorage.removeItem('issuas.name');
+        localStorage.removeItem('issuas.userName');
+        localStorage.removeItem('issuas.personId');
         localStorage.removeItem('issuas.accessLevel');
         localStorage.removeItem('issuas.licenseStatus');
       }
       showLogin();
+    }
+
+    function applyLoginSession(res) {
+      state.token = res.accessToken;
+      state.displayName = res.displayName || '';
+      state.userName = res.userName || '';
+      state.personId = res.personId || '';
+      state.accessLevel = Number(res.accessLevel) || 1;
+      state.licenseStatus = res.licenseStatus || 'NotApplicable';
+      localStorage.setItem('issuas.token', state.token);
+      localStorage.setItem('issuas.name', state.displayName);
+      localStorage.setItem('issuas.userName', state.userName);
+      localStorage.setItem('issuas.personId', state.personId);
+      localStorage.setItem('issuas.accessLevel', String(state.accessLevel));
+      localStorage.setItem('issuas.licenseStatus', state.licenseStatus);
     }
 
     document.getElementById('login-form').addEventListener('submit', async function (e) {
@@ -1579,14 +1695,7 @@
           method: 'POST',
           body: JSON.stringify(body)
         });
-        state.token = res.accessToken;
-        state.displayName = res.displayName;
-        state.accessLevel = Number(res.accessLevel) || 1;
-        state.licenseStatus = res.licenseStatus || 'NotApplicable';
-        localStorage.setItem('issuas.token', state.token);
-        localStorage.setItem('issuas.name', state.displayName);
-        localStorage.setItem('issuas.accessLevel', String(state.accessLevel));
-        localStorage.setItem('issuas.licenseStatus', state.licenseStatus);
+        applyLoginSession(res);
         showApp();
       } catch (err) {
         showError(err.message || 'Prihlasenie zlyhalo');
@@ -1624,14 +1733,7 @@
         var stateParam = params.get('state');
         if (stateParam) q += '&state=' + encodeURIComponent(stateParam);
         var res = await api(q);
-        state.token = res.accessToken;
-        state.displayName = res.displayName;
-        state.accessLevel = Number(res.accessLevel) || 1;
-        state.licenseStatus = res.licenseStatus || 'NotApplicable';
-        localStorage.setItem('issuas.token', state.token);
-        localStorage.setItem('issuas.name', state.displayName);
-        localStorage.setItem('issuas.accessLevel', String(state.accessLevel));
-        localStorage.setItem('issuas.licenseStatus', state.licenseStatus);
+        applyLoginSession(res);
         window.history.replaceState({}, '', '/');
         showApp();
       } catch (err) {
@@ -1676,12 +1778,21 @@
       });
     });
 
+    document.getElementById('sidebar-brand-home').addEventListener('click', function () {
+      var page = defaultPageForRole();
+      document.querySelectorAll('.nav').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.page === page);
+      });
+      closeNav();
+      navigate(page);
+    });
+
     const titles = {
       dashboard: 'Prehlad',
       orgs: 'Organizacna struktura',
       accounts: 'Prevadzkovatelia',
       delegations: 'Delegacie opravneni',
-      pilots: 'Piloti',
+      pilots: 'Register PnD',
       operations: 'Operacie',
       flights: 'Dennik letov',
       defects: 'Poruchy',
@@ -2285,7 +2396,7 @@
             '</div></form>' +
             '<div id="org-user-result" class="hidden"></div>' +
             '</div>' +
-            '<div id="org-license-panel" class="chart-panel"></div>' +
+            (isL2 ? '' : '<div id="org-license-panel" class="chart-panel"></div>') +
             '<div class="org-tree-shell' + (state.orgUserPick && !isL2 ? ' is-picking' : '') + '"><ul class="org-tree-list">' + treeHtml + '</ul></div>' +
             '</div>';
 
@@ -2864,16 +2975,28 @@
             var mapBtnHint = state.accessLevel === 3
               ? 'Denník letov, operácie a mapa GEO zón.'
               : 'Denník letov, operácie a VFR mapa pre tohto pilota.';
+            var detail = null;
+            try { detail = await api('/api/v1/pilots/' + pilot.id); } catch (_) { detail = null; }
+            var certs = (detail && detail.certificates) || [];
+            var certCodes = pilot.certificateCodes || [];
+            var certRows = certs.map(function (c) {
+              return '<tr><td>' + certBadgesHtml([c.certificateTypeCode]) + '</td><td>' + (c.titleSk || c.certificateTypeCode || '—') +
+                '</td><td>' + (c.externalNumber || '—') + '</td><td>' + statusBadge(c.status) +
+                '</td><td>' + (c.validTo ? new Date(c.validTo).toLocaleDateString('sk-SK') : '—') +
+                '</td><td>' + (c.mtowOrValidityText || '—') + '</td></tr>';
+            }).join('') || '<tr><td colspan="6">Žiadne preukazy</td></tr>';
             content.innerHTML = '<div class="stack">' +
               pageHead('Pilot · ' + name, mapBtnHint,
-                chipHtml('Preukaz', pilot.licenseNumber || '—', 'chip-soft') +
-                chipHtml('Útvar', pilot.orgUnitName || '—')) +
+                chipHtml('Evid. č.', pilot.licenseNumber || '—', 'chip-soft') +
+                chipHtml('Útvar', pilot.orgUnitName || '—') +
+                '<span class="chip chip-soft">Kategórie ' + certBadgesHtml(certCodes) + '</span>') +
               '<div class="toolbar">' +
               '<button type="button" class="secondary" id="pilot-back">Späť na pilotov</button> ' +
               '<button type="button" class="secondary" id="pilot-map">' + mapBtnLabel + '</button>' +
               '</div>' +
+              sectionCard('Preukazy PnD (A1/A3 · A2 · STS)', makeTable(['Kategória', 'Názov', 'Číslo', 'Stav', 'Platnosť do', 'MTOW / platnosť'], certRows, true), '#0d8f7a') +
               sectionCard('Denník letov', makeTable(['Číslo', 'Čas', 'Dron', 'Účel', 'Stav'], flightRows, true), '#2b7bb9') +
-              sectionCard('Operácie (útvar)', makeTable(['Názov', 'Stav', 'Začiatok'], opRows, true), '#0d8f7a') +
+              sectionCard('Operácie (útvar)', makeTable(['Názov', 'Stav', 'Začiatok'], opRows, true), '#c47b1a') +
               '</div>';
             document.getElementById('pilot-back').onclick = function () {
               state.pilotDetailId = null;
@@ -2892,20 +3015,119 @@
             return;
           }
           const items = await api('/api/v1/pilots');
-          var eligible = items.filter(function (p) { return p.isEligibleForOperations; }).length;
-          const rows = items.map(function (p) {
-            return '<tr class="row-tint" style="--row-accent:' + colorForKey(p.orgUnitName || p.id) + '">' +
-              '<td><button type="button" class="linkish pilot-open" data-id="' + p.id + '">' +
-              '<span class="entity-label">' + swatchHtml(colorForKey(p.id || p.licenseNumber)) +
-              '<span>' + p.firstName + ' ' + p.lastName + '</span></span></button></td><td>' + (p.licenseNumber || '-') +
-              '</td><td>' + entityLabelHtml(p.orgUnitName, p.orgUnitName) + '</td><td>' + statusBadge(p.status) + '</td><td>' +
-              (p.isEligibleForOperations ? 'Ano' : 'Nie') + '</td></tr>';
-          }).join('') || '<tr><td colspan="5">Zatial ziadni piloti</td></tr>';
+          var tab = state.pilotRegisterTab === 'sts' ? 'sts' : 'open';
+          function hasCode(p, code) {
+            var codes = p.certificateCodes || [];
+            return codes.indexOf(code) >= 0 || (p.certificates || []).some(function (c) {
+              return String(c.certificateTypeCode || '').toUpperCase().replace(/[-\/\s]/g, '_') === code
+                || (code === 'A1_A3' && /A1/.test(String(c.certificateTypeCode || '')));
+            });
+          }
+          function certOf(p, code) {
+            return (p.certificates || []).find(function (c) {
+              var t = String(c.certificateTypeCode || '').toUpperCase().replace(/[-\/\s]/g, '_');
+              if (code === 'A1_A3') return t === 'A1_A3' || t === 'A1A3' || t === 'A1' || t === 'A3';
+              if (code === 'A2') return t === 'A2' || t === 'OPEN_A2';
+              if (code === 'STS') return t === 'STS' || t.indexOf('STS') === 0;
+              return t === code;
+            }) || null;
+          }
+          function fmtDate(iso) {
+            return iso ? new Date(iso).toLocaleDateString('sk-SK') : '—';
+          }
+          function openCats(p) {
+            var parts = [];
+            if (hasCode(p, 'A1_A3')) parts.push('A1/A3');
+            if (hasCode(p, 'A2')) parts.push('A2');
+            return parts.join(' · ') || '—';
+          }
+          function stsCats(p) {
+            var parts = [];
+            if (hasCode(p, 'A2')) parts.push('A2');
+            if (hasCode(p, 'STS')) parts.push('STS');
+            return parts.join(' · ') || '—';
+          }
+
+          var openList = items.filter(function (p) { return hasCode(p, 'A1_A3') || hasCode(p, 'A2'); });
+          var stsList = items.filter(function (p) { return hasCode(p, 'A2') || hasCode(p, 'STS'); });
+          var list = tab === 'sts' ? stsList : openList;
+
+          var rows;
+          var headers;
+          if (tab === 'open') {
+            headers = [
+              'P.č.', 'ČOZ', 'Priezvisko', 'Meno', 'Útvar', 'e-mail do práce',
+              'Č. povolenia DÚ', 'Platnosť do', 'Kategória', 'Osv. ges.', 'Č. Denníka PnD'
+            ];
+            rows = list.map(function (p, idx) {
+              var a2 = certOf(p, 'A2');
+              var a13 = certOf(p, 'A1_A3');
+              var permit = (a2 && a2.externalNumber) || (a13 && a13.externalNumber) || '—';
+              var validTo = (a2 && a2.validTo) || (a13 && a13.validTo) || null;
+              return '<tr class="row-tint" style="--row-accent:' + colorForKey(p.orgUnitName || p.id) + '">' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + (p.personalBadgeNumber || '—') + '</td>' +
+                '<td><button type="button" class="linkish pilot-open" data-id="' + p.id + '">' +
+                (p.lastName || '—') + '</button></td>' +
+                '<td>' + (p.firstName || '—') + '</td>' +
+                '<td>' + (p.orgUnitName || '—') + '</td>' +
+                '<td>' + (p.email || '—') + '</td>' +
+                '<td>' + permit + '</td>' +
+                '<td>' + fmtDate(validTo) + '</td>' +
+                '<td>' + certBadgesHtml((p.certificateCodes || []).filter(function (c) { return c === 'A1_A3' || c === 'A2'; })) + '</td>' +
+                '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
+                '<td>' + (p.logbookNumber || p.licenseNumber || '—') + '</td>' +
+                '</tr>';
+            }).join('') || '<tr><td colspan="11">Žiadni piloti v registri A1/A3 · A2</td></tr>';
+          } else {
+            headers = [
+              'P.č.', 'ČOZ', 'Priezvisko', 'Meno', 'Útvar', 'e-mail do práce',
+              'Číslo povolenia DÚ / osvedčenia A2, STS', 'Kategória',
+              'MTOW alebo platnosť A2, STS', 'Číslo osvedčenia gestora', 'Evidenčné číslo Denníka PnD'
+            ];
+            rows = list.map(function (p, idx) {
+              var sts = certOf(p, 'STS');
+              var a2 = certOf(p, 'A2');
+              var permit = (sts && sts.externalNumber) || (a2 && a2.externalNumber) || '—';
+              var mtow = (sts && sts.mtowOrValidityText)
+                || (a2 && a2.mtowOrValidityText)
+                || (a2 && a2.validTo ? ('platné do ' + fmtDate(a2.validTo)) : '—');
+              return '<tr class="row-tint" style="--row-accent:' + colorForKey(p.orgUnitName || p.id) + '">' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + (p.personalBadgeNumber || '—') + '</td>' +
+                '<td><button type="button" class="linkish pilot-open" data-id="' + p.id + '">' +
+                (p.lastName || '—') + '</button></td>' +
+                '<td>' + (p.firstName || '—') + '</td>' +
+                '<td>' + (p.orgUnitName || '—') + '</td>' +
+                '<td>' + (p.email || '—') + '</td>' +
+                '<td>' + permit + '</td>' +
+                '<td>' + certBadgesHtml((p.certificateCodes || []).filter(function (c) { return c === 'A2' || c === 'STS'; })) + '</td>' +
+                '<td>' + mtow + '</td>' +
+                '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
+                '<td>' + (p.logbookNumber || p.licenseNumber || '—') + '</td>' +
+                '</tr>';
+            }).join('') || '<tr><td colspan="11">Žiadni piloti v registri A2 · STS</td></tr>';
+          }
+
           content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
-            pageHead('Piloti', 'Kliknite na pilota — denník letov a operácie sú v detaile.',
-              chipHtml('Piloti', items.length, 'chip-soft') +
-              chipHtml('Spôsobilí', eligible, 'chip-ok')) +
-            makeTable(['Meno', 'Preukaz', 'Utvar', 'Stav', 'Sposobily do operacie'], rows) + '</div>';
+            pageHead('Register PnD', 'Dva registre licencií: otvorená kategória A1/A3·A2 a osobitne A2·STS (A2 nemusí mať STS).',
+              chipHtml('A1/A3·A2', openList.length, 'chip-soft') +
+              chipHtml('A2·STS', stsList.length, 'chip-soft') +
+              '<span class="chip chip-soft">Legenda ' + certBadgesHtml(['A1_A3', 'A2', 'STS']) + '</span>') +
+            '<div class="reg-tabs">' +
+            '<button type="button" class="reg-tab' + (tab === 'open' ? ' active' : '') + '" data-tab="open">PnD A1/A3, A2</button>' +
+            '<button type="button" class="reg-tab' + (tab === 'sts' ? ' active' : '') + '" data-tab="sts">PnD A2, STS</button>' +
+            '</div>' +
+            '<div class="chart-panel table-scroll">' +
+            makeTable(headers, rows, true) +
+            '</div></div>';
+
+          content.querySelectorAll('.reg-tab').forEach(function (btn) {
+            btn.onclick = function () {
+              state.pilotRegisterTab = btn.dataset.tab;
+              navigate('pilots');
+            };
+          });
           content.querySelectorAll('.pilot-open').forEach(function (btn) {
             btn.onclick = function () {
               state.pilotDetailId = btn.dataset.id;
@@ -3035,10 +3257,7 @@
               metaItem('Pristatie', fmtDt(f.landingAt)) +
               metaItem('Trvanie', fmtDur(f.durationMinutes)) +
               metaItem('Ucel', f.purpose || f.standaloneReason) +
-              metaItem('Lokalita', f.location) +
-              metaItem('Suradnice', hasCoords
-                ? Number(f.locationLat).toFixed(5) + ', ' + Number(f.locationLon).toFixed(5)
-                : null) +
+              metaItem('Lokalita (GPS)', formatFlightGps(f) || '—') +
               metaItem('Polomer', f.locationRadiusMeters != null
                 ? Math.round(Number(f.locationRadiusMeters)) + ' m' : null) +
               metaItem('Vzdialenost', f.distanceMeters != null
@@ -3107,7 +3326,7 @@
                       weight: 2,
                       fillColor: '#0d8f7a',
                       fillOpacity: 0.18
-                    }).addTo(map).bindPopup(f.location || f.flightNumber || 'Oblast letu');
+                    }).addTo(map).bindPopup(formatFlightGps(f) || f.flightNumber || 'Oblast letu');
                     window.L.circleMarker(ll, {
                       radius: 8,
                       color: '#0d8f7a',
@@ -3116,7 +3335,7 @@
                     }).addTo(map).bindPopup(
                       '<b>' + (f.flightNumber || 'Let') + '</b><br>' +
                       (f.purpose || '') +
-                      (f.location ? '<br>' + f.location : '')
+                      (formatFlightGps(f) ? '<br>' + formatFlightGps(f) : '')
                     );
                     bounds.push(ll);
                   }
@@ -3156,20 +3375,34 @@
           let pilots = [];
           try { pilots = await api('/api/v1/pilots'); } catch (_) { pilots = []; }
 
-          // L3: predvyplň vlastný pilotný profil
+          // L3: predvyplň vlastný pilotný profil (podľa personId / mena účtu)
           var myPilot = null;
           if (state.accessLevel === 3) {
+            var pid = String(state.personId || '').toLowerCase();
+            var dn = String(state.displayName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            var un = String(state.userName || '').trim().toLowerCase();
             myPilot = pilots.find(function (p) {
-              var name = ((p.firstName || '') + ' ' + (p.lastName || '')).trim().toLowerCase();
-              return name.indexOf('martin') >= 0 || (p.licenseNumber || '').indexOf('MARTIN') >= 0
-                || (p.email || '').indexOf('martin') >= 0;
-            }) || pilots[0] || null;
+              return pid && String(p.personId || '').toLowerCase() === pid;
+            }) || pilots.find(function (p) {
+              var name = ((p.firstName || '') + ' ' + (p.lastName || '')).trim().toLowerCase().replace(/\s+/g, ' ');
+              return dn && name === dn;
+            }) || pilots.find(function (p) {
+              var email = String(p.email || '').toLowerCase();
+              var lic = String(p.licenseNumber || '').toLowerCase();
+              return (un && (email.indexOf(un) >= 0 || lic.indexOf(un) >= 0));
+            }) || null;
           }
+
+          // Domovský útvar = najhlbší v dostupnom strome
+          var homeOrg = orgs.slice().sort(function (a, b) {
+            return (b.level || 0) - (a.level || 0);
+          })[0] || null;
+          var isL3 = state.accessLevel === 3;
 
           const orgOpts = orgs.map(function (o) {
             return '<option value="' + o.id + '">' + o.code + ' — ' + o.name + '</option>';
           }).join('') || '<option value="">(ziadne utvary)</option>';
-          const pilotOpts = state.accessLevel === 3 && myPilot
+          const pilotOpts = isL3 && myPilot
             ? '<option value="' + myPilot.id + '" selected>' +
               (((myPilot.firstName || '') + ' ' + (myPilot.lastName || '')).trim() || myPilot.licenseNumber) +
               (myPilot.licenseNumber ? ' (' + myPilot.licenseNumber + ')' : '') + '</option>'
@@ -3200,7 +3433,7 @@
               '<td>' + (f.uasLabel ? entityLabelHtml(f.uasLabel, f.uasLabel) : '—') + '</td>' +
               '<td>' + (f.pilotName || '—') + '</td>' +
               '<td>' + dur + '</td>' +
-              '<td>' + (f.location || '—') + '</td>' +
+              '<td>' + (formatFlightGps(f) || '—') + '</td>' +
               '<td>' + (f.purpose || '—') + '</td>' +
               '<td>' + statusBadge(f.status) + '</td>' +
               '</tr>';
@@ -3214,10 +3447,24 @@
               'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
           }
 
+          var orgFieldHtml = isL3 && homeOrg
+            ? '<input type="hidden" id="fl-org" value="' + homeOrg.id + '" />' +
+              '<label>Utvar<input value="' +
+              String(homeOrg.code + ' — ' + homeOrg.name).replace(/"/g, '&quot;') +
+              '" readonly /></label>'
+            : '<label>Utvar<select id="fl-org" required>' + orgOpts + '</select></label>';
+
+          var pilotFieldHtml = isL3 && myPilot
+            ? '<input type="hidden" id="fl-pilot" value="' + myPilot.id + '" />' +
+              '<label>Pilot<input value="' +
+              String((((myPilot.firstName || '') + ' ' + (myPilot.lastName || '')).trim() || myPilot.licenseNumber || '')).replace(/"/g, '&quot;') +
+              '" readonly /></label>'
+            : '<label>Pilot<select id="fl-pilot">' + pilotOpts + '</select></label>';
+
           content.innerHTML =
             '<div class="stack">' +
-            pageHead('Dennik letov', state.accessLevel === 3
-              ? 'Váš osobný denník. Miesto letu vyberte na mape GEO zón.'
+            pageHead('Dennik letov', isL3
+              ? 'Váš osobný denník. Nový let začnite výberom miesta na mape GEO zón.'
               : 'Kliknite na let pre detail, mapu a trasu',
               chipHtml('Lety', items.length, 'chip-soft') +
               (state.licenseStatus === 'Pending' || state.licenseStatus === '1'
@@ -3227,26 +3474,27 @@
             '<div class="chart-panel">' +
             '<div class="toolbar" style="margin:0">' +
             '<button type="button" id="reveal-flight-form">Novy samostatny let</button> ' +
-            '<button type="button" class="secondary" id="fl-pick-map">Vybrat miesto na mape</button> ' +
-            '<button type="button" class="secondary" id="import-telem">Import demo telemetrie</button></div>' +
+            (isL3 ? '' : '<button type="button" class="secondary" id="fl-pick-map">Vybrat miesto na mape</button> ') +
+            (isL3 ? '' : '<button type="button" class="secondary" id="import-telem">Import demo telemetrie</button>') +
+            '</div>' +
             '<div id="flight-msg"></div>' +
             '<div id="flight-form-panel" class="form-panel hidden">' +
             '<h3>Novy let do dennika</h3>' +
             '<form id="flight-create-form" class="form-grid">' +
-            '<label>Utvar<select id="fl-org" required>' + orgOpts + '</select></label>' +
+            orgFieldHtml +
             '<label>Dron<select id="fl-uas">' + uasOpts + '</select></label>' +
-            '<label>Pilot<select id="fl-pilot">' + pilotOpts + '</select></label>' +
+            pilotFieldHtml +
             '<label class="full muted" style="align-self:end">Cislo letu sa priradi automaticky (LET-' + new Date().getFullYear() + '-XXXX)</label>' +
-            '<label class="full">Lokalita z mapy' +
-            '<input id="fl-location" readonly placeholder="Vyberte bod na mape GEO zón" />' +
+            '<label class="full">GPS súradnice' +
+            '<input id="fl-location" readonly placeholder="Vyberte bod na mape (lat, lon)" />' +
             '</label>' +
             '<input type="hidden" id="fl-lat" value="" />' +
             '<input type="hidden" id="fl-lon" value="" />' +
             '<input type="hidden" id="fl-radius" value="" />' +
             '<p class="full muted" id="fl-map-hint" style="margin:0">' +
-            (state.accessLevel === 3
-              ? 'Lokalitu nastavíte klikom na mape GEO zón.'
-              : 'Lokalitu nastavíte klikom na VFR mape (polomer napr. 1 km).') +
+            (isL3
+              ? 'GPS sa nastaví klikom na mape GEO zón (otvorí sa pred formulárom).'
+              : 'GPS nastavíte klikom na mape (polomer napr. 1 km).') +
             '</p>' +
             '<label class="full">Ucel<input id="fl-purpose" required placeholder="napr. Hliadkovanie" /></label>' +
             '<label>Vzlet<input id="fl-takeoff" type="datetime-local" required value="' + toLocalInput(hourAgo) + '" /></label>' +
@@ -3256,16 +3504,14 @@
             '<button type="button" class="secondary" id="fl-cancel">Zrusit</button>' +
             '<button type="button" class="secondary" id="fl-clear-loc">Zrusit bod mapy</button>' +
             '</div></form></div>' +
-            makeTable(['Cislo letu', 'Datum', 'Cas', 'Dron', 'Pilot', 'Trvanie', 'Lokalita', 'Ucel', 'Stav'], rows, true) +
+            makeTable(['Cislo letu', 'Datum', 'Cas', 'Dron', 'Pilot', 'Trvanie', 'GPS', 'Ucel', 'Stav'], rows, true) +
             '</div></div>';
 
-          var defaultOrg = orgs.find(function (o) { return o.code === 'UTVAR-A'; })
-            || orgs.find(function (o) { return o.code && o.code.indexOf('KR-') === 0; })
-            || orgs[0];
-          if (defaultOrg) document.getElementById('fl-org').value = defaultOrg.id;
-          if (state.accessLevel === 3 && myPilot) {
-            var pilotEl = document.getElementById('fl-pilot');
-            if (pilotEl) pilotEl.value = myPilot.id;
+          if (!isL3) {
+            var defaultOrg = orgs.find(function (o) { return o.code === 'UTVAR-A'; })
+              || orgs.find(function (o) { return o.code && o.code.indexOf('KR-') === 0; })
+              || orgs[0];
+            if (defaultOrg) document.getElementById('fl-org').value = defaultOrg.id;
           }
 
           function applyPendingLocation() {
@@ -3273,17 +3519,21 @@
             var input = document.getElementById('fl-location');
             var hint = document.getElementById('fl-map-hint');
             if (loc) {
-              input.value = loc.label;
+              var gps = Number(loc.lat).toFixed(5) + ', ' + Number(loc.lon).toFixed(5);
+              input.value = gps;
               document.getElementById('fl-lat').value = String(loc.lat);
               document.getElementById('fl-lon').value = String(loc.lon);
               document.getElementById('fl-radius').value = String(loc.radiusM);
-              hint.textContent = 'Bod z mapy: ' + loc.label + ' (mozete zmenit v zalozke Mapa).';
+              hint.textContent = 'GPS: ' + gps +
+                (loc.radiusM != null ? ' · polomer ' + Math.round(Number(loc.radiusM)) + ' m' : '');
             } else {
               input.value = '';
               document.getElementById('fl-lat').value = '';
               document.getElementById('fl-lon').value = '';
               document.getElementById('fl-radius').value = '';
-              hint.textContent = 'Lokalitu nastavite klikom na mape (polomer napr. 1 km).';
+              hint.textContent = isL3
+                ? 'GPS sa nastaví klikom na mape GEO zón (otvorí sa pred formulárom).'
+                : 'GPS nastavíte klikom na mape (polomer napr. 1 km).';
             }
           }
           applyPendingLocation();
@@ -3293,18 +3543,26 @@
             state.openFlightForm = false;
           }
 
-          document.getElementById('reveal-flight-form').onclick = function () {
-            document.getElementById('flight-form-panel').classList.remove('hidden');
-          };
-          document.getElementById('fl-pick-map').onclick = function () {
+          function goPickFlightMap() {
             state.mapStartPick = true;
             state.openFlightForm = true;
-            var target = state.accessLevel === 3 ? 'geozones' : 'map';
+            var target = isL3 ? 'geozones' : 'map';
             document.querySelectorAll('.nav').forEach(function (b) {
               b.classList.toggle('active', b.dataset.page === target);
             });
             navigate(target);
+          }
+
+          document.getElementById('reveal-flight-form').onclick = function () {
+            if (isL3) {
+              // L3: najprv mapa → po výbere bodu sa otvorí formulár
+              goPickFlightMap();
+              return;
+            }
+            document.getElementById('flight-form-panel').classList.remove('hidden');
           };
+          var pickMapBtn = document.getElementById('fl-pick-map');
+          if (pickMapBtn) pickMapBtn.onclick = goPickFlightMap;
           document.getElementById('fl-cancel').onclick = function () {
             document.getElementById('flight-form-panel').classList.add('hidden');
           };
@@ -3328,7 +3586,9 @@
               var lat = latRaw !== '' ? Number(latRaw) : null;
               var lon = lonRaw !== '' ? Number(lonRaw) : null;
               var radiusM = radiusRaw !== '' ? Number(radiusRaw) : null;
-              var location = document.getElementById('fl-location').value.trim();
+              var location = (isFinite(lat) && isFinite(lon))
+                ? (lat.toFixed(5) + ', ' + lon.toFixed(5))
+                : null;
               var takeoff = new Date(document.getElementById('fl-takeoff').value);
               var landing = new Date(document.getElementById('fl-landing').value);
               if (!orgId) throw new Error('Vyberte utvar');
@@ -3373,7 +3633,8 @@
             }
           };
 
-          document.getElementById('import-telem').onclick = async function () {
+          var importTelemBtn = document.getElementById('import-telem');
+          if (importTelemBtn) importTelemBtn.onclick = async function () {
             const msg = document.getElementById('flight-msg');
             try {
               const flights = await api('/api/v1/flights');
@@ -4857,12 +5118,23 @@
               '<div class="toolbar">' +
               '<button type="button" class="secondary" id="uas-back">Spat na zoznam</button> ' +
               (u.status === 'Draft' || u.status === 0
-                ? '<button type="button" id="uas-submit">Predložiť</button> <button type="button" id="uas-approve">Schváliť</button> '
+                ? '<button type="button" id="uas-register">Zaregistrovať</button> '
                 : '') +
               (u.status !== 'Decommissioned' && u.status !== 8
                 ? '<button type="button" class="secondary" id="uas-retire">Vyradiť</button>' : '') +
               '</div>' +
               '<div id="uas-msg"></div>' +
+              '<div class="form-panel"><h3>Údaje registra</h3><dl class="flight-meta">' +
+              '<div><dt>Č. osvedčenia</dt><dd>' + (u.certificateNumber || '—') + '</dd></div>' +
+              '<div><dt>Dátum výmazu</dt><dd>' + (u.deregisteredAt ? new Date(u.deregisteredAt).toLocaleDateString('sk-SK') : '—') + '</dd></div>' +
+              '<div><dt>Poznávacia značka</dt><dd>' + (u.registrationNumber || '—') + '</dd></div>' +
+              '<div><dt>Typ</dt><dd>' + (u.model || '—') + '</dd></div>' +
+              '<div><dt>Výrobca</dt><dd>' + (u.manufacturer || '—') + '</dd></div>' +
+              '<div><dt>Výrobné číslo</dt><dd>' + (u.serialNumber || '—') + '</dd></div>' +
+              '<div><dt>Ev.č. denníka</dt><dd>' + (u.logbookNumber || '—') + '</dd></div>' +
+              '<div><dt>Užívateľ (útvar)</dt><dd>' + (u.owningOrgUnitName || '—') + '</dd></div>' +
+              '<div><dt>Č. IM</dt><dd>' + (u.inventoryAssetNumber || '—') + '</dd></div>' +
+              '</dl></div>' +
               '<div class="form-panel"><h3>Transfer na iny utvar</h3>' +
               '<form id="uas-transfer" class="form-grid">' +
               '<label class="full">Novy utvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
@@ -4875,13 +5147,8 @@
               state.uasDetailId = null;
               navigate('uas');
             };
-            var submitBtn = document.getElementById('uas-submit');
-            if (submitBtn) submitBtn.onclick = async function () {
-              try { await api('/api/v1/uas/' + u.id + '/submit', { method: 'POST', body: '{}' }); navigate('uas'); }
-              catch (err) { document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>'; }
-            };
-            var approveBtn = document.getElementById('uas-approve');
-            if (approveBtn) approveBtn.onclick = async function () {
+            var registerBtn = document.getElementById('uas-register');
+            if (registerBtn) registerBtn.onclick = async function () {
               try {
                 await api('/api/v1/uas/' + u.id + '/submit', { method: 'POST', body: '{}' }).catch(function () {});
                 await api('/api/v1/uas/' + u.id + '/approve', { method: 'POST', body: '{}' });
@@ -4917,59 +5184,101 @@
             };
             return;
           }
-          const data = await api('/api/v1/uas?page=1&pageSize=100');
+          const data = await api('/api/v1/uas?page=1&pageSize=500');
           const list = data.items || [];
-          const orgsCreate = await api('/api/v1/org-units');
-          const orgCreateOpts = orgsCreate.map(function (o) {
-            return '<option value="' + o.id + '">' + o.code + ' — ' + o.name + '</option>';
-          }).join('');
-          const rows = list.map(function (u) {
-            var key = u.registrationNumber || u.serialNumber;
+          const canAddUas = state.accessLevel === 1;
+          var orgCreateOpts = '';
+          if (canAddUas) {
+            const orgsCreate = await api('/api/v1/org-units');
+            orgCreateOpts = orgsCreate.map(function (o) {
+              return '<option value="' + o.id + '">' + o.code + ' — ' + o.name + '</option>';
+            }).join('');
+          }
+          const rows = list.map(function (u, idx) {
+            var key = u.registrationNumber || u.serialNumber || u.id;
+            var dereg = u.deregisteredAt
+              ? new Date(u.deregisteredAt).toLocaleDateString('sk-SK')
+              : '—';
             return '<tr class="row-tint" style="--row-accent:' + colorForKey(key) + '">' +
+              '<td>' + (idx + 1) + '</td>' +
+              '<td>' + (u.certificateNumber || '—') + '</td>' +
+              '<td>' + dereg + '</td>' +
               '<td><button type="button" class="linkish uas-open" data-id="' + u.id + '">' +
               '<span class="entity-label">' + swatchHtml(colorForKey(key)) +
-              '<span>' + (u.registrationNumber || '-') + '</span></span></button></td><td>' + u.serialNumber +
-              '</td><td>' + u.manufacturer + ' ' + u.model + '</td><td>' + (u.owningOrgUnitName || '—') +
-              '</td><td>' + statusBadge(u.status) + '</td></tr>';
-          }).join('') || '<tr><td colspan="5">Zatial ziadne UAS</td></tr>';
+              '<span>' + (u.registrationNumber || '—') + '</span></span></button></td>' +
+              '<td>' + (u.model || '—') + '</td>' +
+              '<td>' + (u.manufacturer || '—') + '</td>' +
+              '<td>' + (u.serialNumber || '—') + '</td>' +
+              '<td>' + (u.logbookNumber || '—') + '</td>' +
+              '<td>' + (u.owningOrgUnitName || '—') + '</td>' +
+              '<td>' + (u.inventoryAssetNumber || '—') + '</td>' +
+              '</tr>';
+          }).join('') || '<tr><td colspan="10">Zatiaľ žiadne UAS v registri</td></tr>';
           content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
-            pageHead('Register UAS', 'Pridať / upraviť / vyradiť. Komponenty patria ku dronu.',
+            pageHead('Register UAS',
+              canAddUas
+                ? 'Register štátnych bezpilotných lietadiel — pridať / upraviť / vyradiť.'
+                : 'Register štátnych bezpilotných lietadiel. Pridať môže len L1.',
               chipHtml('UAS', list.length, 'chip-soft')) +
-            '<div class="toolbar"><button type="button" id="uas-add-btn">Pridať UAS</button></div>' +
-            '<div id="uas-list-msg"></div>' +
-            '<div id="uas-create-panel" class="form-panel hidden"><h3>Nový UAS</h3>' +
-            '<form id="uas-create-form" class="form-grid">' +
-            '<label>Výrobné číslo<input id="uas-c-serial" required /></label>' +
-            '<label>Výrobca<input id="uas-c-mfr" required /></label>' +
-            '<label>Model<input id="uas-c-model" required /></label>' +
-            '<label>Útvar<select id="uas-c-org">' + orgCreateOpts + '</select></label>' +
-            '<div class="full toolbar"><button type="submit">Uložiť a zaregistrovať</button>' +
-            '<button type="button" class="secondary" id="uas-c-cancel">Zrušiť</button></div></form></div>' +
-            makeTable(['Evid. oznacenie', 'Vyrobne cislo', 'Vyrobca / model', 'Utvar', 'Stav'], rows) + '</div>';
-          document.getElementById('uas-add-btn').onclick = function () {
-            document.getElementById('uas-create-panel').classList.remove('hidden');
-          };
-          document.getElementById('uas-c-cancel').onclick = function () {
-            document.getElementById('uas-create-panel').classList.add('hidden');
-          };
-          document.getElementById('uas-create-form').onsubmit = async function (ev) {
-            ev.preventDefault();
-            var msg = document.getElementById('uas-list-msg');
-            try {
-              var created = await api('/api/v1/uas', {
-                method: 'POST',
-                body: JSON.stringify({
-                  serialNumber: document.getElementById('uas-c-serial').value.trim(),
-                  manufacturer: document.getElementById('uas-c-mfr').value.trim(),
-                  model: document.getElementById('uas-c-model').value.trim(),
-                  owningOrgUnitId: document.getElementById('uas-c-org').value || null
-                })
-              });
-              await api('/api/v1/uas/' + created.id + '/submit', { method: 'POST', body: '{}' });
-              await api('/api/v1/uas/' + created.id + '/approve', { method: 'POST', body: '{}' });
-              navigate('uas');
-            } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
-          };
+            (canAddUas
+              ? '<div class="toolbar"><button type="button" id="uas-add-btn">Pridať UAS</button></div>' +
+                '<div id="uas-list-msg"></div>' +
+                '<div id="uas-create-panel" class="form-panel hidden"><h3>Nový UAS</h3>' +
+                '<form id="uas-create-form" class="form-grid">' +
+                '<label>Výrobné číslo<input id="uas-c-serial" required /></label>' +
+                '<label>Výrobca<input id="uas-c-mfr" required /></label>' +
+                '<label>Typ (model)<input id="uas-c-model" required /></label>' +
+                '<label>Č. IM<input id="uas-c-im" placeholder="voliteľné" /></label>' +
+                '<label>Ev.č. denníka<input id="uas-c-logbook" placeholder="voliteľné" /></label>' +
+                '<label>Útvar<select id="uas-c-org">' + orgCreateOpts + '</select></label>' +
+                '<div class="full toolbar"><button type="submit">Uložiť</button>' +
+                '<button type="button" class="secondary" id="uas-c-cancel">Zrušiť</button></div></form></div>'
+              : '') +
+            '<div class="chart-panel table-scroll">' +
+            makeTable([
+              'P.č.',
+              'Č. osvedčenia o zápise do registra',
+              'Dátum výmazu z registra',
+              'Poznávacia značka',
+              'Typ',
+              'Výrobca',
+              'Výrobné číslo',
+              'Ev.č. denníka',
+              'Užívateľ (útvar)',
+              'Č. IM'
+            ], rows, true) +
+            '</div></div>';
+          if (canAddUas) {
+            document.getElementById('uas-add-btn').onclick = function () {
+              var panel = document.getElementById('uas-create-panel');
+              panel.classList.remove('hidden');
+              document.getElementById('uas-add-btn').classList.add('hidden');
+            };
+            document.getElementById('uas-c-cancel').onclick = function () {
+              document.getElementById('uas-create-panel').classList.add('hidden');
+              document.getElementById('uas-add-btn').classList.remove('hidden');
+            };
+            document.getElementById('uas-create-form').onsubmit = async function (ev) {
+              ev.preventDefault();
+              var msg = document.getElementById('uas-list-msg');
+              try {
+                var created = await api('/api/v1/uas', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    serialNumber: document.getElementById('uas-c-serial').value.trim(),
+                    manufacturer: document.getElementById('uas-c-mfr').value.trim(),
+                    model: document.getElementById('uas-c-model').value.trim(),
+                    owningOrgUnitId: document.getElementById('uas-c-org').value || null,
+                    logbookNumber: document.getElementById('uas-c-logbook').value.trim() || null,
+                    inventoryAssetNumber: document.getElementById('uas-c-im').value.trim() || null
+                  })
+                });
+                await api('/api/v1/uas/' + created.id + '/submit', { method: 'POST', body: '{}' });
+                await api('/api/v1/uas/' + created.id + '/approve', { method: 'POST', body: '{}' });
+                navigate('uas');
+              } catch (err) { msg.innerHTML = '<div class="error">' + err.message + '</div>'; }
+            };
+          }
           content.querySelectorAll('.uas-open').forEach(function (btn) {
             btn.onclick = function () {
               state.uasDetailId = btn.dataset.id;
@@ -4980,7 +5289,7 @@
         }
         if (page === 'components') {
           const items = await api('/api/v1/components');
-          const uasData = await api('/api/v1/uas?page=1&pageSize=100');
+          const uasData = await api('/api/v1/uas?page=1&pageSize=500');
           const uasList = uasData.items || [];
           const uasOpts = uasList.map(function (u) {
             return '<option value="' + u.id + '">' + (u.registrationNumber || u.serialNumber) +
@@ -5102,6 +5411,42 @@
       var color = colorForKey(key || text);
       return '<span class="entity-label">' + swatchHtml(color) +
         '<span>' + text + '</span></span>';
+    }
+
+    function formatFlightGps(f, digits) {
+      var d = digits == null ? 5 : digits;
+      if (!f) return null;
+      var lat = f.locationLat != null ? Number(f.locationLat) : NaN;
+      var lon = f.locationLon != null ? Number(f.locationLon) : NaN;
+      if (isFinite(lat) && isFinite(lon))
+        return lat.toFixed(d) + ', ' + lon.toFixed(d);
+
+      var text = String(f.location || '').trim();
+      if (!text) return null;
+
+      // „48.12550, 17.11050“
+      var m = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (m) return Number(m[1]).toFixed(d) + ', ' + Number(m[2]).toFixed(d);
+
+      // „… 48.1255°N, 17.1105°E …“
+      m = text.match(/(-?\d+(?:\.\d+)?)\s*°?\s*([NnSs])\s*[,;\s]+\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EeWw])/);
+      if (m) {
+        lat = Number(m[1]);
+        lon = Number(m[3]);
+        if (m[2] === 'S' || m[2] === 's') lat = -lat;
+        if (m[4] === 'W' || m[4] === 'w') lon = -lon;
+        if (isFinite(lat) && isFinite(lon)) return lat.toFixed(d) + ', ' + lon.toFixed(d);
+      }
+
+      // súradnice vnorené v starom názve miesta
+      m = text.match(/(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})/);
+      if (m) {
+        lat = Number(m[1]);
+        lon = Number(m[2]);
+        if (isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180)
+          return lat.toFixed(d) + ', ' + lon.toFixed(d);
+      }
+      return null;
     }
 
     function pageHead(title, subtitle, chipsHtml, accent) {
@@ -5491,6 +5836,30 @@
       return statusLabelSk(value);
     }
 
+    function certBadgesHtml(codes) {
+      var list = Array.isArray(codes) ? codes : [];
+      var seen = {};
+      var html = '';
+      list.forEach(function (raw) {
+        var c = String(raw || '').toUpperCase().replace(/[-\/\s]/g, '_');
+        var key = null;
+        var label = null;
+        var cls = null;
+        if (c === 'A1_A3' || c === 'A1A3' || c === 'A1' || c === 'A3' || c === 'OPEN_A1_A3') {
+          key = 'A1_A3'; label = 'A1/A3'; cls = 'a1a3';
+        } else if (c === 'A2' || c === 'OPEN_A2') {
+          key = 'A2'; label = 'A2'; cls = 'a2';
+        } else if (c === 'STS' || c.indexOf('STS') === 0 || c === 'STANDARD_SCENARIO') {
+          key = 'STS'; label = 'STS'; cls = 'sts';
+        }
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        html += '<span class="cert-badge ' + cls + '">' + label + '</span>';
+      });
+      if (!html) return '<span class="cert-badge none">—</span>';
+      return '<span class="cert-badges">' + html + '</span>';
+    }
+
     function statusBadge(text) {
       var raw = (text == null ? '' : String(text));
       var key = raw.replace(/\s+/g, '').toLowerCase();
@@ -5560,7 +5929,7 @@
 
     async function loadUasOptions(pageSize) {
       try {
-        const size = pageSize || 50;
+        const size = pageSize || 500;
         const uasData = await api('/api/v1/uas?page=1&pageSize=' + size);
         return uasData.items || uasData.Items || [];
       } catch (err) {
@@ -5622,7 +5991,11 @@
     // Stary token po reštarte API nefunguje — vzdy ukaz login (okrem SSO callback)
     localStorage.removeItem('issuas.token');
     localStorage.removeItem('issuas.name');
+    localStorage.removeItem('issuas.userName');
+    localStorage.removeItem('issuas.personId');
     state.token = null;
+    state.userName = '';
+    state.personId = '';
     completeSsoCallbackFromUrl().then(function (handled) {
       if (!handled) showLogin();
     });

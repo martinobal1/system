@@ -17,7 +17,7 @@ public static class PermissionCatalog
             [Permissions.LookupsWrite] = [SystemRole.CentralGestor, SystemRole.SystemAdministrator],
             [Permissions.AuditRead] = [SystemRole.CentralGestor, SystemRole.ControllerAuditor, SystemRole.SystemAdministrator],
             [Permissions.UasRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver, SystemRole.RemotePilot, SystemRole.TechnicalWorker, SystemRole.SafetyOfficer, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
-            [Permissions.UasWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.TechnicalWorker],
+            [Permissions.UasWrite] = [SystemRole.CentralGestor, SystemRole.TechnicalWorker],
             [Permissions.UasApprove] = [SystemRole.CentralGestor, SystemRole.Approver],
             [Permissions.ComponentsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.TechnicalWorker, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
             [Permissions.ComponentsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.TechnicalWorker],

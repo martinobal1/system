@@ -5,10 +5,14 @@ namespace IsSuas.Application.Fleet;
 public sealed record UasDto(
     Guid Id,
     string? RegistrationNumber,
+    string? CertificateNumber,
+    DateTimeOffset? DeregisteredAt,
     string SerialNumber,
     string Manufacturer,
     string Model,
     string? UasTypeCode,
+    string? LogbookNumber,
+    string? InventoryAssetNumber,
     UasLifecycleStatus Status,
     Guid? OwningOrgUnitId,
     string? OwningOrgUnitName,
@@ -33,7 +37,10 @@ public sealed record CreateUasRequest(
     string Model,
     string? UasTypeCode,
     Guid? OwningOrgUnitId,
-    string? Notes);
+    string? Notes,
+    string? CertificateNumber = null,
+    string? LogbookNumber = null,
+    string? InventoryAssetNumber = null);
 
 public sealed record TransitionUasRequest(UasLifecycleStatus TargetStatus, string Reason, uint RowVersion);
 public sealed record AssignUasRequest(Guid OrgUnitId, DateTimeOffset ValidFrom, string Reason);

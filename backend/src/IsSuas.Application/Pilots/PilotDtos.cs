@@ -11,12 +11,23 @@ public sealed record PilotDto(
     Guid OrgUnitId,
     string OrgUnitName,
     string? LicenseNumber,
+    string? PersonalBadgeNumber,
+    string? GestorCertificateNumber,
+    string? LogbookNumber,
     PilotStatus Status,
     DateTimeOffset? CurrencyValidUntil,
     DateTimeOffset? LastFlightAt,
     bool IsEligibleForOperations,
     bool IsActive,
-    uint RowVersion);
+    uint RowVersion,
+    IReadOnlyList<string> CertificateCodes,
+    IReadOnlyList<PilotCertListItemDto> Certificates);
+
+public sealed record PilotCertListItemDto(
+    string CertificateTypeCode,
+    string? ExternalNumber,
+    DateTimeOffset? ValidTo,
+    string? MtowOrValidityText);
 
 public sealed record PilotDetailDto(
     PilotDto Pilot,
@@ -83,7 +94,8 @@ public sealed record PilotCertificateDto(
     DateTimeOffset? ValidFrom,
     DateTimeOffset? ValidTo,
     bool IsActive,
-    IReadOnlyList<CertificateScopeDto> Scopes);
+    IReadOnlyList<CertificateScopeDto> Scopes,
+    string? MtowOrValidityText = null);
 
 public sealed record CreatePilotCertificateRequest(
     string CertificateTypeCode,

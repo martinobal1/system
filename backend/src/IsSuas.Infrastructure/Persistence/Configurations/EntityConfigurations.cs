@@ -137,10 +137,15 @@ internal sealed class UasConfiguration : IEntityTypeConfiguration<Uas>
         builder.ToTable("UasAircraft");
         builder.Property(x => x.SerialNumber).HasMaxLength(128).IsRequired();
         builder.Property(x => x.RegistrationNumber).HasMaxLength(64);
+        builder.Property(x => x.CertificateNumber).HasMaxLength(64);
+        builder.Property(x => x.LogbookNumber).HasMaxLength(64);
+        builder.Property(x => x.InventoryAssetNumber).HasMaxLength(64);
         builder.Property(x => x.Manufacturer).HasMaxLength(128).IsRequired();
         builder.Property(x => x.Model).HasMaxLength(128).IsRequired();
         builder.HasIndex(x => x.SerialNumber).IsUnique();
         builder.HasIndex(x => x.RegistrationNumber).IsUnique().HasFilter("\"RegistrationNumber\" IS NOT NULL");
+        builder.HasIndex(x => x.CertificateNumber);
+        builder.HasIndex(x => x.InventoryAssetNumber);
         builder.HasOne(x => x.OwningOrgUnit).WithMany().HasForeignKey(x => x.OwningOrgUnitId)
             .OnDelete(DeleteBehavior.SetNull);
     }
