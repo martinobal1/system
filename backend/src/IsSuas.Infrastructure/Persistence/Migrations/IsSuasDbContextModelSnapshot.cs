@@ -1805,14 +1805,29 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ApprovedByAccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CertificateNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("DeregisteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InventoryAssetNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LogbookNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Manufacturer")
                         .IsRequired()
@@ -1868,6 +1883,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CertificateNumber");
+
+                    b.HasIndex("InventoryAssetNumber");
 
                     b.HasIndex("IsActive");
 
@@ -4736,6 +4755,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("CurrencyValidUntil")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("GestorCertificateNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -4743,6 +4766,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LicenseNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LogbookNumber")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -4754,6 +4781,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("PersonId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PersonalBadgeNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
@@ -4807,6 +4838,10 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MtowOrValidityText")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
