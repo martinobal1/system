@@ -49,7 +49,24 @@ public sealed class FlightService(
             .OrderByDescending(f => f.TakeoffAt ?? f.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return items.Where(f => policy.CanAccessOrgUnit(f.OrgUnit.Path)).Select(Map).ToList();
+        var scoped = items.Where(f => policy.CanAccessOrgUnit(f.OrgUnit.Path)).ToList();
+
+        // L3 RemotePilot: only own flights (pilot person matches account person)
+        if (currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.RemotePilot))
+            && !currentUser.Roles.Any(r => r.RoleCode is nameof(SystemRole.CentralGestor) or nameof(SystemRole.UnitAdministrator)))
+        {
+            var personId = await db.Accounts.AsNoTracking()
+                .Where(a => a.Id == currentUser.AccountId)
+                .Select(a => a.PersonId)
+                .FirstOrDefaultAsync(cancellationToken);
+            var myPilotIds = await db.Pilots.AsNoTracking()
+                .Where(p => p.PersonId == personId && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+            scoped = scoped.Where(f => f.PilotId != null && myPilotIds.Contains(f.PilotId.Value)).ToList();
+        }
+
+        return scoped.Select(Map).ToList();
     }
 
     public async Task<FlightDetailDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
@@ -112,6 +129,21 @@ public sealed class FlightService(
         if (request.BatteryId is Guid batteryId && request.UasId is Guid uasId)
             await fleet.EnsureBatteryCompatibleAsync(batteryId, uasId, cancellationToken);
 
+        Guid? pilotId = request.PilotId;
+        var isL3Only = currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.RemotePilot))
+            && !currentUser.Roles.Any(r => r.RoleCode is nameof(SystemRole.CentralGestor) or nameof(SystemRole.UnitAdministrator));
+        if (isL3Only)
+        {
+            var personId = await db.Accounts.AsNoTracking()
+                .Where(a => a.Id == currentUser.AccountId)
+                .Select(a => a.PersonId)
+                .FirstOrDefaultAsync(cancellationToken);
+            var myPilot = await db.Pilots.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PersonId == personId && p.IsActive, cancellationToken)
+                ?? throw new ValidationException("Účet nemá viazaný pilotný profil — kontaktujte správcu.");
+            pilotId = myPilot.Id;
+        }
+
         var lat = request.LocationLat;
         var lon = request.LocationLon;
         var radius = request.LocationRadiusMeters;
@@ -134,7 +166,7 @@ public sealed class FlightService(
             StandaloneReason = request.StandaloneReason.Trim(),
             OrgUnitId = org.Id,
             UasId = request.UasId,
-            PilotId = request.PilotId,
+            PilotId = pilotId,
             BatteryId = request.BatteryId,
             TakeoffAt = request.TakeoffAt,
             LandingAt = request.LandingAt,

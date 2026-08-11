@@ -122,10 +122,11 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
 
         var userName = "author." + Guid.NewGuid().ToString("N")[..8];
         var createAcc = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
-            userName, "Heslo123!", "Autor", "Historicky", null, unitA.Id));
+            userName, "Autor", "Historicky", null, unitA.Id, AccessLevel.Level2, "Heslo123!"));
         createAcc.EnsureSuccessStatusCode();
-        var account = await createAcc.Content.ReadFromJsonAsync<AccountDto>(JsonOptions);
-        Assert.NotNull(account);
+        var createdWrap = await createAcc.Content.ReadFromJsonAsync<AccountCreatedDto>(JsonOptions);
+        Assert.NotNull(createdWrap);
+        var account = createdWrap.Account;
 
         var assign = await _client.PostAsJsonAsync($"/api/v1/accounts/{account.Id}/role-assignments", new CreateRoleAssignmentRequest(
             roleId, unitA.Id, DateTimeOffset.UtcNow.AddDays(-1), null, "Acc16"));
@@ -1091,7 +1092,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         await LoginAs("gestor");
 
         var component = await (await _client.PostAsJsonAsync("/api/v1/components", new CreateComponentRequest(
-            "CMP-ACC25", "CSN-ACC25", "Gimbal ACC25", "GIMBAL", unitA.Id)))
+            "Gimbal ACC25", null, "GIMBAL", "CSN-ACC25", unitA.Id, "CMP-ACC25")))
             .Content.ReadFromJsonAsync<ComponentDto>(JsonOptions);
         Assert.NotNull(component);
 

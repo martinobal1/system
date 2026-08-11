@@ -9,7 +9,9 @@ public enum GeoZoneImportStatus
     Preview = 0,
     Active = 1,
     Superseded = 2,
-    Failed = 3
+    Failed = 3,
+    /// <summary>Aktívna verzia bola správcom odstránená z mapy.</summary>
+    Removed = 4
 }
 
 /// <summary>Verzia importu GEO zón Dopravného úradu SR (ZIP/KML).</summary>

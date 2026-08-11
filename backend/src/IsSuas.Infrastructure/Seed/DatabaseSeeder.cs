@@ -24,6 +24,7 @@ public static class DatabaseSeeder
 
         if (await db.Roles.AnyAsync())
         {
+            await EnsureAccessLevelsAsync(db);
             await EnsureAccessCatalogAsync(db);
             await EnsureRetentionRulesAsync(db);
             await EnsureNotificationCatalogAsync(db);
@@ -50,6 +51,7 @@ public static class DatabaseSeeder
                     await EnsureDemoCriticalAlertsAsync(db, existingGestor.Id);
                 }
             }
+            await EnsureNamedLoginUsersAsync(db, logger);
             await db.SaveChangesAsync();
             logger.LogInformation("Database already seeded.");
             return;
@@ -130,7 +132,7 @@ public static class DatabaseSeeder
         uasTypeLookup.Items.Add(new LookupItem { ItemCode = "FIXED_WING", LabelSk = "Pevné krídlo", SortOrder = 2 });
         db.LookupCodes.Add(uasTypeLookup);
 
-        Account CreateAccount(string user, string first, string last, OrgUnit home)
+        Account CreateAccount(string user, string first, string last, OrgUnit home, AccessLevel level = AccessLevel.Level2)
         {
             var person = new Person { FirstName = first, LastName = last, Email = $"{user}@mv.sk.local", HomeOrgUnitId = home.Id };
             var account = new Account
@@ -138,20 +140,22 @@ public static class DatabaseSeeder
                 Person = person,
                 UserName = user,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Heslo123!"),
-                Status = AccountStatus.Active
+                Status = AccountStatus.Active,
+                AccessLevel = level,
+                LicenseStatus = level == AccessLevel.Level3 ? LicenseStatus.Confirmed : LicenseStatus.NotApplicable
             };
             db.Persons.Add(person);
             db.Accounts.Add(account);
             return account;
         }
 
-        var gestor = CreateAccount("gestor", "Ján", "Gestor", root);
-        var approver = CreateAccount("schvalovatel", "Eva", "Schvaľovateľ", root);
-        var unitAdminA = CreateAccount("spravca.a", "Peter", "Správca", unitA);
-        var unitAdminB = CreateAccount("spravca.b", "Mária", "Správkyňa", unitB);
-        var safety = CreateAccount("bezpecnost", "Lucia", "Bezpečnosť", root);
-        var sysadmin = CreateAccount("sysadmin", "Tech", "Admin", root);
-        var deactivated = CreateAccount("neaktivny", "Deaktivovaný", "Účet", unitA);
+        var gestor = CreateAccount("gestor", "Ján", "Gestor", root, AccessLevel.Level1);
+        var approver = CreateAccount("schvalovatel", "Eva", "Schvaľovateľ", root, AccessLevel.Level1);
+        var unitAdminA = CreateAccount("spravca.a", "Peter", "Správca", unitA, AccessLevel.Level2);
+        var unitAdminB = CreateAccount("spravca.b", "Mária", "Správkyňa", unitB, AccessLevel.Level2);
+        var safety = CreateAccount("bezpecnost", "Lucia", "Bezpečnosť", root, AccessLevel.Level2);
+        var sysadmin = CreateAccount("sysadmin", "Tech", "Admin", root, AccessLevel.Level1);
+        var deactivated = CreateAccount("neaktivny", "Deaktivovaný", "Účet", unitA, AccessLevel.Level3);
 
         await db.SaveChangesAsync();
 
@@ -323,6 +327,7 @@ public static class DatabaseSeeder
         await EnsureNotificationCatalogAsync(db);
         await db.SaveChangesAsync();
         await EnsureAccessCatalogAsync(db);
+        await EnsureNamedLoginUsersAsync(db, logger);
         logger.LogInformation("Seed completed. Demo password: Heslo123!");
     }
 
@@ -1007,6 +1012,13 @@ public static class DatabaseSeeder
                 "operations.approve", "flights.read", "safety.read", "documents.read", "reports.read",
                 "reports.official", "notifications.read", "geozones.read"
             ],
+            [SystemRole.RemotePilot] =
+            [
+                "orgunits.read", "lookups.read", "uas.read", "batteries.read", "pilots.read",
+                "operations.read", "operations.write", "flights.read", "flights.write",
+                "maintenance.read", "maintenance.write", "safety.read", "safety.write",
+                "documents.read", "documents.write", "reports.read", "notifications.read", "geozones.read"
+            ],
             [SystemRole.SystemAdministrator] =
             [
                 "orgunits.read", "accounts.read", "lookups.read", "lookups.write", "audit.read",
@@ -1028,6 +1040,279 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureAccessLevelsAsync(IsSuasDbContext db)
+    {
+        var accounts = await db.Accounts.Include(a => a.RoleAssignments).ThenInclude(r => r.Role).ToListAsync();
+        foreach (var a in accounts)
+        {
+            var codes = a.RoleAssignments.Where(r => r.IsActive).Select(r => r.Role.Code).ToHashSet();
+            AccessLevel level;
+            if (codes.Contains(SystemRole.CentralGestor) || codes.Contains(SystemRole.SystemAdministrator))
+                level = AccessLevel.Level1;
+            else if (codes.Contains(SystemRole.UnitAdministrator))
+                level = AccessLevel.Level2;
+            else if (codes.Contains(SystemRole.RemotePilot))
+                level = AccessLevel.Level3;
+            else
+                level = AccessLevel.Level2;
+
+            if (a.AccessLevel != level)
+                a.AccessLevel = level;
+            if (level == AccessLevel.Level3 && a.LicenseStatus == LicenseStatus.NotApplicable)
+                a.LicenseStatus = LicenseStatus.Confirmed;
+            if (level != AccessLevel.Level3 && a.LicenseStatus == LicenseStatus.Pending)
+                a.LicenseStatus = LicenseStatus.NotApplicable;
+        }
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Zabezpečí demo loginy (L2/L3) s pevnými heslami — upsert pri každom štarte.</summary>
+    private static async Task EnsureNamedLoginUsersAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var krBa = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "KR-BA");
+        if (krBa is null) return;
+
+        await UpsertNamedLoginUserAsync(
+            db,
+            userName: "martin",
+            firstName: "Martin",
+            lastName: "Horváth",
+            email: "martin.horvath@mv.sk.local",
+            password: "3XXAgVWi#MKxQ2bY",
+            level: AccessLevel.Level3,
+            roleCode: SystemRole.RemotePilot,
+            homeOrg: krBa);
+
+        await UpsertNamedLoginUserAsync(
+            db,
+            userName: "janko.novak",
+            firstName: "Ján",
+            lastName: "Novák",
+            email: "janko.novak@mv.sk.local",
+            password: "!tt!DKhENEcE7esB",
+            level: AccessLevel.Level2,
+            roleCode: SystemRole.UnitAdministrator,
+            homeOrg: krBa);
+
+        await db.SaveChangesAsync();
+        await EnsureMartinPilotAndFlightsAsync(db, logger);
+        logger.LogInformation("Ensured named login users martin (L3) and janko.novak (L2) under KR-BA.");
+    }
+
+    private static async Task EnsureMartinPilotAndFlightsAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var account = await db.Accounts.Include(a => a.Person)
+            .FirstOrDefaultAsync(a => a.UserName == "martin");
+        if (account is null) return;
+
+        var krBa = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "KR-BA");
+        var homeOrgId = krBa?.Id
+            ?? account.Person.HomeOrgUnitId
+            ?? throw new InvalidOperationException("Chýba KR-BA / home org pre Martina.");
+
+        account.Person.HomeOrgUnitId = homeOrgId;
+
+        var pilot = await db.Pilots.FirstOrDefaultAsync(p => p.PersonId == account.PersonId);
+        if (pilot is null)
+        {
+            pilot = new Domain.Pilots.Pilot
+            {
+                PersonId = account.PersonId,
+                OrgUnitId = homeOrgId,
+                LicenseNumber = "PIL-MARTIN-001",
+                Status = PilotStatus.Fit,
+                CurrencyValidUntil = DateTimeOffset.UtcNow.AddMonths(12),
+                Notes = "Demo pilot viazaný na účet martin (KR Bratislava)"
+            };
+            db.Pilots.Add(pilot);
+            await db.SaveChangesAsync();
+        }
+        else
+        {
+            pilot.OrgUnitId = homeOrgId;
+            if (string.IsNullOrWhiteSpace(pilot.LicenseNumber))
+                pilot.LicenseNumber = "PIL-MARTIN-001";
+            pilot.Status = PilotStatus.Fit;
+        }
+
+        // Presuň Martinove lety do KR-BA (aby ich videl L2 správca kraja)
+        var martinFlights = await db.Flights
+            .Where(f => f.PilotId == pilot.Id || f.StandaloneReason == "SEED-MARTIN")
+            .ToListAsync();
+        foreach (var f in martinFlights)
+        {
+            f.OrgUnitId = homeOrgId;
+            f.PilotId = pilot.Id;
+        }
+        await db.SaveChangesAsync();
+
+        if (await db.Flights.AnyAsync(f => f.StandaloneReason == "SEED-MARTIN"))
+            return;
+
+        var uas = await db.UasAircraft.AsNoTracking()
+            .Where(u => u.IsActive && u.OwningOrgUnitId == homeOrgId)
+            .OrderBy(u => u.SerialNumber)
+            .FirstOrDefaultAsync()
+            ?? await db.UasAircraft.AsNoTracking()
+                .Where(u => u.IsActive)
+                .OrderBy(u => u.SerialNumber)
+                .FirstOrDefaultAsync();
+
+        var spots = new (string Label, double Lat, double Lon, double Radius, string Purpose)[]
+        {
+            ("Bratislava — Petržalka", 48.1255, 17.1105, 1200, "Hliadkovanie"),
+            ("Bratislava — Devín", 48.1738, 16.9782, 800, "Dokumentácia miesta"),
+            ("Trnava — centrum", 48.3774, 17.5883, 1000, "Cvičný let"),
+            ("Nitra — Zobor", 48.3442, 18.0963, 1500, "Prieskum terénu"),
+            ("Trenčín — Brezina", 48.8955, 18.0523, 900, "Mapovanie"),
+            ("Žilina — Strečno", 49.1870, 18.8620, 1100, "Kontrola hranice"),
+            ("Banská Bystrica — Urpín", 48.7320, 19.1400, 1000, "Monitorovanie davu"),
+            ("Zvolen — Sliač", 48.6390, 19.1390, 1300, "Výcvik pilota"),
+            ("Prešov — Cemjata", 48.9680, 21.2150, 1000, "Podpora zásahu"),
+            ("Košice — Bankov", 48.7360, 21.2120, 1400, "Kalibrácia senzorov")
+        };
+
+        var now = DateTimeOffset.UtcNow;
+        for (var i = 0; i < spots.Length; i++)
+        {
+            var s = spots[i];
+            var takeoff = now.AddDays(-(i + 1) * 2).AddHours(-(8 + i % 5));
+            var landing = takeoff.AddMinutes(25 + i * 7);
+            var rLabel = $" · r={s.Radius:0} m";
+            var flight = new Domain.Flights.Flight
+            {
+                StandaloneReason = "SEED-MARTIN",
+                OrgUnitId = homeOrgId,
+                UasId = uas?.Id,
+                PilotId = pilot.Id,
+                FlightNumber = $"LET-MARTIN-{(i + 1):00}",
+                Location = $"{s.Label} · {s.Lat:0.0000}°N, {s.Lon:0.0000}°E{rLabel}",
+                LocationLat = s.Lat,
+                LocationLon = s.Lon,
+                LocationRadiusMeters = s.Radius,
+                Purpose = s.Purpose,
+                Status = FlightStatus.Closed,
+                TakeoffAt = takeoff,
+                LandingAt = landing,
+                DurationMinutes = (int)(landing - takeoff).TotalMinutes,
+                DistanceMeters = s.Radius * 1.6,
+                MaxAltitudeMeters = 60 + i * 8,
+                MaxSpeedMps = 8 + i * 0.4,
+                PostFlightNotes = $"Demo let Martina Horvátha — {s.Label}",
+                ChecklistResult = "OK",
+                CountersApplied = true,
+                ClosedAt = landing.AddMinutes(5)
+            };
+            db.Flights.Add(flight);
+            await db.SaveChangesAsync();
+
+            var pts = new List<Domain.Flights.FlightTrackPoint>();
+            for (var t = 0; t < 6; t++)
+            {
+                var ang = t * (Math.PI / 3.0);
+                var dLat = (s.Radius * 0.35 / 111_320.0) * Math.Cos(ang);
+                var dLon = (s.Radius * 0.35 / (111_320.0 * Math.Cos(s.Lat * Math.PI / 180.0))) * Math.Sin(ang);
+                pts.Add(new Domain.Flights.FlightTrackPoint
+                {
+                    FlightId = flight.Id,
+                    Sequence = t + 1,
+                    Latitude = s.Lat + dLat,
+                    Longitude = s.Lon + dLon,
+                    AltitudeMeters = 40 + t * 5,
+                    SpeedMps = 6 + t * 0.5,
+                    RecordedAt = takeoff.AddMinutes(t * 4)
+                });
+            }
+            db.FlightTrackPoints.AddRange(pts);
+        }
+
+        pilot.LastFlightAt = now.AddDays(-2);
+        await db.SaveChangesAsync();
+        logger.LogInformation("Seeded 10 GPS flights for martin under KR-BA.");
+    }
+
+    private static async Task UpsertNamedLoginUserAsync(
+        IsSuasDbContext db,
+        string userName,
+        string firstName,
+        string lastName,
+        string email,
+        string password,
+        AccessLevel level,
+        SystemRole roleCode,
+        OrgUnit homeOrg)
+    {
+        var role = await db.Roles.FirstOrDefaultAsync(r => r.Code == roleCode && r.IsActive)
+            ?? throw new InvalidOperationException($"Rola {roleCode} chýba v seedi.");
+
+        var account = await db.Accounts
+            .Include(a => a.Person)
+            .Include(a => a.RoleAssignments)
+            .FirstOrDefaultAsync(a => a.UserName == userName);
+
+        if (account is null)
+        {
+            var person = new Person
+            {
+                FirstName = firstName,
+                LastName = lastName,
+                Email = email,
+                HomeOrgUnitId = homeOrg.Id
+            };
+            account = new Account
+            {
+                Person = person,
+                UserName = userName,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                Status = AccountStatus.Active,
+                IsActive = true,
+                AccessLevel = level,
+                LicenseStatus = level == AccessLevel.Level3 ? LicenseStatus.Confirmed : LicenseStatus.NotApplicable
+            };
+            db.Persons.Add(person);
+            db.Accounts.Add(account);
+            await db.SaveChangesAsync();
+
+            db.RoleAssignments.Add(new RoleAssignment
+            {
+                AccountId = account.Id,
+                RoleId = role.Id,
+                OrgUnitId = homeOrg.Id,
+                ValidFrom = DateTimeOffset.UtcNow.AddYears(-1),
+                Reason = "Named login seed"
+            });
+            return;
+        }
+
+        account.Person.FirstName = firstName;
+        account.Person.LastName = lastName;
+        account.Person.Email = email;
+        account.Person.HomeOrgUnitId = homeOrg.Id;
+        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+        account.Status = AccountStatus.Active;
+        account.IsActive = true;
+        account.AccessLevel = level;
+        account.LicenseStatus = level == AccessLevel.Level3 ? LicenseStatus.Confirmed : LicenseStatus.NotApplicable;
+
+        var matchingRole = account.RoleAssignments.FirstOrDefault(r => r.IsActive && r.RoleId == role.Id);
+        if (matchingRole is null)
+        {
+            db.RoleAssignments.Add(new RoleAssignment
+            {
+                AccountId = account.Id,
+                RoleId = role.Id,
+                OrgUnitId = homeOrg.Id,
+                ValidFrom = DateTimeOffset.UtcNow.AddYears(-1),
+                Reason = "Named login seed"
+            });
+        }
+        else if (matchingRole.OrgUnitId != homeOrg.Id)
+        {
+            matchingRole.OrgUnitId = homeOrg.Id;
+            matchingRole.Reason = "Named login seed (org sync)";
+        }
     }
 
     private static async Task EnsureAtlasOrgStructureAsync(IsSuasDbContext db)

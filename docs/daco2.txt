@@ -1,0 +1,44 @@
+v sprava geozony moznost odstranit geozonu ten kml subor a aby sa to aj odobralo aj z mapy
+
+V organiznačnej štrukture sa budu vytvarať použitvatelia
+
+logo pridat, v root subore je logominv.png premiestni ho na nejaku vhodnu lokaciu, a vymaž to čo tam je
+
+
+baterie odstranit a nech to je vramci komponentov spolu, do komponentov sa bude davat technicka dokumentacia dronov
+termo kamery, padak proste technicka dokumentacia dronu vsetko pokope
+to interne cislo ma byt cislo dronu jeden dron ma vsetky komponenty, komponenty patria k určitemu dronu niesu samostatne, interne cislo musi byt nahradene registracne cislo
+
+delegacie odstranit
+kalendar odstranit
+
+gestor uroven 1
+v register UAS možnosť pridať odobrať zmeniť
+kompontenty a baterie spolu v jednom 
+
+
+
+prevadzkovatel uroven 2
+prehlad( v nom stav flotily a kto kolko nalietal takže mesacny vykaz nemusi byt)
+piloti vidi iba svojich pilotov, operacie a dennik skombinovať všetko dokopy
+mohlo by to vyzerať ako otvori si prveho pilota a v nom bude operacie, dennik letov aj tu mapu tam zakomponuj
+mapa premenovať na VFR mapa samozrjeme iba pre toho uživatela
+
+
+
+admin teda gestor bude môcť vytvoriť v zlozke organizacna strukture uživatela s nižšimy pravami ako gestor a ten uživatel uroven2 teda bude môcť vytvorit vramci kraja uživatela 
+a potom ten uzivatel bude bude moct vytvorit uživatela s najmenšim pristupom, ked ho vytvori tak bude musieť gestor teda uživatel urovne 1 potvrdiť že či ma licenciu alebo nie ked nema 
+bude mať červene ked ma bude mať zelene 
+predstavujem si vytvaranie použivatelov ako nejaky button v organizačnej štrukture kde to tam spravi nejaky formular a nejaku možnosť že vygenerovať heslo, ja jedine čo chcem spraviť je že napisať login
+heslo nech sa automaticky vygeneruje nejake silne heslo a nech mi ho ukaže nech ho môžem zapisať niekde 
+
+
+uroven 3
+uživatel s najmenšim pristupom bude mať iba pristup k svojemu denniku letov a teda bude pod nejakym utvarom a len svoj dennik nikoho ineho, 
+mal by vyuzivat geo mapu a ma mať klikne kde leti a cez to vie zapisať do denniku letov a zaroven ten uživel 
+
+vytvorit pouzitvatela s vacsinmi pravomocami, môže uvidieť 
+vytvorit pouzitvatela s minimalnym pristupom do aplikacie 
+
+Piloti a Dennik pilotov aby bola v jednom, uroven 2 ked rozklikne pilota tak aby videl tie lety.
+

@@ -40,6 +40,10 @@ public sealed class GeoZonesController(IGeoZoneService service) : ControllerBase
     public async Task<ActionResult<GeoZoneImportDto>> Discard(Guid id, CancellationToken cancellationToken)
         => Ok(await service.DiscardPreviewAsync(id, cancellationToken));
 
+    [HttpPost("imports/{id:guid}/remove")]
+    public async Task<ActionResult<GeoZoneImportDto>> Remove(Guid id, CancellationToken cancellationToken)
+        => Ok(await service.RemoveActiveAsync(id, cancellationToken));
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<GeoZoneDto>>> ListActive(CancellationToken cancellationToken)
         => Ok(await service.ListActiveZonesAsync(cancellationToken));

@@ -325,30 +325,85 @@ public sealed class FleetService(
     public async Task<IReadOnlyList<ComponentDto>> ListComponentsAsync(CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.ComponentsRead);
-        var items = await db.Components.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.InternalNumber).ToListAsync(cancellationToken);
-        return items.Select(MapComponent).ToList();
+        var items = await db.Components.AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+        var installs = await db.Installations.AsNoTracking()
+            .Include(i => i.Uas)
+            .Where(i => i.IsActive && i.RemovedAt == null)
+            .ToListAsync(cancellationToken);
+        var byComponent = installs.GroupBy(i => i.ComponentId).ToDictionary(g => g.Key, g => g.First());
+        return items.Select(c =>
+        {
+            byComponent.TryGetValue(c.Id, out var inst);
+            return MapComponent(c, inst?.UasId, inst?.Uas?.RegistrationNumber ?? inst?.Uas?.SerialNumber);
+        }).ToList();
     }
 
     public async Task<ComponentDto> CreateComponentAsync(CreateComponentRequest request, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.ComponentsWrite);
-        if (await db.Components.AnyAsync(x => x.InternalNumber == request.InternalNumber, cancellationToken))
-            throw new ConflictException("Interné číslo komponentu už existuje.");
+
+        Domain.Fleet.Uas? uas = null;
+        if (request.UasId is Guid uasId && uasId != Guid.Empty)
+        {
+            uas = await LoadUasAsync(uasId, cancellationToken);
+            EnsureUasOrgAccess(uas);
+        }
+
+        var type = string.IsNullOrWhiteSpace(request.ComponentTypeCode) ? "OTHER" : request.ComponentTypeCode.Trim().ToUpperInvariant();
+        string internalNumber;
+        if (!string.IsNullOrWhiteSpace(request.InternalNumber))
+            internalNumber = request.InternalNumber.Trim();
+        else if (uas is not null)
+        {
+            var droneLabel = (uas.RegistrationNumber ?? uas.SerialNumber).Trim();
+            var seq = await db.Components.CountAsync(c => c.IsActive, cancellationToken) + 1;
+            internalNumber = $"{droneLabel}-{type}-{seq:D3}";
+        }
+        else
+            throw new ValidationException("InternalNumber alebo UasId je povinné.");
+
+        if (await db.Components.AnyAsync(x => x.InternalNumber == internalNumber, cancellationToken))
+        {
+            if (uas is not null)
+                internalNumber = $"{uas.RegistrationNumber ?? uas.SerialNumber}-{type}-{Guid.NewGuid().ToString("N")[..6]}";
+            else
+                throw new ConflictException("Interné číslo komponentu už existuje.");
+        }
 
         var entity = new Component
         {
-            InternalNumber = request.InternalNumber.Trim(),
+            InternalNumber = internalNumber,
             SerialNumber = request.SerialNumber,
             Name = request.Name.Trim(),
-            ComponentTypeCode = request.ComponentTypeCode,
-            OwningOrgUnitId = request.OwningOrgUnitId,
+            ComponentTypeCode = type,
+            OwningOrgUnitId = request.OwningOrgUnitId ?? uas?.OwningOrgUnitId,
+            Status = uas is null ? AssetUsabilityStatus.Available : AssetUsabilityStatus.InUse,
             CreatedBy = currentUser.AccountId,
             UpdatedBy = currentUser.AccountId
         };
         db.Components.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
-        await audit.WriteAsync("Component.Create", nameof(Component), entity.Id, null, MapComponent(entity), cancellationToken: cancellationToken);
-        return MapComponent(entity);
+
+        if (uas is not null)
+        {
+            db.Installations.Add(new Installation
+            {
+                ComponentId = entity.Id,
+                UasId = uas.Id,
+                InstalledAt = clock.UtcNow,
+                Reason = "Priradenie ku dronu pri vytvorení",
+                CreatedBy = currentUser.AccountId,
+                UpdatedBy = currentUser.AccountId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        await audit.WriteAsync("Component.Create", nameof(Component), entity.Id, null,
+            MapComponent(entity, uas?.Id, uas?.RegistrationNumber ?? uas?.SerialNumber), cancellationToken: cancellationToken);
+        return MapComponent(entity, uas?.Id, uas?.RegistrationNumber ?? uas?.SerialNumber);
     }
 
     public async Task<InstallationDto> InstallComponentAsync(Guid componentId, InstallComponentRequest request, CancellationToken cancellationToken = default)
@@ -786,8 +841,9 @@ public sealed class FleetService(
             x.OwningOrgUnitId, x.OwningOrgUnit?.Name, x.Notes, x.RegisteredAt, x.SubmittedByAccountId,
             x.TotalFlightCount, x.TotalFlightMinutes, x.IsActive, x.RowVersion);
 
-    private static ComponentDto MapComponent(Component x) =>
-        new(x.Id, x.InternalNumber, x.SerialNumber, x.Name, x.ComponentTypeCode, x.Status, x.OwningOrgUnitId, x.IsActive, x.RowVersion);
+    private static ComponentDto MapComponent(Component x, Guid? uasId = null, string? uasReg = null) =>
+        new(x.Id, x.InternalNumber, x.SerialNumber, x.Name, x.ComponentTypeCode, x.Status, x.OwningOrgUnitId,
+            uasId, uasReg, x.IsActive, x.RowVersion);
 
     private static BatteryDto MapBattery(Battery x) =>
         new(x.Id, x.InternalNumber, x.SerialNumber, x.Manufacturer, x.Model, x.CompatibleUasTypeCodes, x.Status,

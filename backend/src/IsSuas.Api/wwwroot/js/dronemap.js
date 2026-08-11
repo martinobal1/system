@@ -507,15 +507,17 @@
 
   function setPickMode(enabled) {
     state.pickMode = !!enabled;
-    var mapEl = document.getElementById('drone-map');
+    var mapEl = document.getElementById('drone-map') || document.getElementById('geo-zones-map');
     if (mapEl) mapEl.classList.toggle('map-pick-mode', state.pickMode);
+    if (state.map && state.map.getContainer) {
+      var container = state.map.getContainer();
+      container.classList.toggle('map-pick-mode', state.pickMode);
+      container.style.cursor = state.pickMode ? 'crosshair' : '';
+    }
     var btn = document.getElementById('map-pick-toggle');
     if (btn) {
       btn.classList.toggle('active-pick', state.pickMode);
       btn.textContent = state.pickMode ? 'Kliknite na mapu…' : 'Označit miesto letu';
-    }
-    if (state.map && state.map.getContainer) {
-      state.map.getContainer().style.cursor = state.pickMode ? 'crosshair' : '';
     }
   }
 

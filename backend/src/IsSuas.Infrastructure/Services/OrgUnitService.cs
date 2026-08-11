@@ -34,9 +34,23 @@ public sealed class OrgUnitService(
             query = query.Where(x => x.IsActive);
 
         var units = await query.OrderBy(x => x.Path).ToListAsync(cancellationToken);
+        var byId = units.ToDictionary(u => u.Id);
+
+        // Own unit + descendants (business access), plus ancestors so the tree path is visible (MV → zložka → kraj).
+        var visibleIds = new HashSet<Guid>();
+        foreach (var u in units.Where(x => policy.CanAccessOrgUnit(x.Path)))
+        {
+            visibleIds.Add(u.Id);
+            var cur = u;
+            while (cur.ParentId is Guid pid && byId.TryGetValue(pid, out var parent))
+            {
+                visibleIds.Add(parent.Id);
+                cur = parent;
+            }
+        }
 
         return units
-            .Where(u => policy.CanAccessOrgUnit(u.Path))
+            .Where(u => visibleIds.Contains(u.Id))
             .Select(Map)
             .ToList();
     }

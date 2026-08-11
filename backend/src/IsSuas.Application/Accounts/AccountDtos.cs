@@ -10,17 +10,35 @@ public sealed record AccountDto(
     string LastName,
     string? Email,
     AccountStatus Status,
+    AccessLevel AccessLevel,
+    LicenseStatus LicenseStatus,
     Guid? HomeOrgUnitId,
+    string? HomeOrgUnitName,
     bool IsActive,
     uint RowVersion);
 
+public sealed record AccountCreatedDto(
+    AccountDto Account,
+    string PlainPassword);
+
 public sealed record CreateAccountRequest(
     string UserName,
-    string Password,
     string FirstName,
     string LastName,
     string? Email,
-    Guid? HomeOrgUnitId);
+    Guid? HomeOrgUnitId,
+    AccessLevel AccessLevel = AccessLevel.Level3,
+    /// <summary>Optional; when null/empty the server generates a strong password.</summary>
+    string? Password = null);
+
+public sealed record ConfirmLicenseRequest(LicenseStatus Status, string? Reason, uint RowVersion);
+
+public sealed record SetAccountPasswordRequest(
+    string Password,
+    uint RowVersion,
+    string? FirstName = null,
+    string? LastName = null,
+    string? Email = null);
 
 public sealed record ChangeAccountStatusRequest(AccountStatus Status, string Reason, uint RowVersion);
 

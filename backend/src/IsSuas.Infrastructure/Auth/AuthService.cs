@@ -67,7 +67,10 @@ public sealed class AuthService(
             login.AccountId,
             login.UserName,
             login.DisplayName,
-            string.IsNullOrWhiteSpace(state) ? null : state);
+            string.IsNullOrWhiteSpace(state) ? null : state,
+            login.AccessLevel,
+            login.LicenseStatus,
+            login.RoleCodes);
     }
 
     public async Task<ReauthResponse> ReauthAsync(ReauthRequest request, CancellationToken cancellationToken = default)
@@ -164,7 +167,10 @@ public sealed class AuthService(
             expires,
             account.Id,
             account.UserName,
-            $"{account.Person.FirstName} {account.Person.LastName}");
+            $"{account.Person.FirstName} {account.Person.LastName}",
+            (int)account.AccessLevel,
+            account.LicenseStatus.ToString(),
+            activeAssignments.Select(a => a.Role.Code.ToString()).Distinct().ToList());
     }
 
     private string CreateJwt(IEnumerable<Claim> claims, DateTimeOffset now, DateTimeOffset expires)

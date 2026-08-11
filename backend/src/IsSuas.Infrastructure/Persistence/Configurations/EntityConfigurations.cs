@@ -52,6 +52,8 @@ internal sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         AuditableConfig.Configure(builder);
         builder.Property(x => x.UserName).HasMaxLength(128).IsRequired();
         builder.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
+        builder.Property(x => x.AccessLevel).HasConversion<int>();
+        builder.Property(x => x.LicenseStatus).HasConversion<int>();
         builder.HasIndex(x => x.UserName).IsUnique();
         builder.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId)
             .OnDelete(DeleteBehavior.Restrict);

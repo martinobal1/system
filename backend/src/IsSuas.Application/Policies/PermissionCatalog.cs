@@ -8,7 +8,7 @@ public static class PermissionCatalog
     public static readonly IReadOnlyDictionary<string, HashSet<SystemRole>> RoleMap =
         new Dictionary<string, HashSet<SystemRole>>
         {
-            [Permissions.OrgUnitsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser, SystemRole.SystemAdministrator],
+            [Permissions.OrgUnitsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.RemotePilot, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser, SystemRole.SystemAdministrator],
             [Permissions.OrgUnitsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator],
             [Permissions.AccountsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.ControllerAuditor, SystemRole.SystemAdministrator],
             [Permissions.AccountsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator],

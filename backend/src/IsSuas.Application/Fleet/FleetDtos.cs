@@ -63,15 +63,19 @@ public sealed record ComponentDto(
     string? ComponentTypeCode,
     AssetUsabilityStatus Status,
     Guid? OwningOrgUnitId,
+    Guid? UasId,
+    string? UasRegistrationNumber,
     bool IsActive,
     uint RowVersion);
 
 public sealed record CreateComponentRequest(
-    string InternalNumber,
-    string? SerialNumber,
     string Name,
-    string? ComponentTypeCode,
-    Guid? OwningOrgUnitId);
+    Guid? UasId = null,
+    string? ComponentTypeCode = null,
+    string? SerialNumber = null,
+    Guid? OwningOrgUnitId = null,
+    /// <summary>Optional explicit number; otherwise derived from drone registration when UasId is set.</summary>
+    string? InternalNumber = null);
 
 public sealed record InstallComponentRequest(Guid UasId, DateTimeOffset InstalledAt, string? Reason);
 public sealed record RemoveInstallationRequest(string? Reason);

@@ -15,11 +15,19 @@ public sealed class AccountsController(IAccountService service) : ControllerBase
         => Ok(await service.ListAsync(cancellationToken));
 
     [HttpPost]
-    public async Task<ActionResult<AccountDto>> Create([FromBody] CreateAccountRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<AccountCreatedDto>> Create([FromBody] CreateAccountRequest request, CancellationToken cancellationToken)
     {
         var created = await service.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(List), new { id = created.Id }, created);
+        return CreatedAtAction(nameof(List), new { id = created.Account.Id }, created);
     }
+
+    [HttpPost("{id:guid}/confirm-license")]
+    public async Task<ActionResult<AccountDto>> ConfirmLicense(Guid id, [FromBody] ConfirmLicenseRequest request, CancellationToken cancellationToken)
+        => Ok(await service.ConfirmLicenseAsync(id, request, cancellationToken));
+
+    [HttpPost("{id:guid}/password")]
+    public async Task<ActionResult<AccountDto>> SetPassword(Guid id, [FromBody] SetAccountPasswordRequest request, CancellationToken cancellationToken)
+        => Ok(await service.SetPasswordAsync(id, request, cancellationToken));
 
     [HttpPatch("{id:guid}/status")]
     public async Task<ActionResult<AccountDto>> ChangeStatus(Guid id, [FromBody] ChangeAccountStatusRequest request, CancellationToken cancellationToken)

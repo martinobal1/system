@@ -17,6 +17,7 @@ public interface IGeoZoneService
     Task<GeoZoneImportDto> PreviewImportAsync(PreviewGeoZoneImportRequest request, CancellationToken cancellationToken = default);
     Task<GeoZoneImportDto> ActivateAsync(Guid importId, CancellationToken cancellationToken = default);
     Task<GeoZoneImportDto> DiscardPreviewAsync(Guid importId, CancellationToken cancellationToken = default);
+    Task<GeoZoneImportDto> RemoveActiveAsync(Guid importId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GeoZoneImportDto>> ListImportsAsync(CancellationToken cancellationToken = default);
     Task<GeoZoneImportDto?> GetImportAsync(Guid id, CancellationToken cancellationToken = default);
     Task<GeoZoneMapPayloadDto> GetActiveMapAsync(CancellationToken cancellationToken = default);
@@ -253,6 +254,35 @@ public sealed class GeoZoneService(
         import.IsActive = false;
         import.UpdatedBy = currentUser.AccountId;
         await db.SaveChangesAsync(cancellationToken);
+        return (await MapImportAsync(import.Id, cancellationToken))!;
+    }
+
+    public async Task<GeoZoneImportDto> RemoveActiveAsync(Guid importId, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.GeoZonesWrite);
+        if (currentUser.AccountId is null)
+            throw new ForbiddenException("Chýba identita.");
+
+        var import = await db.GeoZoneImports.Include(i => i.Zones)
+            .FirstOrDefaultAsync(i => i.Id == importId, cancellationToken)
+            ?? throw new NotFoundException("Import GEO zón nebol nájdený.");
+
+        if (import.Status != GeoZoneImportStatus.Active)
+            throw new ValidationException("Odstrániť z mapy je možné iba aktívny import.");
+
+        import.Status = GeoZoneImportStatus.Removed;
+        import.FeatureCollectionGeoJson = """{"type":"FeatureCollection","features":[]}""";
+        import.ResultMessage = "Aktívna verzia odstránená správcom — mapa je bez GEO zón.";
+        import.UpdatedBy = currentUser.AccountId;
+        foreach (var z in import.Zones)
+        {
+            z.IsActive = false;
+            z.UpdatedBy = currentUser.AccountId;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("GeoZoneImport.Remove", nameof(GeoZoneImport), import.Id,
+            null, new { import.FileName, import.ZoneCount }, cancellationToken: cancellationToken);
         return (await MapImportAsync(import.Id, cancellationToken))!;
     }
 
