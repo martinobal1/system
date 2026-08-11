@@ -349,12 +349,8 @@
       top: 0;
       z-index: 1;
     }
-    .table-scroll {
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-      max-height: min(70vh, 720px);
-    }
-    .table-scroll thead th {
+    /* List tables grow with content (page scroll), same as Denník letov / chart-panel */
+    .chart-panel > table thead th {
       box-shadow: 0 1px 0 var(--line);
     }
     tr:last-child td { border-bottom: 0; }
@@ -996,6 +992,7 @@
     .table-card > table,
     .chart-panel > table,
     .dash-table-panel > table,
+    .section-card > table,
     .chart-panel .table-card,
     .dash-table-panel .table-card,
     .weather-panel .table-card,
@@ -1241,7 +1238,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    /* sticky table headers: see .table-scroll above */
+    /* sticky table headers via th { position: sticky } */
 
     @media (max-width: 1100px) {
       .dash-charts-3 { grid-template-columns: 1fr; }
@@ -4350,8 +4347,8 @@
               '<label class="full">Novy utvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
               '<label class="full">Dovod<input id="uas-reason" required placeholder="Dovod transferu" /></label>' +
               '<div class="full toolbar"><button type="submit">Presunut UAS</button></div></form></div>' +
-              sectionCard('Historia pridelení', makeTable(['Utvar', 'Od', 'Do', 'Dovod'], hist), '#2b7bb9') +
-              sectionCard('Opravneni piloti', makeTable(['Pilot', 'Od', 'Do'], pilots), '#0d8f7a') +
+              sectionCard('Historia pridelení', makeTable(['Utvar', 'Od', 'Do', 'Dovod'], hist, true), '#2b7bb9') +
+              sectionCard('Opravneni piloti', makeTable(['Pilot', 'Od', 'Do'], pilots, true), '#0d8f7a') +
               '</div>';
             document.getElementById('uas-back').onclick = function () {
               state.uasDetailId = null;
@@ -4505,7 +4502,8 @@
       var html = '<table><thead><tr>' +
         headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
         '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
-      return bare ? html : '<div class="table-card table-scroll">' + html + '</div>';
+      // Default: chart-panel grows with rows (page scroll) — same as Denník letov
+      return bare ? html : '<div class="chart-panel">' + html + '</div>';
     }
 
     function sectionCard(title, bodyHtml, accent) {
