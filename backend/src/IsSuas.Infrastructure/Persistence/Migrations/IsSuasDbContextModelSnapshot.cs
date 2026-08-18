@@ -4859,6 +4859,9 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SupersedesCertificateId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("SuspendedUntil")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("TitleSk")
                         .IsRequired()
                         .HasMaxLength(256)
