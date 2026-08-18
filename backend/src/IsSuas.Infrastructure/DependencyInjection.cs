@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace IsSuas.Infrastructure;
@@ -59,10 +60,24 @@ public static class DependencyInjection
         services.AddHostedService<IsSuasMaintenanceWorker>();
 
         var useInMemory = configuration.GetValue("Database:UseInMemory", false);
-        if (useInMemory)
+        var provider = (configuration["Database:Provider"] ?? (useInMemory ? "InMemory" : "PostgreSQL")).Trim();
+        if (useInMemory || provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddDbContext<IsSuasDbContext>(opt =>
                 opt.UseInMemoryDatabase(configuration["Database:InMemoryName"] ?? "IsSuas"));
+        }
+        else if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddDbContext<IsSuasDbContext>((sp, opt) =>
+            {
+                var env = sp.GetRequiredService<IHostEnvironment>();
+                var file = configuration["Database:SqliteFile"] ?? "issuas-dev.db";
+                var fullPath = Path.IsPathRooted(file) ? file : Path.Combine(env.ContentRootPath, file);
+                var dir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrWhiteSpace(dir))
+                    Directory.CreateDirectory(dir);
+                opt.UseSqlite($"Data Source={fullPath}");
+            });
         }
         else
         {

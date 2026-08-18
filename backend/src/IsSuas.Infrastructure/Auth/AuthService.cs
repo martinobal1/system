@@ -18,17 +18,24 @@ public interface IAuthService
     Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
     Task<SsoCallbackResponse> CompleteSsoCallbackAsync(string? code, string? state, CancellationToken cancellationToken = default);
     Task<ReauthResponse> ReauthAsync(ReauthRequest request, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class AuthService(
     IsSuasDbContext db,
     IConfiguration configuration,
-    ICurrentUser currentUser) : IAuthService
+    ICurrentUser currentUser,
+    IAuditWriter audit) : IAuthService
 {
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        var account = await LoadAccountByUserNameAsync(request.UserName, cancellationToken);
-        if (account is null || !BCrypt.Net.BCrypt.Verify(request.Password, account.PasswordHash))
+        var userName = (request.UserName ?? string.Empty).Trim();
+        var password = request.Password ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrEmpty(password))
+            throw new UnauthorizedAccessException("Neplatné prihlasovacie údaje.");
+
+        var account = await LoadAccountByUserNameAsync(userName, cancellationToken);
+        if (account is null || !BCrypt.Net.BCrypt.Verify(password, account.PasswordHash))
             throw new UnauthorizedAccessException("Neplatné prihlasovacie údaje.");
 
         EnsureAccountActive(account);
@@ -108,12 +115,54 @@ public sealed class AuthService(
         return new ReauthResponse(token, expires);
     }
 
-    private async Task<Account?> LoadAccountByUserNameAsync(string userName, CancellationToken cancellationToken) =>
-        await db.Accounts
+    public async Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (currentUser.AccountId is null)
+            throw new ForbiddenException("Chýba identita.");
+
+        var currentPassword = request.CurrentPassword ?? string.Empty;
+        var newPassword = (request.NewPassword ?? string.Empty).Trim();
+        var confirmPassword = (request.ConfirmNewPassword ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(currentPassword))
+            throw new ValidationException("Aktuálne heslo je povinné.");
+        if (string.IsNullOrWhiteSpace(newPassword))
+            throw new ValidationException("Nové heslo je povinné.");
+        if (newPassword.Length < 8)
+            throw new ValidationException("Nové heslo musí mať aspoň 8 znakov.");
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+            throw new ValidationException("Nové heslo a potvrdenie sa nezhodujú.");
+
+        var account = await db.Accounts
+            .FirstOrDefaultAsync(a => a.Id == currentUser.AccountId && a.IsActive, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Účet nebol nájdený.");
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, account.PasswordHash))
+            throw new ValidationException("Aktuálne heslo nie je správne.");
+        if (BCrypt.Net.BCrypt.Verify(newPassword, account.PasswordHash))
+            throw new ValidationException("Nové heslo musí byť iné ako aktuálne.");
+
+        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        account.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(
+            "Account.ChangePassword",
+            nameof(Account),
+            account.Id,
+            null,
+            new { account.UserName },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<Account?> LoadAccountByUserNameAsync(string userName, CancellationToken cancellationToken)
+    {
+        var normalized = userName.Trim().ToLowerInvariant();
+        return await db.Accounts
             .Include(a => a.Person)
             .Include(a => a.RoleAssignments).ThenInclude(r => r.Role)
             .Include(a => a.RoleAssignments).ThenInclude(r => r.OrgUnit)
-            .FirstOrDefaultAsync(a => a.UserName == userName && a.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(a => a.UserName.ToLower() == normalized && a.IsActive, cancellationToken);
+    }
 
     private static void EnsureAccountActive(Account account)
     {

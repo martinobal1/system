@@ -19,13 +19,35 @@ public sealed record DashboardDto(
     decimal TotalFlightHours = 0,
     IReadOnlyList<FlightHoursSliceDto>? FlightHoursByOrgUnit = null,
     IReadOnlyList<FlightHoursSliceDto>? FlightHoursByUas = null,
+    IReadOnlyList<FlightHoursSliceDto>? FlightHoursByPilot = null,
     int ConfirmedMonthlyReports = 0,
     int MissingMonthlyReports = 0,
     int TotalTakeoffs = 0,
     int TotalLandings = 0,
-    string FlightHoursSource = "monthly");
+    string FlightHoursSource = "monthly",
+    IReadOnlyList<FleetModelCountDto>? FleetByModel = null);
 
-public sealed record FleetSummaryDto(int TotalUas, int InService, int Suspended, int InMaintenance, int Draft);
+public sealed record FleetSummaryDto(
+    int TotalUas,
+    int InService,
+    int Suspended,
+    int InMaintenance,
+    int Draft,
+    int InStorage = 0,
+    int Registered = 0,
+    int Damaged = 0,
+    int Lost = 0,
+    int Decommissioned = 0,
+    int InUse = 0,
+    int Idle = 0);
+
+public sealed record FleetModelCountDto(
+    string Label,
+    string Manufacturer,
+    string Model,
+    int Count,
+    int InUse,
+    int Idle);
 
 public sealed record FlightHoursSliceDto(string Key, string Label, decimal Hours, int FlightCount);
 

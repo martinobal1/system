@@ -13,6 +13,7 @@ using IsSuas.Domain.Pilots;
 using IsSuas.Domain.Reporting;
 using IsSuas.Domain.Safety;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace IsSuas.Infrastructure.Persistence;
 
@@ -119,6 +120,18 @@ public class IsSuasDbContext(DbContextOptions<IsSuasDbContext> options) : DbCont
     public DbSet<GeoZoneImport> GeoZoneImports => Set<GeoZoneImport>();
     public DbSet<GeoZone> GeoZones => Set<GeoZone>();
     public DbSet<IntegrationConnector> IntegrationConnectors => Set<IntegrationConnector>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        {
+            configurationBuilder.Properties<DateTimeOffset>()
+                .HaveConversion<DateTimeOffsetToBinaryConverter>();
+            configurationBuilder.Properties<DateTimeOffset?>()
+                .HaveConversion<DateTimeOffsetToBinaryConverter>();
+        }
+        base.ConfigureConventions(configurationBuilder);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

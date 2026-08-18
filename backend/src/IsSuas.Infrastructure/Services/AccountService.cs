@@ -161,13 +161,15 @@ public sealed class AccountService(
     public async Task<AccountDto> ConfirmLicenseAsync(Guid id, ConfirmLicenseRequest request, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.AccountsWrite);
-        if (ResolveCallerAccessLevel() != AccessLevel.Level1
-            && !currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.CentralGestor)))
-            throw new ForbiddenException("Licenciu potvrdzuje iba gestor (úroveň 1).");
+        if (ResolveCallerAccessLevel() == AccessLevel.Level3)
+            throw new ForbiddenException("Licenciu prideluje gestor alebo prevádzkovateľ (úroveň 1 alebo 2).");
 
         var account = await db.Accounts.Include(a => a.Person).ThenInclude(p => p.HomeOrgUnit)
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
             ?? throw new NotFoundException("Účet nebol nájdený.");
+
+        if (account.Person.HomeOrgUnit is not null)
+            policy.EnsureOrgAccess(account.Person.HomeOrgUnit.Path);
 
         if (account.RowVersion != request.RowVersion)
             throw new ConflictException("Záznam bol medzitým zmenený iným používateľom.");

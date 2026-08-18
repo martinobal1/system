@@ -89,6 +89,9 @@ public sealed class AuthorizationPolicyService(
     public void EnsureCanApprove(Guid? submitterAccountId, string approvePermission)
     {
         EnsurePermission(approvePermission);
+        // L1 (Centrálny gestor) môže schváliť aj vlastný návrh.
+        if (currentUser.Roles.Any(r => r.RoleCode == nameof(SystemRole.CentralGestor)))
+            return;
         if (submitterAccountId.HasValue
             && currentUser.AccountId.HasValue
             && submitterAccountId.Value == currentUser.AccountId.Value)

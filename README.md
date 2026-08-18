@@ -11,7 +11,7 @@ dotnet run --project src/IsSuas.Api
 ```
 API: http://localhost:5211 · Swagger: http://localhost:5211/swagger
 
-Demo login: `gestor` / `Heslo123!`
+Demo login: `gestor` / `huginko123`
 
 ### Frontend
 ```bash

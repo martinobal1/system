@@ -7,7 +7,7 @@ Auth: `Authorization: Bearer <JWT>` (okrem login)
 
 ### `POST /auth/login`
 ```json
-{ "userName": "gestor", "password": "Heslo123!" }
+{ "userName": "gestor", "password": "huginko123" }
 ```
 Response 200:
 ```json
@@ -90,7 +90,7 @@ Assignments: druhé aktívne pridelenie → 409.
 
 | User | Rola | Heslo |
 |---|---|---|
-| gestor | CentralGestor | Heslo123! |
+| gestor | CentralGestor | huginko123 |
 | schvalovatel | Approver | Heslo123! |
 | spravca.a | UnitAdministrator (Útvar A) | Heslo123! |
 | spravca.b | UnitAdministrator (Útvar B) | Heslo123! |

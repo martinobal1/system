@@ -103,7 +103,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         var uas = await create.Content.ReadFromJsonAsync<UasDto>(JsonOptions);
         Assert.NotNull(uas);
 
-        await LoginAs("spravca.a");
+        await LoginAs("janko.novak");
         var forbidden = await _client.GetAsync($"/api/v1/uas/{uas.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
     }
@@ -115,10 +115,10 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
         var unitA = orgs!.First(o => o.Code == "UTVAR-A");
         var accounts = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
-        var spravca = accounts!.First(a => a.UserName == "spravca.a");
-        var spravcaRoles = await _client.GetFromJsonAsync<List<RoleAssignmentDto>>(
-            $"/api/v1/accounts/{spravca.Id}/role-assignments", JsonOptions);
-        var roleId = spravcaRoles!.First(r => r.RoleCode == nameof(SystemRole.UnitAdministrator)).RoleId;
+        var l2 = accounts!.First(a => a.UserName == "janko.novak");
+        var l2Roles = await _client.GetFromJsonAsync<List<RoleAssignmentDto>>(
+            $"/api/v1/accounts/{l2.Id}/role-assignments", JsonOptions);
+        var roleId = l2Roles!.First(r => r.RoleCode == nameof(SystemRole.UnitAdministrator)).RoleId;
 
         var userName = "author." + Guid.NewGuid().ToString("N")[..8];
         var createAcc = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
@@ -297,7 +297,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Acc14_Approver_CannotApproveOwnOperation()
+    public async Task Acc14_Gestor_CanApproveOwnOperation_ButUnitAdminCannot()
     {
         await LoginAs("gestor");
         var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
@@ -334,10 +334,46 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
             .Content.ReadFromJsonAsync<OperationDto>(JsonOptions);
         Assert.NotNull(submitted);
 
-        // Same user (gestor) tries to approve own proposal -> SoD 403
+        // L1 (gestor) môže schváliť aj vlastný návrh
         var approveOwn = await _client.PostAsJsonAsync($"/api/v1/operations/{submitted.Id}/approve",
-            new DecisionRequest("Pokus o vlastne schvalenie", submitted.RowVersion));
-        Assert.Equal(HttpStatusCode.Forbidden, approveOwn.StatusCode);
+            new DecisionRequest("Schvalenie vlastneho navrhu L1", submitted.RowVersion));
+        approveOwn.EnsureSuccessStatusCode();
+
+        // SoD: L2 (UnitAdministrator) nemôže schváliť vlastný návrh
+        var accounts = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
+        var l2 = accounts!.First(a => a.UserName == "janko.novak");
+        var l2Roles = await _client.GetFromJsonAsync<List<RoleAssignmentDto>>(
+            $"/api/v1/accounts/{l2.Id}/role-assignments", JsonOptions);
+        var roleId = l2Roles!.First(r => r.RoleCode == nameof(SystemRole.UnitAdministrator)).RoleId;
+
+        var userName = "sod." + Guid.NewGuid().ToString("N")[..8];
+        var createAcc = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
+            userName, "SoD", "Tester", null, unitA.Id, AccessLevel.Level2, "Heslo123!"));
+        createAcc.EnsureSuccessStatusCode();
+        var createdWrap = await createAcc.Content.ReadFromJsonAsync<AccountCreatedDto>(JsonOptions);
+        Assert.NotNull(createdWrap);
+        (await _client.PostAsJsonAsync($"/api/v1/accounts/{createdWrap.Account.Id}/role-assignments",
+            new CreateRoleAssignmentRequest(roleId, unitA.Id, DateTimeOffset.UtcNow.AddDays(-1), null, "Acc14 SoD")))
+            .EnsureSuccessStatusCode();
+
+        await LoginAs(userName);
+        var start2 = DateTimeOffset.UtcNow.AddDays(10);
+        var createOp2 = await _client.PostAsJsonAsync("/api/v1/operations", new CreateOperationRequest(
+            "ACC14 L2 vlastny", "PATROL", unitA.Id, start2, start2.AddHours(1),
+            null, null, null, null, null, false, null));
+        createOp2.EnsureSuccessStatusCode();
+        var op2 = await createOp2.Content.ReadFromJsonAsync<OperationDto>(JsonOptions);
+        Assert.NotNull(op2);
+        (await _client.PostAsJsonAsync($"/api/v1/operations/{op2.Id}/resources",
+            new AssignOperationResourceRequest(OperationResourceType.Uas, uas.Id, null))).EnsureSuccessStatusCode();
+        (await _client.PostAsJsonAsync($"/api/v1/operations/{op2.Id}/resources",
+            new AssignOperationResourceRequest(OperationResourceType.Pilot, fitPilot.Id, "REMOTE_PILOT"))).EnsureSuccessStatusCode();
+        var submitted2 = await (await _client.PostAsJsonAsync($"/api/v1/operations/{op2.Id}/submit", new { rowVersion = op2.RowVersion }))
+            .Content.ReadFromJsonAsync<OperationDto>(JsonOptions);
+        Assert.NotNull(submitted2);
+        var approveL2Own = await _client.PostAsJsonAsync($"/api/v1/operations/{submitted2.Id}/approve",
+            new DecisionRequest("Pokus L2 o vlastne schvalenie", submitted2.RowVersion));
+        Assert.Equal(HttpStatusCode.Forbidden, approveL2Own.StatusCode);
     }
 
     [Fact]
@@ -512,7 +548,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         var login = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
         Assert.NotNull(login);
         var gestor = login.First(a => a.UserName == "gestor");
-        var tech = login.First(a => a.UserName == "spravca.a");
+        var tech = login.First(a => a.UserName == "janko.novak");
 
         var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
         var unitA = orgs!.First(o => o.Code == "UTVAR-A");
@@ -548,7 +584,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         await LoginAs("gestor");
         var accounts = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
         Assert.NotNull(accounts);
-        var owner = accounts.First(a => a.UserName == "spravca.a");
+        var owner = accounts.First(a => a.UserName == "janko.novak");
 
         var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
         var unitA = orgs!.First(o => o.Code == "UTVAR-A");
@@ -622,7 +658,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
             new CloseSafetyEventRequest("Predcasne", null, safety.RowVersion));
         Assert.Equal(HttpStatusCode.BadRequest, closeBlocked.StatusCode);
 
-        await LoginAs("spravca.a");
+        await LoginAs("janko.novak");
         (await _client.PostAsJsonAsync($"/api/v1/corrective-actions/{action.Id}/complete",
             new CompleteCorrectiveActionRequest("Firmware 1.2.3 nasadeny", action.RowVersion))).EnsureSuccessStatusCode();
         action = (await _client.GetFromJsonAsync<SafetyEventDetailDto>($"/api/v1/safety-events/{safety.Id}", JsonOptions))!
@@ -1988,7 +2024,7 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         dash.EnsureSuccessStatusCode();
 
         var reauthResp = await _client.PostAsJsonAsync("/api/v1/auth/reauth",
-            new ReauthRequest("Heslo123!"));
+            new ReauthRequest("huginko123"));
         reauthResp.EnsureSuccessStatusCode();
         var reauth = await reauthResp.Content.ReadFromJsonAsync<ReauthResponse>(JsonOptions);
         Assert.NotNull(reauth);
@@ -2010,11 +2046,200 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         Assert.True(weather.ValidUntil > weather.ObservedAt);
     }
 
+    [Fact]
+    public async Task Acc38_L1L2L3_CanChangeOwnPassword()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+        var anonymous = await _client.PostAsJsonAsync("/api/v1/auth/change-password",
+            new ChangePasswordRequest("Heslo123!", "NoveHeslo1!", "NoveHeslo1!"));
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+        await LoginAs("gestor");
+        var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
+        var unitA = orgs!.First(o => o.Code == "UTVAR-A");
+
+        foreach (var level in new[] { AccessLevel.Level1, AccessLevel.Level2, AccessLevel.Level3 })
+        {
+            await LoginAs("gestor");
+            var userName = $"pw.{(int)level}." + Guid.NewGuid().ToString("N")[..8];
+            var create = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
+                userName, "Heslo", "Tester", null, unitA.Id, level, "Heslo123!"));
+            create.EnsureSuccessStatusCode();
+
+            await LoginAs(userName);
+
+            var mismatch = await _client.PostAsJsonAsync("/api/v1/auth/change-password",
+                new ChangePasswordRequest("Heslo123!", "NoveHeslo1!", "IneHeslo1!"));
+            Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
+
+            var wrongCurrent = await _client.PostAsJsonAsync("/api/v1/auth/change-password",
+                new ChangePasswordRequest("ZleHeslo1!", "NoveHeslo1!", "NoveHeslo1!"));
+            Assert.Equal(HttpStatusCode.BadRequest, wrongCurrent.StatusCode);
+
+            var tooShort = await _client.PostAsJsonAsync("/api/v1/auth/change-password",
+                new ChangePasswordRequest("Heslo123!", "kratke", "kratke"));
+            Assert.Equal(HttpStatusCode.BadRequest, tooShort.StatusCode);
+
+            var changed = await _client.PostAsJsonAsync("/api/v1/auth/change-password",
+                new ChangePasswordRequest("Heslo123!", "NoveHeslo1!", "NoveHeslo1!"));
+            changed.EnsureSuccessStatusCode();
+
+            _client.DefaultRequestHeaders.Authorization = null;
+            var oldLogin = await _client.PostAsJsonAsync("/api/v1/auth/login",
+                new LoginRequest(userName, "Heslo123!"));
+            Assert.Equal(HttpStatusCode.Unauthorized, oldLogin.StatusCode);
+
+            var newLogin = await _client.PostAsJsonAsync("/api/v1/auth/login",
+                new LoginRequest(userName, "NoveHeslo1!"));
+            newLogin.EnsureSuccessStatusCode();
+        }
+    }
+
+    [Fact]
+    public async Task Acc39_L1AndL2_CanGrantAndRevokePilotCertificates()
+    {
+        await LoginAs("gestor");
+        var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
+        var unitA = orgs!.First(o => o.Code == "UTVAR-A");
+        var userName = "cert." + Guid.NewGuid().ToString("N")[..8];
+        var create = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
+            userName, "Cert", "Pilot", null, unitA.Id, AccessLevel.Level3, "Heslo123!"));
+        create.EnsureSuccessStatusCode();
+        var created = await create.Content.ReadFromJsonAsync<AccountCreatedDto>(JsonOptions);
+        Assert.NotNull(created);
+        Assert.Equal(LicenseStatus.Pending, created.Account.LicenseStatus);
+
+        var pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var pilot = pilots!.First(p => p.PersonId == created.Account.PersonId);
+
+        var grant = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+            new GrantPilotCertificateRequest("A1_A3", "OSV-TEST-001"));
+        grant.EnsureSuccessStatusCode();
+        var cert = await grant.Content.ReadFromJsonAsync<PilotCertificateDto>(JsonOptions);
+        Assert.NotNull(cert);
+        Assert.Equal(CertificateStatus.Issued, cert.Status);
+        Assert.Equal("A1_A3", cert.CertificateTypeCode);
+
+        var accounts = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
+        var afterGrant = accounts!.First(a => a.Id == created.Account.Id);
+        Assert.Equal(LicenseStatus.Confirmed, afterGrant.LicenseStatus);
+
+        var revoke = await _client.PostAsJsonAsync(
+            $"/api/v1/pilots/{pilot.Id}/certificates/{cert.Id}/revoke",
+            new RevokePilotCertificateRequest("Test odobratie"));
+        revoke.EnsureSuccessStatusCode();
+
+        accounts = await _client.GetFromJsonAsync<List<AccountDto>>("/api/v1/accounts", JsonOptions);
+        var afterRevoke = accounts!.First(a => a.Id == created.Account.Id);
+        Assert.Equal(LicenseStatus.Pending, afterRevoke.LicenseStatus);
+
+        var grantSts2 = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+            new GrantPilotCertificateRequest("STS2", "OSV-STS2-001"));
+        grantSts2.EnsureSuccessStatusCode();
+        pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var afterSts2 = pilots!.First(p => p.Id == pilot.Id);
+        Assert.Contains("A1_A3", afterSts2.CertificateCodes);
+        Assert.Contains("A2", afterSts2.CertificateCodes);
+        Assert.Contains("STS1", afterSts2.CertificateCodes);
+        Assert.Contains("STS2", afterSts2.CertificateCodes);
+
+        var a1Cert = afterSts2.Certificates.First(c => c.CertificateTypeCode == "A1_A3");
+        var cascadeRevoke = await _client.PostAsJsonAsync(
+            $"/api/v1/pilots/{pilot.Id}/certificates/{a1Cert.Id}/revoke",
+            new RevokePilotCertificateRequest("Cascade A1/A3"));
+        cascadeRevoke.EnsureSuccessStatusCode();
+        pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var afterCascade = pilots!.First(p => p.Id == pilot.Id);
+        Assert.DoesNotContain("A1_A3", afterCascade.CertificateCodes);
+        Assert.DoesNotContain("A2", afterCascade.CertificateCodes);
+        Assert.DoesNotContain("STS1", afterCascade.CertificateCodes);
+        Assert.DoesNotContain("STS2", afterCascade.CertificateCodes);
+
+        grantSts2 = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+            new GrantPilotCertificateRequest("STS2", "OSV-STS2-002"));
+        grantSts2.EnsureSuccessStatusCode();
+
+        await LoginAs("janko.novak");
+        var l2Grant = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+            new GrantPilotCertificateRequest("A2"));
+        // L2 janko.novak is under KR-BA, test pilot is UTVAR-A — may be forbidden
+        if (l2Grant.StatusCode == HttpStatusCode.Forbidden)
+        {
+            await LoginAs("gestor");
+            var spravca = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
+                "l2." + Guid.NewGuid().ToString("N")[..8], "L2", "Spravca", null, unitA.Id, AccessLevel.Level2, "Heslo123!"));
+            spravca.EnsureSuccessStatusCode();
+            var l2Wrap = await spravca.Content.ReadFromJsonAsync<AccountCreatedDto>(JsonOptions);
+            var roles = await _client.GetFromJsonAsync<List<RoleAssignmentDto>>(
+                $"/api/v1/accounts/{l2Wrap!.Account.Id}/role-assignments", JsonOptions);
+            Assert.Contains(roles!, r => r.RoleCode == nameof(SystemRole.UnitAdministrator));
+            await LoginAs(l2Wrap.Account.UserName);
+            l2Grant = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+                new GrantPilotCertificateRequest("A2"));
+        }
+        l2Grant.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Acc40_CanSuspendAndResumePilotCertificatesWithCascade()
+    {
+        await LoginAs("gestor");
+        var orgs = await _client.GetFromJsonAsync<List<OrgUnitDto>>("/api/v1/org-units", JsonOptions);
+        var unitA = orgs!.First(o => o.Code == "UTVAR-A");
+        var userName = "susp." + Guid.NewGuid().ToString("N")[..8];
+        var create = await _client.PostAsJsonAsync("/api/v1/accounts", new CreateAccountRequest(
+            userName, "Susp", "Pilot", null, unitA.Id, AccessLevel.Level3, "Heslo123!"));
+        create.EnsureSuccessStatusCode();
+        var created = await create.Content.ReadFromJsonAsync<AccountCreatedDto>(JsonOptions);
+        var pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var pilot = pilots!.First(p => p.PersonId == created!.Account.PersonId);
+
+        var grant = await _client.PostAsJsonAsync($"/api/v1/pilots/{pilot.Id}/certificates/grant",
+            new GrantPilotCertificateRequest("STS2", "OSV-SUSP-001"));
+        grant.EnsureSuccessStatusCode();
+        pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var afterGrant = pilots!.First(p => p.Id == pilot.Id);
+        var a1 = afterGrant.Certificates.First(c => c.CertificateTypeCode == "A1_A3");
+
+        var suspend = await _client.PostAsJsonAsync(
+            $"/api/v1/pilots/{pilot.Id}/certificates/{a1.Id}/suspend",
+            new SuspendPilotCertificateRequest(DurationDays: 30, Reason: "Test pozastavenie"));
+        suspend.EnsureSuccessStatusCode();
+        var suspended = await suspend.Content.ReadFromJsonAsync<PilotCertificateDto>(JsonOptions);
+        Assert.Equal(CertificateStatus.Suspended, suspended!.Status);
+        Assert.NotNull(suspended.SuspendedUntil);
+
+        pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var afterSuspend = pilots!.First(p => p.Id == pilot.Id);
+        Assert.Empty(afterSuspend.CertificateCodes);
+        Assert.All(afterSuspend.Certificates, c => Assert.Equal(CertificateStatus.Suspended, c.Status));
+
+        var resume = await _client.PostAsJsonAsync(
+            $"/api/v1/pilots/{pilot.Id}/certificates/{a1.Id}/resume", new { });
+        resume.EnsureSuccessStatusCode();
+        pilots = await _client.GetFromJsonAsync<List<PilotDto>>("/api/v1/pilots", JsonOptions);
+        var afterResume = pilots!.First(p => p.Id == pilot.Id);
+        Assert.Contains("A1_A3", afterResume.CertificateCodes);
+        Assert.Contains("STS2", afterResume.CertificateCodes);
+        Assert.All(afterResume.Certificates, c =>
+        {
+            Assert.Equal(CertificateStatus.Issued, c.Status);
+            Assert.Null(c.SuspendedUntil);
+        });
+    }
+
     private async Task LoginAs(string userName)
     {
         _client.DefaultRequestHeaders.Authorization = null;
+        var password = userName switch
+        {
+            "gestor" => "huginko123",
+            "janko.novak" => "!tt!DKhENEcE7esB",
+            "martin" => "3XXAgVWi#MKxQ2bY",
+            _ => "Heslo123!"
+        };
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login",
-            new LoginRequest(userName, "Heslo123!"));
+            new LoginRequest(userName, password));
         response.EnsureSuccessStatusCode();
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions);
         Assert.NotNull(login);

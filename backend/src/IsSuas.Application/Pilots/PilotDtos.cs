@@ -27,7 +27,11 @@ public sealed record PilotCertListItemDto(
     string CertificateTypeCode,
     string? ExternalNumber,
     DateTimeOffset? ValidTo,
-    string? MtowOrValidityText);
+    string? MtowOrValidityText,
+    Guid Id = default,
+    CertificateStatus Status = CertificateStatus.Issued,
+    DateTimeOffset? ValidFrom = null,
+    DateTimeOffset? SuspendedUntil = null);
 
 public sealed record PilotDetailDto(
     PilotDto Pilot,
@@ -95,7 +99,8 @@ public sealed record PilotCertificateDto(
     DateTimeOffset? ValidTo,
     bool IsActive,
     IReadOnlyList<CertificateScopeDto> Scopes,
-    string? MtowOrValidityText = null);
+    string? MtowOrValidityText = null,
+    DateTimeOffset? SuspendedUntil = null);
 
 public sealed record CreatePilotCertificateRequest(
     string CertificateTypeCode,
@@ -106,6 +111,21 @@ public sealed record CreatePilotCertificateRequest(
     string? Notes);
 
 public sealed record IssuePilotCertificateRequest(string? Reason);
+
+public sealed record GrantPilotCertificateRequest(
+    string CertificateTypeCode,
+    string? ExternalNumber = null,
+    DateTimeOffset? ValidFrom = null,
+    DateTimeOffset? ValidTo = null,
+    string? Notes = null,
+    string? MtowOrValidityText = null);
+
+public sealed record RevokePilotCertificateRequest(string? Reason);
+
+public sealed record SuspendPilotCertificateRequest(
+    DateTimeOffset? Until = null,
+    int? DurationDays = null,
+    string? Reason = null);
 
 public sealed record CertificateScopeDto(
     Guid Id,

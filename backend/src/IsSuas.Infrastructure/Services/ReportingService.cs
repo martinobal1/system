@@ -86,12 +86,45 @@ public sealed class ReportingService(
             .Where(u => u.IsActive).ToListAsync(cancellationToken);
         uas = uas.Where(u => InScope(u.OwningOrgUnit?.Path)).ToList();
 
+        static bool IsDecommissioned(Domain.Fleet.Uas u) => u.Status == UasLifecycleStatus.Decommissioned;
+        static bool IsUnavailable(Domain.Fleet.Uas u) =>
+            u.Status is UasLifecycleStatus.InMaintenance or UasLifecycleStatus.Damaged or UasLifecycleStatus.Lost;
+        static bool IsInUse(Domain.Fleet.Uas u) =>
+            !IsDecommissioned(u) && !IsUnavailable(u) && u.TotalFlightCount > 0
+            && u.Status is UasLifecycleStatus.InService or UasLifecycleStatus.Registered;
+        static bool IsIdle(Domain.Fleet.Uas u) =>
+            !IsDecommissioned(u) && !IsUnavailable(u) && !IsInUse(u);
+
         var fleet = new FleetSummaryDto(
             uas.Count,
             uas.Count(u => u.Status == UasLifecycleStatus.InService),
             uas.Count(u => u.Status == UasLifecycleStatus.Suspended),
             uas.Count(u => u.Status == UasLifecycleStatus.InMaintenance),
-            uas.Count(u => u.Status == UasLifecycleStatus.Draft));
+            uas.Count(u => u.Status == UasLifecycleStatus.Draft),
+            uas.Count(u => u.Status == UasLifecycleStatus.InStorage),
+            uas.Count(u => u.Status == UasLifecycleStatus.Registered),
+            uas.Count(u => u.Status == UasLifecycleStatus.Damaged),
+            uas.Count(u => u.Status == UasLifecycleStatus.Lost),
+            uas.Count(IsDecommissioned),
+            uas.Count(IsInUse),
+            uas.Count(IsIdle));
+
+        var fleetByModel = uas
+            .GroupBy(u => new
+            {
+                Maker = string.IsNullOrWhiteSpace(u.Manufacturer) ? "—" : u.Manufacturer.Trim(),
+                Model = string.IsNullOrWhiteSpace(u.Model) ? "Neznámy model" : u.Model.Trim()
+            })
+            .Select(g => new FleetModelCountDto(
+                g.Key.Model,
+                g.Key.Maker,
+                g.Key.Model,
+                g.Count(),
+                g.Count(IsInUse),
+                g.Count(IsIdle)))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
 
         var ops = await db.Operations.AsNoTracking().Include(o => o.OrgUnit)
             .Where(o => o.IsActive && o.PlannedStart < dayEnd && o.PlannedEnd >= dayStart)
@@ -124,46 +157,67 @@ public sealed class ReportingService(
             .Take(10)
             .ToListAsync(cancellationToken);
 
-        // Flight hours / takeoffs from confirmed monthly reports (ATLAS v1 source of truth).
+        // Monthly report KPIs (submission compliance) — separate from live diary charts.
         var monthlyReports = await db.MonthlyFlightReports.AsNoTracking()
             .Include(r => r.OrgUnit)
-            .Include(r => r.Lines.Where(l => l.IsActive)).ThenInclude(l => l.Uas)
             .Where(r => r.IsActive
                 && (r.Status == MonthlyFlightReportStatus.Confirmed || r.Status == MonthlyFlightReportStatus.NoActivity))
             .ToListAsync(cancellationToken);
         monthlyReports = monthlyReports.Where(r => InScope(r.OrgUnit.Path)).ToList();
 
-        var activeLines = monthlyReports
-            .Where(r => r.Status == MonthlyFlightReportStatus.Confirmed)
-            .SelectMany(r => r.Lines.Where(l => l.IsActive).Select(l => (Report: r, Line: l)))
-            .ToList();
+        // Live overview charts: closed flights from diary (incl. L1/L2 confirm-flown).
+        var flights = await db.Flights.AsNoTracking()
+            .Include(f => f.OrgUnit)
+            .Include(f => f.Pilot).ThenInclude(p => p!.Person)
+            .Include(f => f.Uas)
+            .Where(f => f.IsActive && f.Status == FlightStatus.Closed)
+            .ToListAsync(cancellationToken);
+        flights = flights.Where(f => InScope(f.OrgUnit.Path)).ToList();
 
-        var totalFlightHours = Math.Round(activeLines.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1);
-        var totalTakeoffs = activeLines.Sum(x => x.Line.Takeoffs);
-        var totalLandings = activeLines.Sum(x => x.Line.Landings);
+        var totalFlightHours = Math.Round(flights.Sum(f => (f.DurationMinutes ?? 0) / 60m), 1);
+        var totalTakeoffs = flights.Count;
+        var totalLandings = flights.Count;
+        var hoursSource = "flights";
 
-        var byOrg = activeLines
-            .GroupBy(x => new { x.Report.OrgUnitId, x.Report.OrgUnit.Code, x.Report.OrgUnit.Name })
+        var byOrg = flights
+            .GroupBy(f => new { f.OrgUnitId, f.OrgUnit.Code, f.OrgUnit.Name })
             .Select(g => new FlightHoursSliceDto(
                 g.Key.Code,
                 g.Key.Name,
-                Math.Round(g.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1),
-                g.Sum(x => x.Line.Takeoffs + x.Line.Landings)))
+                Math.Round(g.Sum(f => (f.DurationMinutes ?? 0) / 60m), 1),
+                g.Count()))
             .OrderByDescending(x => x.Hours)
             .ToList();
 
-        var byUasRaw = activeLines
-            .GroupBy(x => new
+        var byUasRaw = flights
+            .Where(f => f.UasId != null)
+            .GroupBy(f => new
             {
-                Id = x.Line.UasId,
-                Label = x.Line.Uas.RegistrationNumber ?? x.Line.Uas.SerialNumber,
-                Serial = x.Line.Uas.SerialNumber
+                Serial = f.Uas!.SerialNumber,
+                Label = f.Uas.RegistrationNumber ?? f.Uas.SerialNumber
             })
             .Select(g => new FlightHoursSliceDto(
                 g.Key.Serial,
                 g.Key.Label,
-                Math.Round(g.Sum(x => x.Line.Hours + x.Line.Minutes / 60m), 1),
-                g.Sum(x => x.Line.Takeoffs)))
+                Math.Round(g.Sum(f => (f.DurationMinutes ?? 0) / 60m), 1),
+                g.Count()))
+            .OrderByDescending(x => x.Hours)
+            .ToList();
+
+        var byPilotRaw = flights
+            .Where(f => f.PilotId != null)
+            .GroupBy(f => new
+            {
+                Id = f.PilotId!.Value,
+                Name = f.Pilot?.Person is null
+                    ? "Neznámy pilot"
+                    : $"{f.Pilot.Person.FirstName} {f.Pilot.Person.LastName}".Trim()
+            })
+            .Select(g => new FlightHoursSliceDto(
+                g.Key.Id.ToString("N"),
+                string.IsNullOrWhiteSpace(g.Key.Name) ? "Neznámy pilot" : g.Key.Name,
+                Math.Round(g.Sum(f => (f.DurationMinutes ?? 0) / 60m), 1),
+                g.Count()))
             .OrderByDescending(x => x.Hours)
             .ToList();
 
@@ -181,6 +235,22 @@ public sealed class ReportingService(
                 Math.Round(rest.Sum(x => x.Hours), 1),
                 rest.Sum(x => x.FlightCount)));
             byUas = top;
+        }
+
+        const int topPilots = 10;
+        IReadOnlyList<FlightHoursSliceDto> byPilot;
+        if (byPilotRaw.Count <= topPilots)
+            byPilot = byPilotRaw;
+        else
+        {
+            var topP = byPilotRaw.Take(topPilots).ToList();
+            var restP = byPilotRaw.Skip(topPilots).ToList();
+            topP.Add(new FlightHoursSliceDto(
+                "OTHER",
+                $"Ostatní piloti ({restP.Count})",
+                Math.Round(restP.Sum(x => x.Hours), 1),
+                restP.Sum(x => x.FlightCount)));
+            byPilot = topP;
         }
 
         var unitIdsInScope = await db.OrgUnits.AsNoTracking()
@@ -216,11 +286,13 @@ public sealed class ReportingService(
             totalFlightHours,
             byOrg,
             byUas,
+            byPilot,
             confirmedCount,
             missingCount,
             totalTakeoffs,
             totalLandings,
-            "monthly");
+            hoursSource,
+            fleetByModel);
     }
 
     public async Task<IReadOnlyList<CalendarItemDto>> GetCalendarAsync(

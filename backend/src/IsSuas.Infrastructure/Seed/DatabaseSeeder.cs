@@ -17,48 +17,83 @@ public static class DatabaseSeeder
         var db = scope.ServiceProvider.GetRequiredService<IsSuasDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
 
-        if (db.Database.IsRelational())
+        if (db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        {
+            await db.Database.EnsureCreatedAsync();
+            await EnsureSqlitePilotCertificateColumnsAsync(db);
+            logger.LogInformation("SQLite databáza: {Path}", db.Database.GetDbConnection().DataSource);
+        }
+        else if (db.Database.IsRelational())
             await db.Database.MigrateAsync();
         else
             await db.Database.EnsureCreatedAsync();
 
         if (await db.Roles.AnyAsync())
         {
-            await EnsureAccessLevelsAsync(db);
-            await EnsureAccessCatalogAsync(db);
-            await EnsureRetentionRulesAsync(db);
-            await EnsureNotificationCatalogAsync(db);
-            await EnsureAtlasOrgStructureAsync(db);
-            var existingBranch = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-PZ");
-            var existingA = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-A");
-            var existingB = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-B");
-            if (existingBranch is not null && existingA is not null && existingB is not null)
+            try
             {
-                var existingKrs = await EnsureKrOrgUnitsAsync(db, existingBranch);
-                var existingPool = existingKrs.Count > 0
-                    ? existingKrs.Select(k => k.Id).ToList()
-                    : new List<Guid> { existingA.Id, existingB.Id };
-                await EnsureDemoFleetVolumeAsync(db, existingPool, existingA.Id, existingB.Id);
-                await EnsureDemoPilotsAndFlightsAsync(db, existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
-                await EnsurePilotOpenCategoryCertificatesAsync(db);
-                await EnsurePilotUasAuthorizationsAsync(db);
-                await EnsureDemoMonthlyReportsAsync(db);
-                var existingGestor = await db.Accounts.FirstOrDefaultAsync(a => a.UserName == "gestor");
-                if (existingGestor is not null)
-                {
-                    await EnsureDemoDefectsAsync(db, existingGestor.Id);
-                    await EnsureDemoCalendarOperationsAsync(db, existingGestor.Id,
-                        existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
-                    await EnsureDemoCriticalAlertsAsync(db, existingGestor.Id);
-                }
+                await RefreshSeededDatabaseAsync(db, logger);
+                logger.LogInformation("Database already seeded.");
             }
-            await EnsureNamedLoginUsersAsync(db, logger);
-            await EnsureFlightGpsLocationsAsync(db, logger);
-            await db.SaveChangesAsync();
-            logger.LogInformation("Database already seeded.");
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Súbežný zápis do rovnakej DB (napr. druhá bežiaca instancia API) nesmie zhodiť štart API.
+                logger.LogWarning(ex, "Priebežná aktualizácia seed dát bola preskočená pre súbežnú zmenu v databáze.");
+            }
             return;
         }
 
+        await SeedFreshDatabaseAsync(db, logger);
+    }
+
+    private static async Task RefreshSeededDatabaseAsync(IsSuasDbContext db, ILogger logger)
+    {
+        await EnsureDemoLoginPasswordsAsync(db, logger);
+        await EnsureAccessLevelsAsync(db);
+        await EnsureAccessCatalogAsync(db);
+        await EnsureRetentionRulesAsync(db);
+        await EnsureNotificationCatalogAsync(db);
+        await EnsureAtlasOrgStructureAsync(db);
+        var existingBranch = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-PZ");
+        var existingA = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-A");
+        var existingB = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "UTVAR-B");
+        if (existingBranch is not null && existingA is not null && existingB is not null)
+        {
+            var existingKrs = await EnsureKrOrgUnitsAsync(db, existingBranch);
+            var existingPool = existingKrs.Count > 0
+                ? existingKrs.Select(k => k.Id).ToList()
+                : new List<Guid> { existingA.Id, existingB.Id };
+            await EnsureDemoFleetVolumeAsync(db, existingPool, existingA.Id, existingB.Id);
+            await EnsureDemoPilotsAndFlightsAsync(db, existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
+            await EnsureA1A3OnlyDemoPilotsAsync(db, existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
+            try
+            {
+                await EnsurePilotOpenCategoryCertificatesAsync(db);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Doplnenie osvedčení PnD pri seede preskočené.");
+            }
+            await EnsurePilotUasAuthorizationsAsync(db);
+            await EnsureDemoMonthlyReportsAsync(db);
+            var existingGestor = await db.Accounts.FirstOrDefaultAsync(a => a.UserName == "gestor");
+            if (existingGestor is not null)
+            {
+                await EnsureDemoDefectsAsync(db, existingGestor.Id);
+                await EnsureDemoCalendarOperationsAsync(db, existingGestor.Id,
+                    existingKrs.Count > 0 ? existingKrs : new List<OrgUnit> { existingA, existingB });
+                await EnsureDemoCriticalAlertsAsync(db, existingGestor.Id);
+            }
+        }
+        await EnsureNamedLoginUsersAsync(db, logger);
+        await EnsureLegacySeedOperatorsDemotedAsync(db);
+        await EnsureFlightGpsLocationsAsync(db, logger);
+        await EnsureFleetUsageDemoSplitAsync(db);
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedFreshDatabaseAsync(IsSuasDbContext db, ILogger logger)
+    {
         var roles = new[]
         {
             new Role { Code = SystemRole.CentralGestor, NameSk = "Centrálny gestor", DescriptionSk = "Centrálne registre a metodika", GrantsBusinessDataAccess = true },
@@ -134,14 +169,14 @@ public static class DatabaseSeeder
         uasTypeLookup.Items.Add(new LookupItem { ItemCode = "FIXED_WING", LabelSk = "Pevné krídlo", SortOrder = 2 });
         db.LookupCodes.Add(uasTypeLookup);
 
-        Account CreateAccount(string user, string first, string last, OrgUnit home, AccessLevel level = AccessLevel.Level2)
+        Account CreateAccount(string user, string first, string last, OrgUnit home, AccessLevel level = AccessLevel.Level2, string password = "Heslo123!")
         {
             var person = new Person { FirstName = first, LastName = last, Email = $"{user}@mv.sk.local", HomeOrgUnitId = home.Id };
             var account = new Account
             {
                 Person = person,
                 UserName = user,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Heslo123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Status = AccountStatus.Active,
                 AccessLevel = level,
                 LicenseStatus = level == AccessLevel.Level3 ? LicenseStatus.Confirmed : LicenseStatus.NotApplicable
@@ -151,11 +186,11 @@ public static class DatabaseSeeder
             return account;
         }
 
-        var gestor = CreateAccount("gestor", "Ján", "Gestor", root, AccessLevel.Level1);
+        var gestor = CreateAccount("gestor", "Ján", "Gestor", root, AccessLevel.Level1, "huginko123");
         var approver = CreateAccount("schvalovatel", "Eva", "Schvaľovateľ", root, AccessLevel.Level1);
-        var unitAdminA = CreateAccount("spravca.a", "Peter", "Správca", unitA, AccessLevel.Level2);
-        var unitAdminB = CreateAccount("spravca.b", "Mária", "Správkyňa", unitB, AccessLevel.Level2);
-        var safety = CreateAccount("bezpecnost", "Lucia", "Bezpečnosť", root, AccessLevel.Level2);
+        var unitAdminA = CreateAccount("spravca.a", "Peter", "Správca", unitA, AccessLevel.Level1);
+        var unitAdminB = CreateAccount("spravca.b", "Mária", "Správkyňa", unitB, AccessLevel.Level1);
+        var safety = CreateAccount("bezpecnost", "Lucia", "Bezpečnosť", root, AccessLevel.Level1);
         var sysadmin = CreateAccount("sysadmin", "Tech", "Admin", root, AccessLevel.Level1);
         var deactivated = CreateAccount("neaktivny", "Deaktivovaný", "Účet", unitA, AccessLevel.Level3);
 
@@ -176,11 +211,11 @@ public static class DatabaseSeeder
 
         Assign(gestor, SystemRole.CentralGestor, root);
         Assign(approver, SystemRole.Approver, root);
-        Assign(unitAdminA, SystemRole.UnitAdministrator, unitA);
-        Assign(unitAdminB, SystemRole.UnitAdministrator, unitB);
+        Assign(unitAdminA, SystemRole.TechnicalWorker, unitA);
+        Assign(unitAdminB, SystemRole.TechnicalWorker, unitB);
         Assign(safety, SystemRole.SafetyOfficer, root);
         Assign(sysadmin, SystemRole.SystemAdministrator, root);
-        Assign(deactivated, SystemRole.UnitAdministrator, unitA);
+        Assign(deactivated, SystemRole.RemotePilot, unitA);
 
         deactivated.Status = AccountStatus.Deactivated;
         deactivated.IsActive = false;
@@ -251,6 +286,7 @@ public static class DatabaseSeeder
         var orgPool = krs.Select(k => k.Id).ToList();
         await EnsureDemoFleetVolumeAsync(db, orgPool, unitA.Id, unitB.Id);
         await EnsureDemoPilotsAndFlightsAsync(db, krs);
+        await EnsureA1A3OnlyDemoPilotsAsync(db, krs);
         await EnsurePilotOpenCategoryCertificatesAsync(db);
         await EnsurePilotUasAuthorizationsAsync(db);
         await EnsureDemoMonthlyReportsAsync(db);
@@ -343,8 +379,97 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync();
         await EnsureAccessCatalogAsync(db);
         await EnsureNamedLoginUsersAsync(db, logger);
+        await EnsureLegacySeedOperatorsDemotedAsync(db);
         await EnsureFlightGpsLocationsAsync(db, logger);
-        logger.LogInformation("Seed completed. Demo password: Heslo123!");
+        await EnsureFleetUsageDemoSplitAsync(db);
+        await EnsureDemoLoginPasswordsAsync(db, logger);
+        logger.LogInformation("Seed completed.");
+    }
+
+    private static async Task EnsureDemoLoginPasswordsAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var passwords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["gestor"] = "huginko123",
+            ["schvalovatel"] = "Heslo123!",
+            ["spravca.a"] = "Heslo123!",
+            ["spravca.b"] = "Heslo123!",
+            ["bezpecnost"] = "Heslo123!",
+            ["sysadmin"] = "Heslo123!",
+            ["martin"] = "3XXAgVWi#MKxQ2bY",
+            ["janko.novak"] = "!tt!DKhENEcE7esB"
+        };
+
+        var names = passwords.Keys.ToList();
+        var accounts = await db.Accounts.Where(a => names.Contains(a.UserName)).ToListAsync();
+        var updated = 0;
+        foreach (var account in accounts)
+        {
+            if (!passwords.TryGetValue(account.UserName, out var password))
+                continue;
+
+            var changed = false;
+            if (!BCrypt.Net.BCrypt.Verify(password, account.PasswordHash))
+            {
+                account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+                changed = true;
+            }
+            if (!account.IsActive)
+            {
+                account.IsActive = true;
+                changed = true;
+            }
+            if (account.Status is AccountStatus.Deactivated or AccountStatus.TemporarilyBlocked or AccountStatus.Prepared)
+            {
+                account.Status = AccountStatus.Active;
+                changed = true;
+            }
+            if (changed)
+                updated++;
+        }
+
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync();
+            logger.LogInformation("Obnovené demo heslá pre {Count} účtov.", updated);
+        }
+    }
+
+    /// <summary>
+    /// Seed demo účty spravca.* už nie sú L2 prevádzkovatelia — ostáva len janko.novak (a ďalší vytvorení L2).
+    /// </summary>
+    private static async Task EnsureLegacySeedOperatorsDemotedAsync(IsSuasDbContext db)
+    {
+        var techRole = await db.Roles.FirstOrDefaultAsync(r => r.Code == SystemRole.TechnicalWorker && r.IsActive);
+        var pilotRole = await db.Roles.FirstOrDefaultAsync(r => r.Code == SystemRole.RemotePilot && r.IsActive);
+        if (techRole is null) return;
+
+        var legacy = await db.Accounts
+            .Include(a => a.RoleAssignments)
+            .Where(a => a.UserName == "spravca.a" || a.UserName == "spravca.b" || a.UserName == "neaktivny")
+            .ToListAsync();
+
+        foreach (var account in legacy)
+        {
+            foreach (var ra in account.RoleAssignments.Where(r => r.IsActive))
+            {
+                var role = await db.Roles.FirstOrDefaultAsync(r => r.Id == ra.RoleId);
+                if (role?.Code != SystemRole.UnitAdministrator) continue;
+                ra.IsActive = false;
+                ra.ValidTo = DateTimeOffset.UtcNow;
+                db.RoleAssignments.Add(new RoleAssignment
+                {
+                    AccountId = account.Id,
+                    RoleId = account.UserName == "neaktivny" && pilotRole is not null ? pilotRole.Id : techRole.Id,
+                    OrgUnitId = ra.OrgUnitId,
+                    ValidFrom = DateTimeOffset.UtcNow.AddYears(-1),
+                    Reason = "Demote seed L2 — prevádzkovateľ je janko.novak"
+                });
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await EnsureAccessLevelsAsync(db);
     }
 
     /// <summary>
@@ -576,46 +701,14 @@ public static class DatabaseSeeder
 
         await EnsureOfficialUasInventoryAsync(db, pool, now, rng);
 
-        var componentTypes = new (string Code, string Name)[]
-        {
-            ("GIMBAL", "Gimbal kamera"),
-            ("CAMERA", "RGB kamera"),
-            ("THERMAL", "Termovízna kamera"),
-            ("RTK", "RTK modul"),
-            ("PROP", "Vrtuľa sada"),
-            ("GPS", "GNSS anténa"),
-            ("RADIO", "Rádiový modul"),
-            ("LANDING", "Pristávací podvozok"),
-            ("SPEAKER", "Megafón"),
-            ("SPOT", "Svetlomet"),
-            ("PARACHUTE", "Padákový systém"),
-            ("SENSOR", "Lidar senzor")
-        };
+        // Komponenty / batérie: starý demo seed vypnutý — Technická dokumentácia ide cez UAS modely.
+        await ClearLegacyComponentCatalogAsync(db);
 
         var assetStatuses = new[]
         {
             AssetUsabilityStatus.Available, AssetUsabilityStatus.Available, AssetUsabilityStatus.Available,
             AssetUsabilityStatus.InUse, AssetUsabilityStatus.Suspended, AssetUsabilityStatus.Damaged
         };
-
-        var existingComp = await db.Components.CountAsync(x => x.IsActive);
-        if (existingComp < target)
-        {
-            var next = existingComp + 1;
-            for (var i = next; i <= target; i++)
-            {
-                var t = componentTypes[(i - 1) % componentTypes.Length];
-                db.Components.Add(new Domain.Fleet.Component
-                {
-                    InternalNumber = $"CMP-{i:000}",
-                    SerialNumber = $"SN-CMP-{10000 + i}",
-                    Name = $"{t.Name} #{i}",
-                    ComponentTypeCode = t.Code,
-                    Status = assetStatuses[(i - 1) % assetStatuses.Length],
-                    OwningOrgUnitId = OrgFor(i)
-                });
-            }
-        }
 
         var batteryModels = new (string Maker, string Model)[]
         {
@@ -655,6 +748,19 @@ public static class DatabaseSeeder
             }
         }
 
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Odstráni starý demo katalóg komponentov — nahrádza ho Technická dokumentácia podľa modelov UAS.</summary>
+    private static async Task ClearLegacyComponentCatalogAsync(IsSuasDbContext db)
+    {
+        var comps = await db.Components.Where(c => c.IsActive).ToListAsync();
+        if (comps.Count == 0) return;
+        foreach (var c in comps)
+        {
+            c.IsActive = false;
+            c.Status = AssetUsabilityStatus.Decommissioned;
+        }
         await db.SaveChangesAsync();
     }
 
@@ -704,8 +810,6 @@ public static class DatabaseSeeder
     private static async Task EnsureDemoPilotsAndFlightsAsync(IsSuasDbContext db, IReadOnlyList<OrgUnit> krUnits)
     {
         if (krUnits.Count == 0) return;
-        if (await db.Flights.AnyAsync(f => f.StandaloneReason == "SEED-VOLUME" || f.StandaloneReason == "SEED-DIARY"))
-            return;
 
         const int pilotTarget = 200;
         var seedPilotCount = await db.Pilots.CountAsync(p => p.LicenseNumber != null && p.LicenseNumber.StartsWith("PIL-SEED-"));
@@ -780,6 +884,9 @@ public static class DatabaseSeeder
                 pilots.Add((p, drone.Id, p.OrgUnitId));
             }
         }
+
+        if (await db.Flights.AnyAsync(f => f.StandaloneReason == "SEED-VOLUME" || f.StandaloneReason == "SEED-DIARY"))
+            return;
 
         // Denník: presne 100 uzavretých letov (pilot lietá len na svojom drone).
         var locations = new (string Gps, double Lat, double Lon)[]
@@ -863,6 +970,37 @@ public static class DatabaseSeeder
             if (uas is null) continue;
             uas.TotalFlightCount = c.Count;
             uas.TotalFlightMinutes = c.Minutes;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Demo rozdelenie flotily: časť dronov bez náletu (nepoužívané), ostatné s náletom (používané).
+    /// </summary>
+    private static async Task EnsureFleetUsageDemoSplitAsync(IsSuasDbContext db)
+    {
+        var items = await db.UasAircraft
+            .Where(u => u.IsActive
+                && u.Notes != null
+                && u.Notes.StartsWith("SEED-REG-")
+                && u.Status != UasLifecycleStatus.Decommissioned)
+            .OrderBy(u => u.SerialNumber)
+            .ToListAsync();
+        if (items.Count == 0) return;
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (i % 4 == 0)
+            {
+                items[i].TotalFlightCount = 0;
+                items[i].TotalFlightMinutes = 0;
+            }
+            else if (items[i].TotalFlightCount <= 0)
+            {
+                items[i].TotalFlightCount = 6 + (i % 50);
+                items[i].TotalFlightMinutes = items[i].TotalFlightCount * 18;
+            }
         }
 
         await db.SaveChangesAsync();
@@ -962,8 +1100,48 @@ public static class DatabaseSeeder
         IReadOnlyList<OrgUnit> orgUnits)
     {
         if (orgUnits.Count == 0) return;
-        if (await db.Operations.AnyAsync(o => o.Description == "SEED-CALENDAR"))
+
+        var locations = new (string Label, double Lat, double Lon, int RadiusM)[]
+        {
+            ("Bratislava — Devín", 48.17380, 16.97820, 1200),
+            ("Bratislava — Ivanka", 48.17000, 17.20000, 1000),
+            ("Trnava", 48.37740, 17.58830, 1500),
+            ("Piešťany", 48.59000, 17.83000, 1100),
+            ("Nitra — Zobor", 48.34420, 18.09630, 1400),
+            ("Komárno", 47.76300, 18.12800, 1000),
+            ("Trenčín", 48.89550, 18.05230, 1300),
+            ("Prievidza", 48.77500, 18.62500, 1200),
+            ("Žilina", 49.22300, 18.73900, 1500),
+            ("Martin", 49.06500, 18.92200, 1100),
+            ("Banská Bystrica", 48.73200, 19.14000, 1400),
+            ("Zvolen", 48.63900, 19.13900, 1000),
+            ("Prešov", 48.99800, 21.24000, 1300),
+            ("Poprad", 49.05500, 20.29700, 1200),
+            ("Košice", 48.73600, 21.21200, 1500),
+            ("Michalovce", 48.75500, 21.92000, 1000)
+        };
+
+        var existing = await db.Operations
+            .Where(o => o.Description != null && o.Description.StartsWith("SEED-CALENDAR"))
+            .OrderBy(o => o.PlannedStart)
+            .ToListAsync();
+        if (existing.Count > 0)
+        {
+            for (var i = 0; i < existing.Count; i++)
+            {
+                var loc = locations[i % locations.Length];
+                var op = existing[i];
+                if (op.LocationLat is null || op.LocationLon is null)
+                {
+                    op.LocationAddress = loc.Label;
+                    op.LocationLat = loc.Lat;
+                    op.LocationLon = loc.Lon;
+                    op.Description = $"SEED-CALENDAR\nPolomer oblasti: {loc.RadiusM} m";
+                }
+            }
+            await db.SaveChangesAsync();
             return;
+        }
 
         var titles = new[]
         {
@@ -982,6 +1160,7 @@ public static class DatabaseSeeder
         for (var i = 0; i < 24; i++)
         {
             var org = orgUnits[i % orgUnits.Count];
+            var loc = locations[i % locations.Length];
             var start = monthStart.AddDays(i * 2).AddHours(i % 6);
             var end = start.AddHours(2 + (i % 3));
             db.Operations.Add(new Domain.Operations.Operation
@@ -993,8 +1172,10 @@ public static class DatabaseSeeder
                 ProposedByAccountId = proposedByAccountId,
                 PlannedStart = start,
                 PlannedEnd = end,
-                LocationAddress = org.Name,
-                Description = "SEED-CALENDAR",
+                LocationAddress = loc.Label,
+                LocationLat = loc.Lat,
+                LocationLon = loc.Lon,
+                Description = $"SEED-CALENDAR\nPolomer oblasti: {loc.RadiusM} m",
                 IsUrgent = i % 5 == 0,
                 UrgentReason = i % 5 == 0 ? "Seed: neodkladná aktivita" : null,
                 Version = 1
@@ -1197,7 +1378,7 @@ public static class DatabaseSeeder
                 "orgunits.read", "orgunits.write", "accounts.read", "accounts.write", "roles.assign",
                 "lookups.read", "uas.read", "components.read", "components.write",
                 "batteries.read", "batteries.write", "pilots.read", "pilots.write", "operations.read",
-                "operations.write", "flights.read", "flights.write", "maintenance.read", "maintenance.write",
+                "operations.write", "operations.approve", "flights.read", "flights.write", "maintenance.read", "maintenance.write",
                 "safety.read", "safety.write", "documents.read", "documents.write", "reports.read",
                 "reports.write", "system.info.read", "controls.read",
                 "notifications.read", "notifications.write", "geozones.read"
@@ -1238,6 +1419,19 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync();
     }
 
+    private static async Task EnsureSqlitePilotCertificateColumnsAsync(IsSuasDbContext db)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "PilotCertificates" ADD COLUMN "SuspendedUntil" INTEGER NULL""");
+        }
+        catch
+        {
+            // stĺpec už existuje
+        }
+    }
+
     private static async Task EnsureAccessLevelsAsync(IsSuasDbContext db)
     {
         var accounts = await db.Accounts.Include(a => a.RoleAssignments).ThenInclude(r => r.Role).ToListAsync();
@@ -1245,14 +1439,18 @@ public static class DatabaseSeeder
         {
             var codes = a.RoleAssignments.Where(r => r.IsActive).Select(r => r.Role.Code).ToHashSet();
             AccessLevel level;
-            if (codes.Contains(SystemRole.CentralGestor) || codes.Contains(SystemRole.SystemAdministrator))
+            if (codes.Contains(SystemRole.CentralGestor)
+                || codes.Contains(SystemRole.SystemAdministrator)
+                || codes.Contains(SystemRole.Approver))
                 level = AccessLevel.Level1;
             else if (codes.Contains(SystemRole.UnitAdministrator))
                 level = AccessLevel.Level2;
             else if (codes.Contains(SystemRole.RemotePilot))
                 level = AccessLevel.Level3;
+            else if (codes.Contains(SystemRole.SafetyOfficer) || codes.Contains(SystemRole.TechnicalWorker))
+                level = AccessLevel.Level1;
             else
-                level = AccessLevel.Level2;
+                level = AccessLevel.Level3;
 
             if (a.AccessLevel != level)
                 a.AccessLevel = level;
@@ -1298,12 +1496,70 @@ public static class DatabaseSeeder
         logger.LogInformation("Ensured named login users martin (L3) and janko.novak (L2) under KR-BA.");
     }
 
+    /// <summary>Piloti iba s A1/A3 — karta Register PnD / A1/A3.</summary>
+    private static async Task EnsureA1A3OnlyDemoPilotsAsync(IsSuasDbContext db, IReadOnlyList<OrgUnit> krUnits)
+    {
+        var orgs = krUnits.Count > 0
+            ? krUnits.ToList()
+            : await db.OrgUnits.AsNoTracking().Where(o => o.IsActive).OrderBy(o => o.Code).Take(20).ToListAsync();
+        if (orgs.Count == 0) return;
+
+        const int target = 40;
+        var existing = await db.Pilots.CountAsync(p =>
+            p.LicenseNumber != null && p.LicenseNumber.StartsWith("PIL-A1ONLY-"));
+        if (existing >= target) return;
+
+        var firstNames = new[]
+        {
+            "Adam", "Peter", "Martin", "Jozef", "Michal", "Tomáš", "Lukáš", "Marek", "Jakub", "Samuel",
+            "Filip", "Matej", "Patrik", "Richard", "Ondrej", "Roman", "Erik", "Daniel", "Dominik", "Vladimír",
+            "Anna", "Mária", "Eva", "Zuzana", "Katarína", "Jana", "Lucia", "Monika", "Lenka", "Petra"
+        };
+        var lastNames = new[]
+        {
+            "Horváth", "Nagy", "Szabó", "Kováč", "Varga", "Tóth", "Molnár", "Baláž", "Lukáč", "Novák",
+            "Horváthová", "Kováčová", "Szabová", "Nagyová", "Tóthová", "Balážová", "Vargová", "Molnárová",
+            "Urban", "Polák", "Šimko", "Hudák", "Gajdoš", "Černák", "Bartoš", "Oravec", "Krajčí", "Farkaš"
+        };
+
+        var now = DateTimeOffset.UtcNow;
+        for (var i = existing + 1; i <= target; i++)
+        {
+            var org = orgs[(i - 1) % orgs.Count];
+            var fn = firstNames[(i - 1) % firstNames.Length];
+            var ln = lastNames[(i * 5) % lastNames.Length];
+            var person = new Person
+            {
+                FirstName = fn,
+                LastName = ln,
+                Email = $"pilot.a1a3.{i:000}@mv.sk.local",
+                HomeOrgUnitId = org.Id
+            };
+            db.Persons.Add(person);
+            db.Pilots.Add(new Domain.Pilots.Pilot
+            {
+                Person = person,
+                OrgUnitId = org.Id,
+                LicenseNumber = $"PIL-A1ONLY-{i:000}",
+                Status = PilotStatus.Fit,
+                CurrencyValidUntil = now.AddMonths(8),
+                PersonalBadgeNumber = $"ČOZ-A1-{i:00000}",
+                GestorCertificateNumber = $"GES-A1-{i:00000}",
+                LogbookNumber = $"DN-A1-{i:00000}",
+                Notes = "SEED-A1ONLY"
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>
-    /// Doplní PnD preukazy: A1/A3 (všetci), A2 (časť, bez nutnosti STS), STS (menšia časť, A2 nie je povinné).
+    /// Doplní PnD preukazy v rebríčku: A1/A3; A1/A3+A2; +STS1; +STS1+STS2.
     /// Zároveň doplní ČOZ / Osv. ges. / č. denníka.
     /// </summary>
     private static async Task EnsurePilotOpenCategoryCertificatesAsync(IsSuasDbContext db)
     {
+        await PruneDuplicatePnDCertificatesAsync(db);
         var now = DateTimeOffset.UtcNow;
         var pilots = await db.Pilots
             .Include(p => p.Certificates)
@@ -1324,33 +1580,73 @@ public static class DatabaseSeeder
             if (string.IsNullOrWhiteSpace(pilot.LogbookNumber))
                 pilot.LogbookNumber = $"DN-PnD-{i:00000}";
 
+            foreach (var legacy in pilot.Certificates.Where(c =>
+                         c.IsActive && string.Equals(c.CertificateTypeCode, "STS", StringComparison.OrdinalIgnoreCase)))
+            {
+                legacy.CertificateTypeCode = "STS1";
+                if (string.IsNullOrWhiteSpace(legacy.TitleSk) || legacy.TitleSk.Contains("STS", StringComparison.OrdinalIgnoreCase))
+                    legacy.TitleSk = "Osvedčenie STS1";
+            }
+
             EnsureIssuedCert(db, pilot, "A1_A3", "Preukaz pilota na diaľku — kategória A1/A3",
                 $"DU-A1A3-{key}", now);
 
-            // A2: ~40 % pilotov + Martin — STS nie je povinné
-            var wantsA2 = string.Equals(pilot.LicenseNumber, "PIL-MARTIN-001", StringComparison.OrdinalIgnoreCase)
+            var isA1OnlySeed = (pilot.LicenseNumber ?? "").StartsWith("PIL-A1ONLY-", StringComparison.OrdinalIgnoreCase);
+            var isMartin = string.Equals(pilot.LicenseNumber, "PIL-MARTIN-001", StringComparison.OrdinalIgnoreCase);
+            var wantsA2 = !isA1OnlySeed && (isMartin
                 || string.Equals(pilot.LicenseNumber, "PIL-001", StringComparison.OrdinalIgnoreCase)
                 || i % 5 == 0
-                || i % 5 == 2;
+                || i % 5 == 2);
+            var wantsSts1 = wantsA2 && !isMartin && (i % 7 == 0 || i % 7 == 3);
+            var wantsSts2 = wantsSts1 && i % 11 == 0;
+
             if (wantsA2)
             {
                 EnsureIssuedCert(db, pilot, "A2", "Preukaz pilota na diaľku — kategória A2",
                     $"DU-A2-{key}", now);
             }
-
-            // STS: ~15 % — môže byť aj bez A2 (i % 7 == 0), alebo s A2 (i % 7 == 3)
-            var wantsSts = i % 7 == 0 || i % 7 == 3;
-            if (string.Equals(pilot.LicenseNumber, "PIL-MARTIN-001", StringComparison.OrdinalIgnoreCase))
-                wantsSts = false; // Martin = A1/A3 + A2 bez STS
-            if (wantsSts)
+            if (wantsSts1)
             {
                 var mtow = (i % 2 == 0) ? "MTOW 25 kg" : $"platné do {now.AddYears(1):dd.MM.yyyy}";
-                EnsureIssuedCert(db, pilot, "STS", "Osvedčenie STS (štandardizované scenáre)",
-                    $"EU-STS-{key}", now, mtow);
+                EnsureIssuedCert(db, pilot, "STS1", "Osvedčenie STS1",
+                    $"EU-STS1-{key}", now, mtow);
             }
+            if (wantsSts2)
+            {
+                EnsureIssuedCert(db, pilot, "STS2", "Osvedčenie STS2",
+                    $"EU-STS2-{key}", now, "MTOW 25 kg");
+            }
+
+            DeactivateUnwantedSeedCerts(pilot, wantsA2, wantsSts1, wantsSts2);
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static void DeactivateUnwantedSeedCerts(Domain.Pilots.Pilot pilot, bool wantsA2, bool wantsSts1, bool wantsSts2)
+    {
+        var license = pilot.LicenseNumber ?? "";
+        var isSeed = license.StartsWith("PIL-SEED-", StringComparison.OrdinalIgnoreCase)
+            || license.StartsWith("PIL-A1ONLY-", StringComparison.OrdinalIgnoreCase);
+        if (!isSeed) return;
+
+        void Deactivate(string typeCode)
+        {
+            foreach (var cert in pilot.Certificates.Where(c =>
+                         c.IsActive && string.Equals(c.CertificateTypeCode, typeCode, StringComparison.OrdinalIgnoreCase)))
+            {
+                cert.IsActive = false;
+                cert.Status = CertificateStatus.Revoked;
+            }
+        }
+
+        if (!wantsA2) Deactivate("A2");
+        if (!wantsSts1)
+        {
+            Deactivate("STS1");
+            Deactivate("STS");
+        }
+        if (!wantsSts2) Deactivate("STS2");
     }
 
     private static void EnsureIssuedCert(
@@ -1362,10 +1658,19 @@ public static class DatabaseSeeder
         DateTimeOffset now,
         string? mtowOrValidityText = null)
     {
-        var existing = pilot.Certificates.FirstOrDefault(c =>
-            c.CertificateTypeCode == typeCode && c.IsActive);
+        var existing = pilot.Certificates
+            .Where(c => c.CertificateTypeCode == typeCode
+                || (typeCode == "STS1" && (c.CertificateTypeCode == "STS" || c.CertificateTypeCode == "STS01")))
+            .OrderByDescending(c => c.IsActive)
+            .ThenByDescending(c => c.Status == CertificateStatus.Issued)
+            .ThenByDescending(c => c.Version)
+            .FirstOrDefault();
         if (existing is not null)
         {
+            existing.IsActive = true;
+            existing.SuspendedUntil = null;
+            if (existing.CertificateTypeCode != typeCode)
+                existing.CertificateTypeCode = typeCode;
             if (existing.Status != CertificateStatus.Issued)
                 existing.Status = CertificateStatus.Issued;
             if (existing.ValidTo is null || existing.ValidTo < now)
@@ -1394,6 +1699,44 @@ public static class DatabaseSeeder
             ValidTo = now.AddYears(1),
             MtowOrValidityText = mtowOrValidityText
         });
+    }
+
+    private static async Task PruneDuplicatePnDCertificatesAsync(IsSuasDbContext db)
+    {
+        var codes = new[] { "A1_A3", "A2", "STS1", "STS2", "STS", "A1A3", "OPEN_A1_A3", "OPEN_A2" };
+        var all = await db.PilotCertificates
+            .Where(c => codes.Contains(c.CertificateTypeCode))
+            .ToListAsync();
+        if (all.Count == 0) return;
+
+        var doomed = all
+            .Where(c => !c.IsActive || c.Status != CertificateStatus.Issued)
+            .Select(c => c.Id)
+            .ToHashSet();
+
+        foreach (var group in all
+                     .Where(c => c.IsActive && c.Status == CertificateStatus.Issued)
+                     .GroupBy(c => (c.PilotId, (c.CertificateTypeCode ?? "").Trim().ToUpperInvariant())))
+        {
+            var keep = group
+                .OrderByDescending(c => c.IssuedAt ?? c.CreatedAt)
+                .ThenByDescending(c => c.Version)
+                .First();
+            foreach (var extra in group.Where(c => c.Id != keep.Id))
+                doomed.Add(extra.Id);
+        }
+
+        if (doomed.Count == 0) return;
+
+        foreach (var cert in all.Where(c => doomed.Contains(c.Id)))
+        {
+            cert.IsActive = false;
+            if (cert.Status == CertificateStatus.Issued)
+                cert.Status = CertificateStatus.Superseded;
+            cert.SupersedesCertificateId = null;
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task EnsureMartinPilotAndFlightsAsync(IsSuasDbContext db, ILogger logger)
@@ -1584,11 +1927,11 @@ public static class DatabaseSeeder
         account.Person.LastName = lastName;
         account.Person.Email = email;
         account.Person.HomeOrgUnitId = homeOrg.Id;
-        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
         account.Status = AccountStatus.Active;
         account.IsActive = true;
         account.AccessLevel = level;
         account.LicenseStatus = level == AccessLevel.Level3 ? LicenseStatus.Confirmed : LicenseStatus.NotApplicable;
+        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
 
         var matchingRole = account.RoleAssignments.FirstOrDefault(r => r.IsActive && r.RoleId == role.Id);
         if (matchingRole is null)

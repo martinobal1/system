@@ -24,6 +24,7 @@ public interface IOperationService
     Task<OperationDto> ApproveAsync(Guid id, DecisionRequest request, CancellationToken cancellationToken = default);
     Task<OperationDto> ReturnAsync(Guid id, DecisionRequest request, CancellationToken cancellationToken = default);
     Task<OperationDto> RejectAsync(Guid id, DecisionRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, uint rowVersion, CancellationToken cancellationToken = default);
     Task<OperationApprovalStepDto> AddApprovalStepAsync(Guid id, AddApprovalStepRequest request, CancellationToken cancellationToken = default);
     Task<OperationApprovalConditionDto> VerifyConditionAsync(Guid conditionId, VerifyApprovalConditionRequest request, CancellationToken cancellationToken = default);
     Task<OperationRecurrenceRuleDto> SetRecurrenceAsync(Guid id, SetRecurrenceRequest request, CancellationToken cancellationToken = default);
@@ -118,6 +119,13 @@ public sealed class OperationService(
         var op = await LoadAsync(id, cancellationToken);
         policy.EnsureOrgAccess(op.OrgUnit.Path);
         EnsureEditable(op, request.RowVersion);
+
+        // Po vrátení môže žiadosť upravovať len pôvodný navrhovateľ (L3).
+        if (op.Status == OperationStatus.Returned)
+        {
+            if (currentUser.AccountId is null || op.ProposedByAccountId != currentUser.AccountId.Value)
+                throw new ForbiddenException("Vrátenú žiadosť môže upraviť iba jej autor.");
+        }
 
         if (request.PlannedEnd <= request.PlannedStart)
             throw new ValidationException("Plánovaný koniec musí byť po začiatku.");
@@ -318,6 +326,47 @@ public sealed class OperationService(
         op.DecidedByAccountId = currentUser.AccountId;
         op.DecisionReason = request.Reason;
         return await TransitionAsync(op, OperationStatus.Rejected, request.Reason, lockVersion: true, cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid id, uint rowVersion, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.OperationsWrite);
+        var op = await LoadAsync(id, cancellationToken);
+        policy.EnsureOrgAccess(op.OrgUnit.Path);
+        EnsureRowVersion(op, rowVersion);
+
+        if (currentUser.AccountId is null)
+            throw new ForbiddenException("Chýba identita používateľa.");
+        if (op.ProposedByAccountId != currentUser.AccountId.Value)
+            throw new ForbiddenException("Vymazať môžete iba vlastnú žiadosť o let.");
+        if (!op.IsActive)
+            throw new NotFoundException("Operácia nebola nájdená.");
+        if (op.Status is OperationStatus.Approved or OperationStatus.Rejected or OperationStatus.Cancelled or OperationStatus.Completed)
+            throw new ValidationException("Schválenú, odletenú, zamietnutú alebo zrušenú žiadosť už nie je možné vymazať.");
+
+        var before = Map(op);
+        op.IsActive = false;
+        op.UpdatedBy = currentUser.AccountId;
+        op.DecisionReason = "Vymazané žiadateľom";
+        if (OperationStateMachine.CanTransition(op.Status, OperationStatus.Cancelled))
+        {
+            var from = op.Status;
+            op.Status = OperationStatus.Cancelled;
+            db.OperationStatusHistories.Add(new OperationStatusHistory
+            {
+                OperationId = op.Id,
+                FromStatus = from,
+                ToStatus = OperationStatus.Cancelled,
+                Reason = "Vymazané žiadateľom",
+                ChangedAt = clock.UtcNow,
+                CreatedBy = currentUser.AccountId,
+                UpdatedBy = currentUser.AccountId
+            });
+        }
+
+        CancelAllSteps(op);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("Operation.Delete", nameof(Operation), op.Id, before, Map(op), cancellationToken: cancellationToken);
     }
 
     public async Task<OperationApprovalStepDto> AddApprovalStepAsync(Guid id, AddApprovalStepRequest request, CancellationToken cancellationToken = default)
@@ -656,7 +705,7 @@ public sealed class OperationService(
             OperationId = op.Id,
             SequenceNumber = nextSeq <= 0 ? 1 : nextSeq,
             StepTypeCode = "APPROVAL",
-            AssignedRoleCode = nameof(SystemRole.Approver),
+            AssignedRoleCode = nameof(SystemRole.UnitAdministrator),
             IsMandatory = true,
             Status = ApprovalStepStatus.Pending,
             AssignedAt = clock.UtcNow,
@@ -749,7 +798,7 @@ public sealed class OperationService(
             .Include(o => o.ApprovalSteps).ThenInclude(s => s.Decision)!.ThenInclude(d => d!.Conditions)
             .Include(o => o.RecurrenceRule)
             .Include(o => o.MapChecks)
-            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
+            .FirstOrDefaultAsync(o => o.Id == id && o.IsActive, cancellationToken)
             ?? throw new NotFoundException("Operácia nebola nájdená.");
 
     private static void EnsureEditable(Operation op, uint rowVersion)
@@ -768,7 +817,7 @@ public sealed class OperationService(
     private static OperationDto Map(Operation o) =>
         new(o.Id, o.Title, o.OperationTypeCode, o.Status, o.OrgUnitId, o.OrgUnit.Name, o.ProposedByAccountId,
             o.PlannedStart, o.PlannedEnd, o.LocationAddress, o.LocationLat, o.LocationLon, o.IsUrgent, o.UrgentReason,
-            o.Version, o.IsSubmittedVersionLocked, o.IsActive, o.RowVersion);
+            o.Version, o.IsSubmittedVersionLocked, o.IsActive, o.DecisionReason, o.RowVersion);
 
     private static OperationApprovalStepDto MapStep(OperationApprovalStep s) =>
         new(s.Id, s.SequenceNumber, s.StepTypeCode, s.AssignedRoleCode, s.AssignedAccountId, s.IsMandatory, s.Status, s.CompletedAt,

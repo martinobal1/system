@@ -1,3 +1,4 @@
+using IsSuas.Application.Flights;
 using IsSuas.Application.Notifications;
 using IsSuas.Application.Operations;
 using IsSuas.Infrastructure.Services;
@@ -9,7 +10,7 @@ namespace IsSuas.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/operations")]
-public sealed class OperationsController(IOperationService service) : ControllerBase
+public sealed class OperationsController(IOperationService service, IFlightService flights) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<OperationDto>>> List(
@@ -54,6 +55,18 @@ public sealed class OperationsController(IOperationService service) : Controller
     [HttpPost("{id:guid}/reject")]
     public async Task<ActionResult<OperationDto>> Reject(Guid id, [FromBody] DecisionRequest request, CancellationToken cancellationToken)
         => Ok(await service.RejectAsync(id, request, cancellationToken));
+
+    /// <summary>L1/L2 potvrdia, že schválená žiadosť sa naozaj odlietala — uzavretý let do denníka a grafov.</summary>
+    [HttpPost("{id:guid}/confirm-flown")]
+    public async Task<ActionResult<FlightDto>> ConfirmFlown(Guid id, [FromBody] ConfirmOperationFlownRequest request, CancellationToken cancellationToken)
+        => Ok(await flights.ConfirmOperationFlownAsync(id, request, cancellationToken));
+
+    [HttpPost("{id:guid}/delete")]
+    public async Task<IActionResult> Delete(Guid id, [FromBody] SubmitBody body, CancellationToken cancellationToken)
+    {
+        await service.DeleteAsync(id, body.RowVersion, cancellationToken);
+        return NoContent();
+    }
 
     [HttpPost("{id:guid}/approval-steps")]
     public async Task<ActionResult<OperationApprovalStepDto>> AddStep(Guid id, [FromBody] AddApprovalStepRequest request, CancellationToken cancellationToken)

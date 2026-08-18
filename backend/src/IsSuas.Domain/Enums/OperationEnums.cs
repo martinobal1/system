@@ -7,7 +7,9 @@ public enum OperationStatus
     Approved = 2,
     Returned = 3,
     Rejected = 4,
-    Cancelled = 5
+    Cancelled = 5,
+    /// <summary>L1/L2 potvrdili, že schválený let sa naozaj uskutočnil (záznam v denníku).</summary>
+    Completed = 6
 }
 
 public enum OperationResourceType

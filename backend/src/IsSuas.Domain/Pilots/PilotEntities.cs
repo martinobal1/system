@@ -67,6 +67,8 @@ public class PilotCertificate : AuditableEntity
     public string? Notes { get; set; }
     /// <summary>Pre register A2/STS: MTOW alebo text platnosti osvedčenia.</summary>
     public string? MtowOrValidityText { get; set; }
+    /// <summary>Do kedy platí pozastavenie osvedčenia.</summary>
+    public DateTimeOffset? SuspendedUntil { get; set; }
     public ICollection<CertificateScope> Scopes { get; set; } = new List<CertificateScope>();
 }
 

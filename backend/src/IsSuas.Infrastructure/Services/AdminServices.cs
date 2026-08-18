@@ -439,7 +439,10 @@ public sealed class SystemInfoService(
     {
         policy.EnsurePermission(Permissions.SystemInfoRead);
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "1.0.0";
-        var useInMemory = configuration.GetValue("Database:UseInMemory", false);
+        var provider = (configuration["Database:Provider"] ?? "").Trim();
+        var engine = configuration.GetValue("Database:UseInMemory", false) || provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase)
+            ? "InMemory"
+            : provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase) ? "Sqlite" : "PostgreSQL";
         var now = clock.UtcNow;
         var activeRules = await db.ConfigRules.AsNoTracking()
             .Where(r => r.IsActive && r.EffectiveFrom <= now && (r.EffectiveTo == null || r.EffectiveTo > now))
@@ -451,7 +454,7 @@ public sealed class SystemInfoService(
         return new SystemInfoDto(
             version,
             env.EnvironmentName,
-            useInMemory ? "InMemory" : "PostgreSQL",
+            engine,
             now,
             activeRules.Count,
             lookups,

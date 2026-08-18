@@ -6,8 +6,8 @@ import { ApiError } from '../api/client'
 
 export default function LoginPage() {
   const { token, login } = useAuth()
-  const [userName, setUserName] = useState('gestor')
-  const [password, setPassword] = useState('Heslo123!')
+  const [userName, setUserName] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -42,13 +42,14 @@ export default function LoginPage() {
         <Typography color="text.secondary" sx={{ mb: 3 }}>
           Informačný systém štátnych bezpilotných leteckých systémov
         </Typography>
-        <Box component="form" onSubmit={onSubmit}>
+        <Box component="form" onSubmit={onSubmit} autoComplete="off">
           <TextField
             label="Používateľské meno"
             fullWidth
             margin="normal"
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
+            autoComplete="off"
             required
           />
           <TextField
@@ -58,6 +59,7 @@ export default function LoginPage() {
             margin="normal"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
             required
           />
           {error && (

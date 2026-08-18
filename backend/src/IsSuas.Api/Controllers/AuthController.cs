@@ -60,4 +60,12 @@ public sealed class AuthController(IAuthService authService, IConfiguration conf
     [HttpPost("reauth")]
     public async Task<ActionResult<ReauthResponse>> Reauth([FromBody] ReauthRequest request, CancellationToken cancellationToken)
         => Ok(await authService.ReauthAsync(request, cancellationToken));
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        await authService.ChangePasswordAsync(request, cancellationToken);
+        return NoContent();
+    }
 }

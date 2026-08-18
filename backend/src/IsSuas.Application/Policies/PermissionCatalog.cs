@@ -27,7 +27,7 @@ public static class PermissionCatalog
             [Permissions.PilotsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator],
             [Permissions.OperationsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver, SystemRole.RemotePilot, SystemRole.TechnicalWorker, SystemRole.SafetyOfficer, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
             [Permissions.OperationsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.RemotePilot],
-            [Permissions.OperationsApprove] = [SystemRole.CentralGestor, SystemRole.Approver],
+            [Permissions.OperationsApprove] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver],
             [Permissions.FlightsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver, SystemRole.RemotePilot, SystemRole.TechnicalWorker, SystemRole.SafetyOfficer, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
             [Permissions.FlightsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.RemotePilot, SystemRole.TechnicalWorker],
             [Permissions.MaintenanceRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.TechnicalWorker, SystemRole.RemotePilot, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],

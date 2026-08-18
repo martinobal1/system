@@ -151,7 +151,8 @@ public static class OperationStateMachine
         [OperationStatus.Draft] = [OperationStatus.Submitted, OperationStatus.Cancelled],
         [OperationStatus.Returned] = [OperationStatus.Submitted, OperationStatus.Cancelled],
         [OperationStatus.Submitted] = [OperationStatus.Approved, OperationStatus.Returned, OperationStatus.Rejected],
-        [OperationStatus.Approved] = [OperationStatus.Cancelled],
+        [OperationStatus.Approved] = [OperationStatus.Cancelled, OperationStatus.Completed],
+        [OperationStatus.Completed] = [],
         [OperationStatus.Rejected] = [],
         [OperationStatus.Cancelled] = []
     };

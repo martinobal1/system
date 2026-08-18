@@ -20,6 +20,7 @@ public sealed record OperationDto(
     int Version,
     bool IsSubmittedVersionLocked,
     bool IsActive,
+    string? DecisionReason,
     uint RowVersion);
 
 public sealed record OperationDetailDto(

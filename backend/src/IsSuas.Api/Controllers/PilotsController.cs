@@ -46,6 +46,25 @@ public sealed class PilotsController(IPilotService service) : ControllerBase
     public async Task<ActionResult<PilotCertificateDto>> IssueCertificate(Guid id, Guid certificateId, [FromBody] IssuePilotCertificateRequest request, CancellationToken cancellationToken)
         => Ok(await service.IssueCertificateAsync(id, certificateId, request, cancellationToken));
 
+    [HttpPost("{id:guid}/certificates/grant")]
+    public async Task<ActionResult<PilotCertificateDto>> GrantCertificate(Guid id, [FromBody] GrantPilotCertificateRequest request, CancellationToken cancellationToken)
+        => Ok(await service.GrantCertificateAsync(id, request, cancellationToken));
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/revoke")]
+    public async Task<ActionResult<PilotCertificateDto>> RevokeCertificate(
+        Guid id, Guid certificateId, [FromBody] RevokePilotCertificateRequest request, CancellationToken cancellationToken)
+        => Ok(await service.RevokeCertificateAsync(id, certificateId, request, cancellationToken));
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/suspend")]
+    public async Task<ActionResult<PilotCertificateDto>> SuspendCertificate(
+        Guid id, Guid certificateId, [FromBody] SuspendPilotCertificateRequest request, CancellationToken cancellationToken)
+        => Ok(await service.SuspendCertificateAsync(id, certificateId, request, cancellationToken));
+
+    [HttpPost("{id:guid}/certificates/{certificateId:guid}/resume")]
+    public async Task<ActionResult<PilotCertificateDto>> ResumeCertificate(
+        Guid id, Guid certificateId, CancellationToken cancellationToken)
+        => Ok(await service.ResumeCertificateAsync(id, certificateId, cancellationToken));
+
     [HttpPost("{id:guid}/certificates/{certificateId:guid}/scopes")]
     public async Task<ActionResult<CertificateScopeDto>> AddScope(
         Guid id, Guid certificateId, [FromBody] CreateCertificateScopeRequest request, CancellationToken cancellationToken)

@@ -25,3 +25,7 @@ public sealed record SsoCallbackResponse(
     Guid PersonId = default);
 public sealed record ReauthRequest(string Password);
 public sealed record ReauthResponse(string ReauthToken, DateTimeOffset ExpiresAt);
+public sealed record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword,
+    string ConfirmNewPassword);

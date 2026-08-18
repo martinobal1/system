@@ -6,6 +6,7 @@ using IsSuas.Application.Flights;
 using IsSuas.Application.Policies;
 using IsSuas.Domain.Enums;
 using IsSuas.Domain.Flights;
+using IsSuas.Domain.Operations;
 using IsSuas.Domain.Pilots;
 using IsSuas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ public interface IFlightService
     Task<IReadOnlyList<FlightDto>> ListAsync(CancellationToken cancellationToken = default);
     Task<FlightDetailDto> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<FlightDto> CreateFromOperationAsync(CreateFlightFromOperationRequest request, CancellationToken cancellationToken = default);
+    Task<FlightDto> ConfirmOperationFlownAsync(Guid operationId, ConfirmOperationFlownRequest request, CancellationToken cancellationToken = default);
     Task<FlightDto> CreateStandaloneAsync(CreateStandaloneFlightRequest request, CancellationToken cancellationToken = default);
     Task<FlightDto> MarkReadyAsync(Guid id, uint rowVersion, CancellationToken cancellationToken = default);
     Task<FlightDto> CloseAsync(Guid id, CloseFlightRequest request, CancellationToken cancellationToken = default);
@@ -113,6 +115,153 @@ public sealed class FlightService(
         await db.SaveChangesAsync(cancellationToken);
         flight = await LoadAsync(flight.Id, cancellationToken);
         await audit.WriteAsync("Flight.CreateFromOperation", nameof(Flight), flight.Id, null, Map(flight), cancellationToken: cancellationToken);
+        return Map(flight);
+    }
+
+    public async Task<FlightDto> ConfirmOperationFlownAsync(Guid operationId, ConfirmOperationFlownRequest request, CancellationToken cancellationToken = default)
+    {
+        var op = await db.Operations
+            .Include(o => o.OrgUnit)
+            .Include(o => o.Resources)
+            .FirstOrDefaultAsync(o => o.Id == operationId && o.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Operácia nebola nájdená.");
+        policy.EnsureOrgAccess(op.OrgUnit.Path);
+        policy.EnsureCanApprove(op.ProposedByAccountId, Permissions.OperationsApprove);
+        if (op.RowVersion != request.RowVersion)
+            throw new ConflictException("Záznam bol medzitým zmenený iným používateľom.");
+        if (op.Status != OperationStatus.Approved)
+            throw new ValidationException("Potvrdiť odlet možno iba zo schválenej žiadosti.");
+        if (!OperationStateMachine.CanTransition(op.Status, OperationStatus.Completed))
+            throw new ValidationException($"Nepovolený prechod {op.Status} → Completed.");
+
+        var alreadyClosed = await db.Flights.AsNoTracking()
+            .AnyAsync(f => f.OperationId == op.Id && f.IsActive && f.Status == FlightStatus.Closed, cancellationToken);
+        if (alreadyClosed)
+            throw new ValidationException("Táto žiadosť už bola potvrdená ako odletená.");
+
+        await operations.EnsureBeforeFlightConditionsMetAsync(op.Id, cancellationToken);
+
+        var takeoff = request.TakeoffAt ?? op.PlannedStart;
+        var landing = request.LandingAt ?? op.PlannedEnd;
+        if (landing <= takeoff)
+            throw new ValidationException("Čas pristátia musí byť po čase vzletu.");
+
+        var flight = await db.Flights
+            .Include(f => f.OrgUnit)
+            .Include(f => f.Uas)
+            .Include(f => f.Pilot)!.ThenInclude(p => p!.Person)
+            .FirstOrDefaultAsync(f => f.OperationId == op.Id && f.IsActive && f.Status != FlightStatus.Closed, cancellationToken);
+
+        if (flight is null)
+        {
+            var uasId = op.Resources.FirstOrDefault(r => r.ResourceType == OperationResourceType.Uas && r.IsActive)?.ResourceId;
+            var pilotId = op.Resources.FirstOrDefault(r => r.ResourceType == OperationResourceType.Pilot && r.IsActive)?.ResourceId;
+            var batteryId = op.Resources.FirstOrDefault(r => r.ResourceType == OperationResourceType.Battery && r.IsActive)?.ResourceId;
+            if (batteryId is Guid bid && uasId is Guid uid)
+                await fleet.EnsureBatteryCompatibleAsync(bid, uid, cancellationToken);
+
+            double? radiusM = null;
+            if (!string.IsNullOrWhiteSpace(op.Description))
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(op.Description, @"Polomer oblasti:\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (m.Success && double.TryParse(m.Groups[1].Value, out var r))
+                    radiusM = r;
+            }
+
+            flight = new Flight
+            {
+                OperationId = op.Id,
+                OrgUnitId = op.OrgUnitId,
+                UasId = uasId,
+                PilotId = pilotId,
+                BatteryId = batteryId,
+                TakeoffAt = takeoff,
+                LandingAt = landing,
+                FlightNumber = await NextFlightNumberAsync(cancellationToken),
+                Location = string.IsNullOrWhiteSpace(op.LocationAddress)
+                    ? (op.LocationLat is not null && op.LocationLon is not null
+                        ? $"{op.LocationLat:0.00000}, {op.LocationLon:0.00000}"
+                        : null)
+                    : op.LocationAddress.Trim(),
+                LocationLat = op.LocationLat,
+                LocationLon = op.LocationLon,
+                LocationRadiusMeters = radiusM,
+                Purpose = string.IsNullOrWhiteSpace(op.Title) ? null : op.Title.Trim(),
+                Status = FlightStatus.Draft,
+                CreatedBy = currentUser.AccountId,
+                UpdatedBy = currentUser.AccountId
+            };
+            RecalcDuration(flight);
+            db.Flights.Add(flight);
+            await db.SaveChangesAsync(cancellationToken);
+            flight = await LoadAsync(flight.Id, cancellationToken);
+        }
+        else
+        {
+            flight.TakeoffAt = takeoff;
+            flight.LandingAt = landing;
+            if (string.IsNullOrWhiteSpace(flight.Purpose))
+                flight.Purpose = string.IsNullOrWhiteSpace(op.Title) ? null : op.Title.Trim();
+            if (string.IsNullOrWhiteSpace(flight.Location))
+            {
+                flight.Location = string.IsNullOrWhiteSpace(op.LocationAddress)
+                    ? (op.LocationLat is not null && op.LocationLon is not null
+                        ? $"{op.LocationLat:0.00000}, {op.LocationLon:0.00000}"
+                        : null)
+                    : op.LocationAddress.Trim();
+                flight.LocationLat ??= op.LocationLat;
+                flight.LocationLon ??= op.LocationLon;
+            }
+            RecalcDuration(flight);
+        }
+
+        if (flight.Status == FlightStatus.Draft)
+            flight.Status = FlightStatus.Ready;
+        if (!FlightStateMachine.CanTransition(flight.Status, FlightStatus.Closed))
+            throw new ValidationException($"Nepovolený prechod letu {flight.Status} → Closed.");
+
+        var notes = string.IsNullOrWhiteSpace(request.Notes)
+            ? "Potvrdený odlet (L1/L2) — žiadosť o let bola skutočne uskutočnená."
+            : request.Notes.Trim();
+
+        var beforeFlight = Map(flight);
+        flight.PostFlightNotes = notes;
+        flight.ChecklistResult = "OK — potvrdený odlet";
+        flight.Status = FlightStatus.Closed;
+        flight.ClosedAt = clock.UtcNow;
+        flight.ClosedByAccountId = currentUser.AccountId;
+        flight.UpdatedBy = currentUser.AccountId;
+        RecalcDuration(flight);
+        if (!flight.CountersApplied)
+        {
+            ApplyCountersOnce(flight);
+            flight.CountersApplied = true;
+        }
+
+        var fromStatus = op.Status;
+        op.Status = OperationStatus.Completed;
+        op.DecisionReason = notes;
+        op.DecidedAt = clock.UtcNow;
+        op.DecidedByAccountId = currentUser.AccountId;
+        op.UpdatedBy = currentUser.AccountId;
+        db.OperationStatusHistories.Add(new OperationStatusHistory
+        {
+            OperationId = op.Id,
+            FromStatus = fromStatus,
+            ToStatus = OperationStatus.Completed,
+            Reason = notes,
+            ChangedAt = clock.UtcNow,
+            CreatedBy = currentUser.AccountId,
+            UpdatedBy = currentUser.AccountId
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await maintenance.RecalculateAfterFlightAsync(flight.UasId, flight.BatteryId, flight.DurationMinutes ?? 0, cancellationToken);
+        await audit.WriteAsync("Flight.ConfirmOperationFlown", nameof(Flight), flight.Id, beforeFlight, Map(flight), cancellationToken: cancellationToken);
+        await audit.WriteAsync("Operation.Completed", nameof(Operation), op.Id,
+            new { Status = fromStatus }, new { Status = OperationStatus.Completed }, cancellationToken: cancellationToken);
+
+        flight = await LoadAsync(flight.Id, cancellationToken);
         return Map(flight);
     }
 

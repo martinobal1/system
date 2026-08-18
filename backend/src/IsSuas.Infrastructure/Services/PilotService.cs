@@ -19,6 +19,10 @@ public interface IPilotService
     Task<QualificationVerificationDto> AddQualificationVerificationAsync(Guid pilotId, Guid qualificationId, CreateQualificationVerificationRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> AddCertificateAsync(Guid pilotId, CreatePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> IssueCertificateAsync(Guid pilotId, Guid certificateId, IssuePilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotCertificateDto> GrantCertificateAsync(Guid pilotId, GrantPilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotCertificateDto> RevokeCertificateAsync(Guid pilotId, Guid certificateId, RevokePilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotCertificateDto> SuspendCertificateAsync(Guid pilotId, Guid certificateId, SuspendPilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotCertificateDto> ResumeCertificateAsync(Guid pilotId, Guid certificateId, CancellationToken cancellationToken = default);
     Task<CertificateScopeDto> AddCertificateScopeAsync(Guid pilotId, Guid certificateId, CreateCertificateScopeRequest request, CancellationToken cancellationToken = default);
     Task<PilotTrainingDto> AddTrainingAsync(Guid pilotId, CreatePilotTrainingRequest request, CancellationToken cancellationToken = default);
     Task<PersonFunctionAssignmentDto> AssignFunctionAsync(Guid pilotId, CreatePersonFunctionAssignmentRequest request, CancellationToken cancellationToken = default);
@@ -46,6 +50,8 @@ public sealed class PilotService(
         if (!policy.CanAccessBusinessData())
             throw new ForbiddenException("Systémový administrátor nemá automatický prístup k vecnému obsahu.");
 
+        await LiftExpiredCertificateSuspensionsAsync(cancellationToken);
+
         var pilots = await db.Pilots.AsNoTracking()
             .Include(p => p.Person)
             .Include(p => p.OrgUnit)
@@ -65,6 +71,7 @@ public sealed class PilotService(
     public async Task<PilotDetailDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.PilotsRead);
+        await LiftExpiredCertificateSuspensionsAsync(cancellationToken);
         var pilot = await LoadDetailAsync(id, cancellationToken);
         policy.EnsureOrgAccess(pilot.OrgUnit.Path);
 
@@ -76,7 +83,7 @@ public sealed class PilotService(
         return new PilotDetailDto(
             Map(pilot),
             pilot.Qualifications.OrderByDescending(q => q.ValidFrom).Select(MapQualification).ToList(),
-            pilot.Certificates.OrderByDescending(c => c.Version).Select(MapCertificate).ToList(),
+            CurrentPnDCertificates(pilot).Select(MapCertificate).ToList(),
             pilot.Trainings.OrderByDescending(t => t.CompletedAt).Select(MapTraining).ToList(),
             pilot.StatusHistory.OrderByDescending(h => h.ChangedAt).Select(h => new PilotStatusHistoryDto(
                 h.Id, h.FromStatus, h.ToStatus, h.Reason, h.ChangedAt)).ToList(),
@@ -289,6 +296,273 @@ public sealed class PilotService(
         await audit.WriteAsync("PilotCertificate.Issue", nameof(PilotCertificate), cert.Id, null,
             MapCertificate(cert), cancellationToken: cancellationToken);
 
+        return MapCertificate(cert);
+    }
+
+    public async Task<PilotCertificateDto> GrantCertificateAsync(
+        Guid pilotId, GrantPilotCertificateRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsWrite);
+        await LiftExpiredCertificateSuspensionsAsync(cancellationToken);
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+        policy.EnsureOrgAccess(pilot.OrgUnit.Path);
+
+        var typeCode = NormalizeCertCode(request.CertificateTypeCode);
+        if (typeCode is not ("A1_A3" or "A2" or "STS1" or "STS2"))
+            throw new ValidationException("Povolené typy osvedčenia sú A1/A3, A2, STS1 a STS2.");
+
+        var now = clock.UtcNow;
+        var validFrom = request.ValidFrom ?? now;
+        var chain = PrerequisiteChain(typeCode);
+        PilotCertificate? granted = null;
+        foreach (var step in chain)
+        {
+            var isTop = step == typeCode;
+            granted = GrantIssuedStep(
+                pilot,
+                step,
+                now,
+                validFrom,
+                request.ValidTo,
+                isTop ? request.ExternalNumber : null,
+                isTop ? request.Notes : $"Doplnené automaticky pri pridelení {CertificateTitle(typeCode)}",
+                isTop ? request.MtowOrValidityText : null,
+                forceNew: isTop);
+        }
+
+        if (pilot.Status == PilotStatus.Draft)
+        {
+            var from = pilot.Status;
+            pilot.Status = PilotStatus.Fit;
+            db.PilotStatusHistories.Add(new PilotStatusHistory
+            {
+                PilotId = pilot.Id,
+                FromStatus = from,
+                ToStatus = PilotStatus.Fit,
+                Reason = "Pridelenie osvedčenia",
+                ChangedAt = now,
+                CreatedBy = currentUser.AccountId,
+                UpdatedBy = currentUser.AccountId
+            });
+        }
+
+        RecalculateCurrencyFlags(pilot);
+        await SyncLevel3LicenseAsync(pilot, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("PilotCertificate.Grant", nameof(PilotCertificate), granted!.Id, null,
+            MapCertificate(granted), cancellationToken: cancellationToken);
+        return MapCertificate(granted);
+    }
+
+    private static IReadOnlyList<string> PrerequisiteChain(string typeCode) => typeCode switch
+    {
+        "STS2" => ["A1_A3", "A2", "STS1", "STS2"],
+        "STS1" => ["A1_A3", "A2", "STS1"],
+        "A2" => ["A1_A3", "A2"],
+        _ => ["A1_A3"]
+    };
+
+    /// <summary>Odobratie nižšieho stupňa stiahne aj všetky vyššie (A1/A3 → A2, STS1, STS2).</summary>
+    private static IReadOnlyList<string> DependentChain(string typeCode) => typeCode switch
+    {
+        "A1_A3" => ["A1_A3", "A2", "STS1", "STS2"],
+        "A2" => ["A2", "STS1", "STS2"],
+        "STS1" => ["STS1", "STS2"],
+        _ => ["STS2"]
+    };
+
+    private bool HasIssued(Pilot pilot, string typeCode, DateTimeOffset at) =>
+        pilot.Certificates.Any(c =>
+            NormalizeCertCode(c.CertificateTypeCode) == typeCode
+            && c.IsActive
+            && c.Status == CertificateStatus.Issued
+            && (c.ValidFrom is null || c.ValidFrom <= at)
+            && (c.ValidTo is null || c.ValidTo >= at));
+
+    private PilotCertificate GrantIssuedStep(
+        Pilot pilot,
+        string typeCode,
+        DateTimeOffset now,
+        DateTimeOffset validFrom,
+        DateTimeOffset? validTo,
+        string? externalNumber,
+        string? notes,
+        string? mtowOrValidityText,
+        bool forceNew)
+    {
+        if (!forceNew && HasIssued(pilot, typeCode, now))
+            return pilot.Certificates.First(c =>
+                NormalizeCertCode(c.CertificateTypeCode) == typeCode
+                && c.IsActive
+                && c.Status == CertificateStatus.Issued);
+
+        var sameType = pilot.Certificates
+            .Where(c => NormalizeCertCode(c.CertificateTypeCode) == typeCode)
+            .ToList();
+        var existing = sameType.FirstOrDefault(c => c.IsActive && c.Status == CertificateStatus.Issued)
+            ?? sameType.FirstOrDefault(c => c.IsActive && c.Status == CertificateStatus.Suspended)
+            ?? sameType.OrderByDescending(c => c.Version).FirstOrDefault();
+        if (existing is not null)
+        {
+            RemoveCertificates(pilot, sameType.Where(c => c.Id != existing.Id));
+            existing.IsActive = true;
+            existing.Status = CertificateStatus.Issued;
+            existing.SuspendedUntil = null;
+            if (!string.IsNullOrWhiteSpace(externalNumber))
+                existing.ExternalNumber = externalNumber.Trim();
+            existing.ValidFrom = validFrom;
+            existing.ValidTo = validTo;
+            existing.IssuedAt ??= now;
+            existing.TitleSk = CertificateTitle(typeCode);
+            if (!string.IsNullOrWhiteSpace(mtowOrValidityText))
+                existing.MtowOrValidityText = mtowOrValidityText;
+            if (!string.IsNullOrWhiteSpace(notes))
+                existing.Notes = notes;
+            existing.SupersedesCertificateId = null;
+            existing.UpdatedBy = currentUser.AccountId;
+            return existing;
+        }
+
+        var cert = new PilotCertificate
+        {
+            PilotId = pilot.Id,
+            CertificateTypeCode = typeCode,
+            TitleSk = CertificateTitle(typeCode),
+            ExternalNumber = string.IsNullOrWhiteSpace(externalNumber) ? null : externalNumber.Trim(),
+            Version = 1,
+            Status = CertificateStatus.Issued,
+            IssuedAt = now,
+            ValidFrom = validFrom,
+            ValidTo = validTo,
+            Notes = notes,
+            MtowOrValidityText = mtowOrValidityText,
+            CreatedBy = currentUser.AccountId,
+            UpdatedBy = currentUser.AccountId
+        };
+        db.PilotCertificates.Add(cert);
+        pilot.Certificates.Add(cert);
+        return cert;
+    }
+
+    public async Task<PilotCertificateDto> RevokeCertificateAsync(
+        Guid pilotId, Guid certificateId, RevokePilotCertificateRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsWrite);
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+        policy.EnsureOrgAccess(pilot.OrgUnit.Path);
+
+        var cert = pilot.Certificates.FirstOrDefault(c => c.Id == certificateId)
+            ?? throw new NotFoundException("Osvedčenie nebolo nájdené.");
+        if (cert.Status is CertificateStatus.Revoked or CertificateStatus.Superseded)
+            throw new ValidationException("Toto osvedčenie už nie je aktívne.");
+
+        var typeCode = NormalizeCertCode(cert.CertificateTypeCode);
+        var cascade = new HashSet<string>(DependentChain(typeCode), StringComparer.OrdinalIgnoreCase);
+        var toRevoke = pilot.Certificates
+            .Where(c => cascade.Contains(NormalizeCertCode(c.CertificateTypeCode)))
+            .ToList();
+        if (!toRevoke.Any(c => c.Id == cert.Id))
+            toRevoke.Add(cert);
+
+        var snapshot = MapCertificate(cert);
+        RemoveCertificates(pilot, toRevoke);
+
+        RecalculateCurrencyFlags(pilot);
+        await SyncLevel3LicenseAsync(pilot, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("PilotCertificate.Revoke", nameof(PilotCertificate), snapshot.Id, null,
+            snapshot, cancellationToken: cancellationToken);
+        return snapshot;
+    }
+
+    public async Task<PilotCertificateDto> SuspendCertificateAsync(
+        Guid pilotId, Guid certificateId, SuspendPilotCertificateRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsWrite);
+        await LiftExpiredCertificateSuspensionsAsync(cancellationToken);
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+        policy.EnsureOrgAccess(pilot.OrgUnit.Path);
+
+        var cert = pilot.Certificates.FirstOrDefault(c => c.Id == certificateId)
+            ?? throw new NotFoundException("Osvedčenie nebolo nájdené.");
+        if (cert.Status is not (CertificateStatus.Issued or CertificateStatus.Suspended))
+            throw new ValidationException("Pozastaviť možno iba platné alebo už pozastavené osvedčenie.");
+
+        var now = clock.UtcNow;
+        DateTimeOffset until;
+        if (request.Until is DateTimeOffset requestedUntil)
+        {
+            until = requestedUntil.ToUniversalTime();
+            if (until <= now)
+                throw new ValidationException("Dátum pozastavenia musí byť v budúcnosti.");
+            if (until > now.AddYears(2))
+                throw new ValidationException("Pozastavenie môže byť najviac na 2 roky.");
+        }
+        else
+        {
+            var days = request.DurationDays;
+            if (days is not (7 or 30 or 90 or 180))
+                throw new ValidationException("Vyberte dátum, dokedy má byť osvedčenie pozastavené.");
+            until = now.AddDays(days.Value);
+        }
+
+        var typeCode = NormalizeCertCode(cert.CertificateTypeCode);
+        var cascade = new HashSet<string>(DependentChain(typeCode), StringComparer.OrdinalIgnoreCase);
+        var reason = string.IsNullOrWhiteSpace(request.Reason)
+            ? $"Pozastavené do {until:dd.MM.yyyy}"
+            : request.Reason.Trim();
+
+        foreach (var item in pilot.Certificates.Where(c =>
+                     c.IsActive
+                     && cascade.Contains(NormalizeCertCode(c.CertificateTypeCode))
+                     && c.Status is CertificateStatus.Issued or CertificateStatus.Suspended))
+        {
+            item.Status = CertificateStatus.Suspended;
+            item.SuspendedUntil = until;
+            item.Notes = reason;
+            item.UpdatedBy = currentUser.AccountId;
+        }
+
+        RecalculateCurrencyFlags(pilot);
+        await SyncLevel3LicenseAsync(pilot, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("PilotCertificate.Suspend", nameof(PilotCertificate), cert.Id, null,
+            MapCertificate(cert), cancellationToken: cancellationToken);
+        return MapCertificate(cert);
+    }
+
+    public async Task<PilotCertificateDto> ResumeCertificateAsync(
+        Guid pilotId, Guid certificateId, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsWrite);
+        await LiftExpiredCertificateSuspensionsAsync(cancellationToken);
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+        policy.EnsureOrgAccess(pilot.OrgUnit.Path);
+
+        var cert = pilot.Certificates.FirstOrDefault(c => c.Id == certificateId)
+            ?? throw new NotFoundException("Osvedčenie nebolo nájdené.");
+        if (cert.Status == CertificateStatus.Issued)
+            return MapCertificate(cert);
+        if (cert.Status != CertificateStatus.Suspended)
+            throw new ValidationException("Obnoviť možno iba pozastavené osvedčenie.");
+
+        var typeCode = NormalizeCertCode(cert.CertificateTypeCode);
+        var cascade = new HashSet<string>(DependentChain(typeCode), StringComparer.OrdinalIgnoreCase);
+        foreach (var item in pilot.Certificates.Where(c =>
+                     c.IsActive
+                     && cascade.Contains(NormalizeCertCode(c.CertificateTypeCode))
+                     && c.Status == CertificateStatus.Suspended))
+        {
+            item.Status = CertificateStatus.Issued;
+            item.SuspendedUntil = null;
+            item.UpdatedBy = currentUser.AccountId;
+        }
+
+        RecalculateCurrencyFlags(pilot);
+        await SyncLevel3LicenseAsync(pilot, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("PilotCertificate.Resume", nameof(PilotCertificate), cert.Id, null,
+            MapCertificate(cert), cancellationToken: cancellationToken);
         return MapCertificate(cert);
     }
 
@@ -712,32 +986,86 @@ public sealed class PilotService(
         return "Pilot nie je spôsobilý.";
     }
 
+    private static IEnumerable<PilotCertificate> CurrentPnDCertificates(Pilot pilot) =>
+        pilot.Certificates
+            .Where(c => c.IsActive
+                && c.Status is CertificateStatus.Issued or CertificateStatus.Suspended
+                && NormalizeCertCode(c.CertificateTypeCode) is "A1_A3" or "A2" or "STS1" or "STS2")
+            .GroupBy(c => NormalizeCertCode(c.CertificateTypeCode), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(c => c.Status == CertificateStatus.Issued ? 0 : 1)
+                .ThenByDescending(c => c.IssuedAt ?? c.CreatedAt).ThenByDescending(c => c.Version).First())
+            .OrderBy(c => NormalizeCertCode(c.CertificateTypeCode) switch
+            {
+                "A1_A3" => 0,
+                "A2" => 1,
+                "STS1" => 2,
+                _ => 3
+            });
+
+    private void RemoveCertificates(Pilot pilot, IEnumerable<PilotCertificate> items)
+    {
+        foreach (var item in items.Where(c => c is not null).Distinct())
+        {
+            item.IsActive = false;
+            if (item.Status is CertificateStatus.Issued or CertificateStatus.Suspended)
+                item.Status = CertificateStatus.Revoked;
+            item.SuspendedUntil = null;
+            item.SupersedesCertificateId = null;
+            item.UpdatedBy = currentUser.AccountId;
+        }
+    }
+
+    private async Task LiftExpiredCertificateSuspensionsAsync(CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var expired = await db.PilotCertificates
+            .Where(c => c.IsActive && c.Status == CertificateStatus.Suspended
+                && c.SuspendedUntil != null && c.SuspendedUntil <= now)
+            .ToListAsync(cancellationToken);
+        if (expired.Count == 0) return;
+        foreach (var cert in expired)
+        {
+            cert.Status = CertificateStatus.Issued;
+            cert.SuspendedUntil = null;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private PilotDto Map(Pilot p)
     {
         var now = clock.UtcNow;
-        var activeCerts = p.Certificates
+        var issuedCerts = p.Certificates
             .Where(c => c.IsActive && c.Status == CertificateStatus.Issued
                 && (c.ValidFrom is null || c.ValidFrom <= now)
                 && (c.ValidTo is null || c.ValidTo >= now))
             .ToList();
-
-        var certCodes = activeCerts
-            .Select(c => NormalizeCertCode(c.CertificateTypeCode))
-            .Where(c => c is "A1_A3" or "A2" or "STS")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(c => c switch { "A1_A3" => 0, "A2" => 1, _ => 2 })
+        var visibleCerts = p.Certificates
+            .Where(c => c.IsActive && c.Status is CertificateStatus.Issued or CertificateStatus.Suspended
+                && (c.ValidFrom is null || c.ValidFrom <= now)
+                && (c.Status == CertificateStatus.Suspended || c.ValidTo is null || c.ValidTo >= now))
             .ToList();
 
-        var certItems = activeCerts
+        var certCodes = issuedCerts
+            .Select(c => NormalizeCertCode(c.CertificateTypeCode))
+            .Where(c => c is "A1_A3" or "A2" or "STS1" or "STS2")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c switch { "A1_A3" => 0, "A2" => 1, "STS1" => 2, _ => 3 })
+            .ToList();
+
+        var certItems = visibleCerts
             .Select(c => new PilotCertListItemDto(
                 NormalizeCertCode(c.CertificateTypeCode),
                 c.ExternalNumber,
                 c.ValidTo,
-                c.MtowOrValidityText))
-            .Where(c => c.CertificateTypeCode is "A1_A3" or "A2" or "STS")
+                c.MtowOrValidityText,
+                c.Id,
+                c.Status,
+                c.ValidFrom,
+                c.SuspendedUntil))
+            .Where(c => c.CertificateTypeCode is "A1_A3" or "A2" or "STS1" or "STS2")
             .GroupBy(c => c.CertificateTypeCode, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .OrderBy(c => c.CertificateTypeCode switch { "A1_A3" => 0, "A2" => 1, _ => 2 })
+            .Select(g => g.OrderBy(c => c.Status == CertificateStatus.Issued ? 0 : 1).First())
+            .OrderBy(c => c.CertificateTypeCode switch { "A1_A3" => 0, "A2" => 1, "STS1" => 2, _ => 3 })
             .ToList();
 
         return new(p.Id, p.PersonId, p.Person.FirstName, p.Person.LastName, p.Person.Email, p.OrgUnitId, p.OrgUnit.Name,
@@ -751,8 +1079,36 @@ public sealed class PilotService(
         var c = (code ?? "").Trim().ToUpperInvariant().Replace('-', '_').Replace('/', '_').Replace(' ', '_');
         if (c is "A1A3" or "A1_A3" or "OPEN_A1_A3" or "A1" or "A3") return "A1_A3";
         if (c is "A2" or "OPEN_A2") return "A2";
-        if (c is "STS" or "STS01" or "STS_01" or "STS02" or "STS_02" or "STANDARD_SCENARIO") return "STS";
+        if (c is "STS2" or "STS_2" or "STS02" or "STS_02") return "STS2";
+        if (c is "STS1" or "STS_1" or "STS01" or "STS_01" or "STS" or "STANDARD_SCENARIO") return "STS1";
+        if (c.StartsWith("STS2", StringComparison.Ordinal)) return "STS2";
+        if (c.StartsWith("STS", StringComparison.Ordinal)) return "STS1";
         return c;
+    }
+
+    private static string CertificateTitle(string typeCode) => typeCode switch
+    {
+        "A1_A3" => "Preukaz pilota na diaľku — kategória A1/A3",
+        "A2" => "Preukaz pilota na diaľku — kategória A2",
+        "STS1" => "Osvedčenie STS1",
+        "STS2" => "Osvedčenie STS2",
+        _ => typeCode
+    };
+
+    private async Task SyncLevel3LicenseAsync(Pilot pilot, CancellationToken cancellationToken)
+    {
+        var account = await db.Accounts.FirstOrDefaultAsync(a => a.PersonId == pilot.PersonId, cancellationToken);
+        if (account is null || account.AccessLevel != AccessLevel.Level3)
+            return;
+
+        var now = clock.UtcNow;
+        var hasIssued = pilot.Certificates.Any(c =>
+            c.IsActive
+            && c.Status == CertificateStatus.Issued
+            && (c.ValidFrom is null || c.ValidFrom <= now)
+            && (c.ValidTo is null || c.ValidTo >= now));
+        account.LicenseStatus = hasIssued ? LicenseStatus.Confirmed : LicenseStatus.Pending;
+        account.UpdatedBy = currentUser.AccountId;
     }
 
     private static PilotQualificationDto MapQualification(PilotQualification q) =>
@@ -767,7 +1123,7 @@ public sealed class PilotService(
         new(c.Id, c.CertificateTypeCode, c.TitleSk, c.ExternalNumber, c.Version, c.Status,
             c.IssuedAt, c.ValidFrom, c.ValidTo, c.IsActive,
             c.Scopes.OrderByDescending(s => s.ValidFrom).Select(MapScope).ToList(),
-            c.MtowOrValidityText);
+            c.MtowOrValidityText, c.SuspendedUntil);
 
     private static CertificateScopeDto MapScope(CertificateScope s) =>
         new(s.Id, s.ScopeTypeCode, s.UasTypeCode, s.OperationTypeCode, s.FunctionTypeCode,

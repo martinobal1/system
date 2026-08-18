@@ -55,6 +55,13 @@ public sealed record CreateFlightFromOperationRequest(
     DateTimeOffset? TakeoffAt,
     DateTimeOffset? LandingAt);
 
+/// <summary>L1/L2 potvrdia, že schválená žiadosť o let sa naozaj odlietala — vytvorí uzavretý let do denníka.</summary>
+public sealed record ConfirmOperationFlownRequest(
+    uint RowVersion,
+    DateTimeOffset? TakeoffAt = null,
+    DateTimeOffset? LandingAt = null,
+    string? Notes = null);
+
 public sealed record CreateStandaloneFlightRequest(
     Guid OrgUnitId,
     string StandaloneReason,
