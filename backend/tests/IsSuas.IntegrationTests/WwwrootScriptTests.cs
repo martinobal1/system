@@ -3,22 +3,111 @@ using System.Text.RegularExpressions;
 namespace IsSuas.IntegrationTests;
 
 /// <summary>
-/// Celé UI je inline JavaScript vo wwwroot/index.html. Prehliadač pri syntaktickej chybe zahodí
-/// celý &lt;script&gt;, takže UI prestane reagovať bez akejkoľvek hlášky — test preto kontroluje
-/// vyváženosť zátvoriek a uzavretie literálov.
+/// UI je čistý JavaScript vo wwwroot/js. Prehliadač pri syntaktickej chybe zahodí celý modul
+/// a pri zlej ceste v importe sa aplikácia nespustí vôbec — bez akejkoľvek hlášky. Testy preto
+/// kontrolujú vyváženosť zátvoriek, uzavretie literálov a existenciu všetkých odkazovaných súborov.
 /// </summary>
-public class WwwrootInlineScriptTests
+public class WwwrootScriptTests
 {
     [Fact]
-    public void IndexHtml_InlineScript_MaVyvazeneZatvorkyALiteraly()
+    public void JsSubory_MajuVyvazeneZatvorkyALiteraly()
     {
-        var path = FindIndexHtml();
-        var html = File.ReadAllText(path);
-        var scripts = InlineScripts(html);
+        var files = Directory.GetFiles(Path.Combine(FindWwwroot(), "js"), "*.js", SearchOption.AllDirectories);
 
-        Assert.NotEmpty(scripts);
-        var problems = scripts.SelectMany(s => Scan(s.Code, s.FirstLine)).ToList();
-        Assert.True(problems.Count == 0, $"{path}{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
+        Assert.NotEmpty(files);
+        var problems = files
+            .SelectMany(f => Scan(File.ReadAllText(f), 1).Select(p => $"{Path.GetFileName(f)}: {p}"))
+            .ToList();
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+    }
+
+    [Fact]
+    public void IndexHtml_OdkazovaneSubory_Existuju()
+    {
+        var wwwroot = FindWwwroot();
+        var html = File.ReadAllText(Path.Combine(wwwroot, "index.html"));
+        var refs = Regex.Matches(html, @"(?:src|href)=""(?<path>/[^""]+)""")
+            .Select(m => m.Groups["path"].Value)
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(refs);
+        var missing = refs
+            .Where(r => !File.Exists(Path.Combine(wwwroot, r.TrimStart('/').Replace('/', Path.DirectorySeparatorChar))))
+            .ToList();
+        Assert.True(missing.Count == 0, $"index.html odkazuje na neexistujúce súbory: {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void JsModuly_ImportyOdkazujuNaExistujuceSubory()
+    {
+        var jsDir = Path.Combine(FindWwwroot(), "js");
+        var problems = new List<string>();
+
+        foreach (var file in Directory.GetFiles(jsDir, "*.js", SearchOption.AllDirectories))
+        {
+            var dir = Path.GetDirectoryName(file)!;
+            foreach (Match match in Regex.Matches(File.ReadAllText(file), @"(?:from|import)\s*\(?\s*['""](?<path>\.{1,2}/[^'""]+)['""]"))
+            {
+                var target = Path.GetFullPath(Path.Combine(dir, match.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+                if (!File.Exists(target))
+                    problems.Add($"{Path.GetFileName(file)} -> {match.Groups["path"].Value}");
+            }
+        }
+
+        Assert.True(problems.Count == 0, $"Neplatné importy: {string.Join(", ", problems)}");
+    }
+
+    /// <summary>
+    /// Zabudnutý import sa v prehliadači ohlási až pri kliknutí na dané miesto, takže test hľadá
+    /// názvy, ktoré modul používa a iný modul exportuje, ale nie sú v jeho importoch.
+    /// </summary>
+    [Fact]
+    public void JsModuly_PouzivajuLenNaimportovaneNazvy()
+    {
+        var files = Directory.GetFiles(Path.Combine(FindWwwroot(), "js"), "*.js", SearchOption.AllDirectories)
+            .Where(f => Path.GetFileName(f) != "dronemap.js")
+            .ToList();
+
+        var exportedBy = new Dictionary<string, string>();
+        foreach (var file in files)
+            foreach (Match match in ExportedNames(File.ReadAllText(file)))
+                exportedBy[match.Groups["name"].Value] = Path.GetFileName(file);
+
+        var problems = new List<string>();
+        foreach (var file in files)
+        {
+            var name = Path.GetFileName(file);
+            var code = File.ReadAllText(file);
+            var declared = Regex.Matches(code, @"(?m)^\s*(?:export )?(?:async function|function|const|var|let|class) (?<name>[A-Za-z0-9_$]+)")
+                .Select(m => m.Groups["name"].Value)
+                .ToHashSet();
+            var imported = Regex.Matches(code, @"import \{(?<names>[^}]+)\}")
+                .SelectMany(m => m.Groups["names"].Value.Split(','))
+                .Select(n => n.Trim())
+                .ToHashSet();
+
+            foreach (var (symbol, owner) in exportedBy)
+            {
+                if (owner == name || declared.Contains(symbol) || imported.Contains(symbol))
+                    continue;
+                if (Regex.IsMatch(code, $@"(?<![.\w$]){Regex.Escape(symbol)}\s*[({{.\[]"))
+                    problems.Add($"{name} používa '{symbol}' z {owner} bez importu");
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+    }
+
+    private static MatchCollection ExportedNames(string code) =>
+        Regex.Matches(code, @"(?m)^export (?:async function|function|const|var|let) (?<name>[A-Za-z0-9_$]+)");
+
+    [Fact]
+    public void IndexHtml_NeobsahujeInlineSkript()
+    {
+        var html = File.ReadAllText(Path.Combine(FindWwwroot(), "index.html"));
+
+        Assert.Empty(InlineScripts(html));
     }
 
     [Fact]
@@ -50,18 +139,18 @@ public class WwwrootInlineScriptTests
         Assert.Empty(Scan(code, 1));
     }
 
-    private static string FindIndexHtml()
+    private static string FindWwwroot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "backend", "src", "IsSuas.Api", "wwwroot", "index.html");
-            if (File.Exists(candidate))
+            var candidate = Path.Combine(dir.FullName, "backend", "src", "IsSuas.Api", "wwwroot");
+            if (Directory.Exists(candidate))
                 return candidate;
             dir = dir.Parent;
         }
 
-        throw new FileNotFoundException("Nenašiel som backend/src/IsSuas.Api/wwwroot/index.html.");
+        throw new DirectoryNotFoundException("Nenašiel som backend/src/IsSuas.Api/wwwroot.");
     }
 
     private static List<(int FirstLine, string Code)> InlineScripts(string html)

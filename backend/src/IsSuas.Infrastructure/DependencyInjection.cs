@@ -44,7 +44,8 @@ public static class DependencyInjection
         services.AddObjectStorage(configuration);
         services.AddEmailSender(configuration);
         services.AddSingleton<IAirspaceMapAdapter, OfflineAirspaceMapAdapter>();
-        services.AddSingleton<IWeatherProvider, OfflineShmuWeatherProvider>();
+        services.AddHttpClient("OpenMeteo");
+        services.AddSingleton<IWeatherProvider, OpenMeteoWeatherProvider>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddScoped<IPilotUasAuthorizationService, PilotUasAuthorizationService>();
         services.AddScoped<IMonthlyFlightReportService, MonthlyFlightReportService>();
