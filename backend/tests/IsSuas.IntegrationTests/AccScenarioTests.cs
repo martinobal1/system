@@ -62,6 +62,32 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Acc1b_UasUpdate_AllowsSerialChange_AndRejectsDuplicate()
+    {
+        await LoginAs("gestor");
+        var create = await _client.PostAsJsonAsync("/api/v1/uas", new CreateUasRequest(
+            "SN-ACC1B-001", "DJI", "M300", "MULTI_ROTOR", null, null));
+        create.EnsureSuccessStatusCode();
+        var uas = await create.Content.ReadFromJsonAsync<UasDto>(JsonOptions);
+        Assert.NotNull(uas);
+
+        var other = await _client.PostAsJsonAsync("/api/v1/uas", new CreateUasRequest(
+            "SN-ACC1B-002", "DJI", "M300", "MULTI_ROTOR", null, null));
+        other.EnsureSuccessStatusCode();
+
+        var patch = await _client.PatchAsJsonAsync($"/api/v1/uas/{uas.Id}", new UpdateUasRequest(
+            "SN-ACC1B-001-EDIT", uas.Manufacturer, uas.Model, uas.LogbookNumber, uas.InventoryAssetNumber, uas.RowVersion));
+        patch.EnsureSuccessStatusCode();
+        var updated = await patch.Content.ReadFromJsonAsync<UasDto>(JsonOptions);
+        Assert.NotNull(updated);
+        Assert.Equal("SN-ACC1B-001-EDIT", updated.SerialNumber);
+
+        var dup = await _client.PatchAsJsonAsync($"/api/v1/uas/{uas.Id}", new UpdateUasRequest(
+            "SN-ACC1B-002", updated.Manufacturer, updated.Model, updated.LogbookNumber, updated.InventoryAssetNumber, updated.RowVersion));
+        Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+    }
+
+    [Fact]
     public async Task Acc2_SecondActiveAssignment_IsRejected_HistoryRemains()
     {
         await LoginAs("gestor");
@@ -566,6 +592,12 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         Assert.NotNull(defect);
         Assert.True(defect.OriginalReportLocked);
         Assert.Equal(original, defect.OriginalReport);
+        Assert.Equal("SN-ACC9-001", defect.UasSerialNumber);
+
+        var byId = await _client.GetFromJsonAsync<DefectDto>($"/api/v1/defects/{defect.Id}", JsonOptions);
+        Assert.NotNull(byId);
+        Assert.Equal("SN-ACC9-001", byId.UasSerialNumber);
+        Assert.Equal(original, byId.OriginalReport);
 
         var resolve = await _client.PostAsJsonAsync($"/api/v1/defects/{defect.Id}/resolve", new ResolveDefectRequest(
             "Vymena motorov", "Posudenie OK", true, tech.Id, defect.RowVersion));
@@ -851,6 +883,27 @@ public class AccScenarioTests : IClassFixture<IsSuasWebApplicationFactory>
         var original = await _client.GetFromJsonAsync<OfficialReportDto>($"/api/v1/official-reports/{official.Id}", JsonOptions);
         Assert.NotNull(original);
         Assert.Equal(still.SnapshotJson, original.SnapshotJson);
+    }
+
+    [Fact]
+    public async Task Acc15b_ReportExcelExport_IsValidWorkbook()
+    {
+        await LoginAs("gestor");
+        var export = await _client.PostAsJsonAsync("/api/v1/reports/export.xlsx",
+            new ReportRequest("UAS", null, null, null));
+        export.EnsureSuccessStatusCode();
+        var bytes = await export.Content.ReadAsByteArrayAsync();
+        Assert.True(bytes.Length > 100);
+        Assert.Equal((byte)'P', bytes[0]);
+        Assert.Equal((byte)'K', bytes[1]);
+        Assert.Contains("spreadsheetml.sheet", export.Content.Headers.ContentType?.MediaType);
+        await using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(bytes), System.IO.Compression.ZipArchiveMode.Read);
+        Assert.Contains(zip.Entries, e => e.FullName == "xl/worksheets/sheet1.xml");
+        using var sheet = zip.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        using var reader = new StreamReader(sheet);
+        var xml = await reader.ReadToEndAsync();
+        Assert.Contains("Ukazovateľ", xml);
+        Assert.Contains("Hodnota", xml);
     }
 
     [Fact]

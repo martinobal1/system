@@ -26,7 +26,8 @@ export async function renderReports() {
         '</select></label>' +
         '<div class="full toolbar">' +
         '<button type="submit">Zobrazit</button>' +
-        '<button type="button" id="rep-csv">Export CSV</button>' +
+        '<button type="button" id="rep-xlsx">Stiahnuť Excel</button>' +
+        '<button type="button" class="secondary" id="rep-csv">Export CSV</button>' +
         '<button type="button" class="secondary" data-hide="rep-panel">Zrusit</button>' +
         '</div></form>' +
         '<div id="rep-result"></div></div>' +
@@ -79,11 +80,18 @@ export async function renderReports() {
         }
       };
 
-      document.getElementById('rep-csv').onclick = async function () {
+      document.getElementById('rep-xlsx').onclick = function () {
+        downloadReportExport('xlsx', 'Excel stiahnutý.');
+      };
+      document.getElementById('rep-csv').onclick = function () {
+        downloadReportExport('csv', 'CSV stiahnuté.');
+      };
+
+      async function downloadReportExport(format, okMsg) {
         const msg = document.getElementById('rep-msg');
         try {
           const type = document.getElementById('rep-type').value;
-          const res = await fetch('/api/v1/reports/export.csv', {
+          const res = await fetch('/api/v1/reports/export.' + format, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -96,14 +104,14 @@ export async function renderReports() {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = type + '.csv';
+          a.download = type + '-' + new Date().toISOString().slice(0, 10) + '.' + format;
           a.click();
           URL.revokeObjectURL(url);
-          msg.innerHTML = '<div class="msg">CSV stiahnute.</div>';
+          msg.innerHTML = '<div class="msg">' + okMsg + '</div>';
         } catch (err) {
           msg.innerHTML = '<div class="error">' + err.message + '</div>';
         }
-      };
+      }
 
       document.getElementById('off-form').onsubmit = async function (ev) {
         ev.preventDefault();

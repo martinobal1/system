@@ -47,6 +47,10 @@ public sealed class DefectsController(IMaintenanceService service) : ControllerB
     public async Task<ActionResult<IReadOnlyList<DefectDto>>> List(CancellationToken cancellationToken)
         => Ok(await service.ListDefectsAsync(cancellationToken));
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<DefectDto>> Get(Guid id, CancellationToken cancellationToken)
+        => Ok(await service.GetDefectAsync(id, cancellationToken));
+
     [HttpPost]
     public async Task<ActionResult<DefectDto>> Report([FromBody] ReportDefectRequest request, CancellationToken cancellationToken)
         => Ok(await service.ReportDefectAsync(request, cancellationToken));

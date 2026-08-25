@@ -5,6 +5,13 @@ import { state } from '../core/state.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusLabelSk } from '../core/ui.js';
 import { getTechDocCatalog, techDocSlug } from '../shared/techDocs.js';
 
+function escAttr(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 export async function renderUas() {
       if (state.uasDetailId) {
         const detail = await api('/api/v1/uas/' + state.uasDetailId);
@@ -23,6 +30,10 @@ export async function renderUas() {
           return '<option value="' + o.id + '"' + (o.id === u.owningOrgUnitId ? ' selected' : '') + '>' +
             o.code + ' — ' + o.name + '</option>';
         }).join('');
+        const canEditUas = state.accessLevel === 1
+          && u.status !== 'Decommissioned' && u.status !== 8;
+        const editOpen = canEditUas && !!state.uasEditing;
+        state.uasEditing = false;
         content.innerHTML = '<div class="stack">' +
           pageHead('Detail UAS', (u.registrationNumber || u.serialNumber) + ' · ' + u.manufacturer + ' ' + u.model,
             chipHtml('Stav', statusLabelSk(u.status), 'chip-soft') +
@@ -32,10 +43,24 @@ export async function renderUas() {
           (u.status === 'Draft' || u.status === 0
             ? '<button type="button" id="uas-register">Zaregistrovať</button> '
             : '') +
+          (canEditUas
+            ? '<button type="button" class="secondary" id="uas-edit">Upraviť</button> '
+            : '') +
           (u.status !== 'Decommissioned' && u.status !== 8
             ? '<button type="button" class="secondary" id="uas-retire">Vyradiť</button>' : '') +
           '</div>' +
           '<div id="uas-msg"></div>' +
+          (canEditUas
+            ? '<div id="uas-edit-panel" class="form-panel' + (editOpen ? '' : ' hidden') + '"><h3>Upraviť kartu</h3>' +
+              '<form id="uas-edit-form" class="form-grid">' +
+              '<label>Výrobné číslo<input id="uas-e-serial" required maxlength="128" value="' + escAttr(u.serialNumber) + '" /></label>' +
+              '<label>Výrobca<input id="uas-e-mfr" required maxlength="128" value="' + escAttr(u.manufacturer) + '" /></label>' +
+              '<label>Typ (model)<input id="uas-e-model" required maxlength="128" value="' + escAttr(u.model) + '" /></label>' +
+              '<label>Č. IM<input id="uas-e-im" maxlength="64" value="' + escAttr(u.inventoryAssetNumber) + '" /></label>' +
+              '<label>Ev.č. denníka<input id="uas-e-logbook" maxlength="64" value="' + escAttr(u.logbookNumber) + '" /></label>' +
+              '<div class="full toolbar"><button type="submit">Uložiť zmeny</button>' +
+              '<button type="button" class="secondary" id="uas-e-cancel">Zrušiť</button></div></form></div>'
+            : '') +
           '<div class="form-panel"><h3>Údaje registra</h3><dl class="flight-meta">' +
           '<div><dt>Č. osvedčenia</dt><dd>' + (u.certificateNumber || '—') + '</dd></div>' +
           '<div><dt>Dátum výmazu</dt><dd>' + (u.deregisteredAt ? new Date(u.deregisteredAt).toLocaleDateString('sk-SK') : '—') + '</dd></div>' +
@@ -57,8 +82,51 @@ export async function renderUas() {
           '</div>';
         document.getElementById('uas-back').onclick = function () {
           state.uasDetailId = null;
+          state.uasEditing = false;
           navigate('uas');
         };
+        var editBtn = document.getElementById('uas-edit');
+        var editPanel = document.getElementById('uas-edit-panel');
+        if (editBtn && editPanel) {
+          editBtn.onclick = function () {
+            editPanel.classList.toggle('hidden');
+            if (!editPanel.classList.contains('hidden')) {
+              var serialEl = document.getElementById('uas-e-serial');
+              if (serialEl) serialEl.focus();
+            }
+          };
+        }
+        var editCancel = document.getElementById('uas-e-cancel');
+        if (editCancel && editPanel) {
+          editCancel.onclick = function () { editPanel.classList.add('hidden'); };
+        }
+        var editForm = document.getElementById('uas-edit-form');
+        if (editForm) {
+          editForm.onsubmit = async function (ev) {
+            ev.preventDefault();
+            try {
+              await api('/api/v1/uas/' + u.id, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  serialNumber: document.getElementById('uas-e-serial').value.trim(),
+                  manufacturer: document.getElementById('uas-e-mfr').value.trim(),
+                  model: document.getElementById('uas-e-model').value.trim(),
+                  logbookNumber: document.getElementById('uas-e-logbook').value.trim() || null,
+                  inventoryAssetNumber: document.getElementById('uas-e-im').value.trim() || null,
+                  rowVersion: u.rowVersion
+                })
+              });
+              state.uasEditing = false;
+              navigate('uas');
+            } catch (err) {
+              document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>';
+            }
+          };
+        }
+        if (editOpen) {
+          var serialFocus = document.getElementById('uas-e-serial');
+          if (serialFocus) serialFocus.focus();
+        }
         var registerBtn = document.getElementById('uas-register');
         if (registerBtn) registerBtn.onclick = async function () {
           try {
@@ -151,8 +219,13 @@ export async function renderUas() {
           '<td>' + (u.logbookNumber || '—') + '</td>' +
           '<td>' + (u.owningOrgUnitName || '—') + '</td>' +
           '<td>' + (u.inventoryAssetNumber || '—') + '</td>' +
+          (canAddUas
+            ? '<td>' + (u.status !== 'Decommissioned' && u.status !== 8
+              ? '<button type="button" class="secondary uas-edit" data-id="' + u.id + '">Upraviť</button>'
+              : '—') + '</td>'
+            : '') +
           '</tr>';
-      }).join('') || '<tr><td colspan="10">Zatiaľ žiadne UAS v registri</td></tr>';
+      }).join('') || '<tr><td colspan="' + (canAddUas ? '11' : '10') + '">Zatiaľ žiadne UAS v registri</td></tr>';
       const uasModelsPanel = renderFleetModelsPanel(fleetModelsFromUasList(list), list.length, {
         subtitle: 'Zloženie registra podľa typu UAS',
         limit: 12
@@ -190,7 +263,7 @@ export async function renderUas() {
           'Ev.č. denníka',
           'Užívateľ (útvar)',
           'Č. IM'
-        ], rows, true) +
+        ].concat(canAddUas ? ['Akcie'] : []), rows, true) +
         '</div></div>';
       bindChartTooltips(content);
       if (canAddUas) {
@@ -226,8 +299,17 @@ export async function renderUas() {
       }
       content.querySelectorAll('.uas-row').forEach(function (row) {
         row.onclick = function (ev) {
-          if (ev.target.closest('.uas-type-link')) return;
+          if (ev.target.closest('.uas-type-link') || ev.target.closest('.uas-edit')) return;
           state.uasDetailId = row.dataset.id;
+          state.uasEditing = false;
+          navigate('uas');
+        };
+      });
+      content.querySelectorAll('.uas-edit').forEach(function (btn) {
+        btn.onclick = function (ev) {
+          ev.stopPropagation();
+          state.uasDetailId = btn.dataset.id;
+          state.uasEditing = true;
           navigate('uas');
         };
       });

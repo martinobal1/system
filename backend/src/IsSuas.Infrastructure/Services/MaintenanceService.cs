@@ -17,6 +17,7 @@ public interface IMaintenanceService
     Task<WorkOrderDto> CreateWorkOrderAsync(CreateWorkOrderRequest request, CancellationToken cancellationToken = default);
     Task<MaintenanceRecordDto> CompleteWorkOrderAsync(Guid workOrderId, CompleteWorkOrderRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DefectDto>> ListDefectsAsync(CancellationToken cancellationToken = default);
+    Task<DefectDto> GetDefectAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DefectDto> ReportDefectAsync(ReportDefectRequest request, CancellationToken cancellationToken = default);
     Task<DefectDto> ResolveDefectAsync(Guid defectId, ResolveDefectRequest request, CancellationToken cancellationToken = default);
     Task RecalculateAfterFlightAsync(Guid? uasId, Guid? batteryId, int flightMinutes, CancellationToken cancellationToken = default);
@@ -193,13 +194,33 @@ public sealed class MaintenanceService(
             .OrderByDescending(d => d.CreatedAt)
             .ToListAsync(cancellationToken);
         var accessible = await AccessibleTargetIdsAsync(cancellationToken);
+        var uasById = await LoadUasByIdsAsync(items.Select(DefectUasId), cancellationToken);
         return items.Where(d =>
         {
-            var targetId = d.RelatedUasId ?? (d.TargetType == MaintenanceTargetType.Uas ? d.TargetId : null);
+            var targetId = DefectUasId(d);
             return targetId is null
                 || IsTargetAccessible(MaintenanceTargetType.Uas, targetId, accessible)
                 || IsTargetAccessible(d.TargetType, d.TargetId, accessible);
-        }).Select(MapDefect).ToList();
+        }).Select(d => MapDefect(d, uasById)).ToList();
+    }
+
+    public async Task<DefectDto> GetDefectAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.MaintenanceRead);
+        if (!policy.CanAccessBusinessData())
+            throw new ForbiddenException("Systémový administrátor nemá automatický prístup k vecnému obsahu.");
+
+        var defect = await db.Defects.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Porucha nebola nájdená.");
+        var accessible = await AccessibleTargetIdsAsync(cancellationToken);
+        var uasId = DefectUasId(defect);
+        if (uasId is not null
+            && !IsTargetAccessible(MaintenanceTargetType.Uas, uasId, accessible)
+            && !IsTargetAccessible(defect.TargetType, defect.TargetId, accessible))
+            throw new ForbiddenException("Prístup k poruche bol zamietnutý.");
+
+        var uasById = await LoadUasByIdsAsync(new[] { uasId }, cancellationToken);
+        return MapDefect(defect, uasById);
     }
 
     public async Task<DefectDto> ReportDefectAsync(ReportDefectRequest request, CancellationToken cancellationToken = default)
@@ -244,7 +265,7 @@ public sealed class MaintenanceService(
 
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("Defect.Report", nameof(Defect), defect.Id, null, MapDefect(defect), cancellationToken: cancellationToken);
-        return MapDefect(defect);
+        return await MapDefectWithUasAsync(defect, cancellationToken);
     }
 
     public async Task<DefectDto> ResolveDefectAsync(Guid defectId, ResolveDefectRequest request, CancellationToken cancellationToken = default)
@@ -298,7 +319,7 @@ public sealed class MaintenanceService(
 
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("Defect.Resolve", nameof(Defect), defect.Id, null, MapDefect(defect), cancellationToken: cancellationToken);
-        return MapDefect(defect);
+        return await MapDefectWithUasAsync(defect, cancellationToken);
     }
 
     public async Task RecalculateAfterFlightAsync(Guid? uasId, Guid? batteryId, int flightMinutes, CancellationToken cancellationToken = default)
@@ -723,9 +744,37 @@ public sealed class MaintenanceService(
             r.RestrictionDescription, r.EffectiveFrom, r.ValidTo, r.ReleasedByAccountId, r.DecisionReason, r.Status,
             r.IsActive, r.RowVersion);
 
-    private static DefectDto MapDefect(Defect d) =>
-        new(d.Id, d.TargetType, d.TargetId, d.Title, d.OriginalReport, d.OriginalReportLocked, d.Severity, d.Status,
-            d.BlocksOperations, d.TemporaryMeasure, d.ReportedByAccountId, d.DefectTypeCode, d.ResolutionNotes, d.IsActive, d.RowVersion);
+    private static DefectDto MapDefect(Defect d, IReadOnlyDictionary<Guid, Uas>? uasById = null)
+    {
+        Uas? uas = null;
+        var uasId = DefectUasId(d);
+        if (uasId is Guid id && uasById is not null)
+            uasById.TryGetValue(id, out uas);
+        return new DefectDto(
+            d.Id, d.TargetType, d.TargetId, d.Title, d.OriginalReport, d.OriginalReportLocked, d.Severity, d.Status,
+            d.BlocksOperations, d.TemporaryMeasure, d.ReportedByAccountId, d.DefectTypeCode, d.ResolutionNotes, d.IsActive, d.RowVersion,
+            uasId, uas?.SerialNumber, uas?.RegistrationNumber, uas?.Manufacturer, uas?.Model,
+            d.TechnicalAssessment, d.TestPerformed, d.ResolvedAt, d.CreatedAt);
+    }
+
+    private async Task<DefectDto> MapDefectWithUasAsync(Defect d, CancellationToken cancellationToken)
+    {
+        var uasById = await LoadUasByIdsAsync(new[] { DefectUasId(d) }, cancellationToken);
+        return MapDefect(d, uasById);
+    }
+
+    private static Guid? DefectUasId(Defect d) =>
+        d.RelatedUasId ?? (d.TargetType == MaintenanceTargetType.Uas ? d.TargetId : null);
+
+    private async Task<Dictionary<Guid, Uas>> LoadUasByIdsAsync(IEnumerable<Guid?> ids, CancellationToken cancellationToken)
+    {
+        var list = ids.Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+        if (list.Count == 0)
+            return new Dictionary<Guid, Uas>();
+        return await db.UasAircraft.AsNoTracking()
+            .Where(u => list.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+    }
 
     private sealed record AccessibleTargets(HashSet<Guid> UasIds, HashSet<Guid> BatteryIds, HashSet<Guid> ComponentIds);
 

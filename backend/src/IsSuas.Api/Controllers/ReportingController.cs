@@ -51,6 +51,15 @@ public sealed class ReportsController(IReportingService service) : ControllerBas
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8",
             $"{request.ReportTypeCode}-{DateTime.UtcNow:yyyyMMddHHmm}.csv");
     }
+
+    [HttpPost("export.xlsx")]
+    public async Task<IActionResult> ExportExcel([FromBody] ReportRequest request, CancellationToken cancellationToken)
+    {
+        var bytes = await service.ExportReportExcelAsync(request, cancellationToken);
+        return File(bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"{request.ReportTypeCode}-{DateTime.UtcNow:yyyyMMddHHmm}.xlsx");
+    }
 }
 
 [ApiController]

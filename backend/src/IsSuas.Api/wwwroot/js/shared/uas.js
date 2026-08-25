@@ -17,7 +17,10 @@ export function uasSelectHtml(uasList, emptyLabel) {
     return '<option value="">' + (emptyLabel || '(ziadne UAS v databaze)') + '</option>';
   }
   return uasList.map(function (u) {
-    return '<option value="' + u.id + '">' + (u.registrationNumber || u.serialNumber) +
+    var sn = u.serialNumber || '';
+    var reg = u.registrationNumber || '';
+    var ident = sn ? (reg ? reg + ' · SN ' + sn : sn) : (reg || u.id);
+    return '<option value="' + u.id + '">' + ident +
       ' — ' + u.manufacturer + ' ' + u.model + ' (' + statusLabelSk(u.status) + ')</option>';
   }).join('');
 }

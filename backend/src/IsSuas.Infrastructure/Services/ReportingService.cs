@@ -7,6 +7,7 @@ using IsSuas.Application.Reporting;
 using IsSuas.Domain.Enums;
 using IsSuas.Domain.Reporting;
 using IsSuas.Infrastructure.Persistence;
+using IsSuas.Infrastructure.Reporting;
 using Microsoft.EntityFrameworkCore;
 
 namespace IsSuas.Infrastructure.Services;
@@ -17,6 +18,7 @@ public interface IReportingService
     Task<IReadOnlyList<CalendarItemDto>> GetCalendarAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
     Task<ReportDto> GenerateReportAsync(ReportRequest request, CancellationToken cancellationToken = default);
     Task<string> ExportReportCsvAsync(ReportRequest request, CancellationToken cancellationToken = default);
+    Task<byte[]> ExportReportExcelAsync(ReportRequest request, CancellationToken cancellationToken = default);
     Task<OfficialReportDto> CreateOfficialAsync(CreateOfficialReportRequest request, CancellationToken cancellationToken = default);
     Task<OfficialReportDto> ApproveOfficialAsync(Guid id, ApproveOfficialReportRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OfficialReportDto>> ListOfficialAsync(CancellationToken cancellationToken = default);
@@ -341,6 +343,12 @@ public sealed class ReportingService(
         foreach (var t in report.Totals)
             sb.AppendLine($"{Escape(t.Key)};{t.Value.ToString(CultureInfo.InvariantCulture)}");
         return sb.ToString();
+    }
+
+    public async Task<byte[]> ExportReportExcelAsync(ReportRequest request, CancellationToken cancellationToken = default)
+    {
+        var report = await GenerateReportAsync(request, cancellationToken);
+        return ExcelReportWorkbook.Build(report);
     }
 
     public async Task<OfficialReportDto> CreateOfficialAsync(CreateOfficialReportRequest request, CancellationToken cancellationToken = default)

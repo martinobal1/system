@@ -91,7 +91,16 @@ public sealed record DefectDto(
     string DefectTypeCode,
     string? ResolutionNotes,
     bool IsActive,
-    uint RowVersion);
+    uint RowVersion,
+    Guid? RelatedUasId = null,
+    string? UasSerialNumber = null,
+    string? UasRegistrationNumber = null,
+    string? UasManufacturer = null,
+    string? UasModel = null,
+    string? TechnicalAssessment = null,
+    bool TestPerformed = false,
+    DateTimeOffset? ResolvedAt = null,
+    DateTimeOffset? CreatedAt = null);
 
 public sealed record ReportDefectRequest(
     MaintenanceTargetType TargetType,

@@ -31,6 +31,8 @@
         radial-gradient(900px 420px at -5% 20%, #d9f0ea 0%, transparent 50%),
         var(--bg);
     }
+    html.issuas-has-session #login-view { display: none !important; }
+    html.issuas-has-session #app-view { display: grid !important; }
     .login-shell {
       min-height: 100vh;
       display: grid;
@@ -727,6 +729,7 @@
       font-weight: 600;
       color: var(--ink);
     }
+    .flight-meta > .full { grid-column: 1 / -1; }
     tr.flight-row,
     tr.pilot-row,
     tr.op-row {

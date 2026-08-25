@@ -20,6 +20,8 @@ export const state = {
   techDocCreating: false,
   flightDetailId: null,
   uasDetailId: null,
+  uasEditing: false,
+  defectDetailId: null,
   pilotDetailId: null,
   pilotRegisterTab: 'a1',
   monthlyYear: null,
@@ -50,6 +52,22 @@ export function applyLoginSession(res) {
   localStorage.setItem('issuas.accountId', state.accountId);
   localStorage.setItem('issuas.accessLevel', String(state.accessLevel));
   localStorage.setItem('issuas.licenseStatus', state.licenseStatus);
+}
+
+export function hasUsableSession() {
+  if (!state.token) return false;
+  try {
+    var parts = state.token.split('.');
+    if (parts.length < 2) return true;
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var payload = JSON.parse(atob(b64));
+    if (payload.exp && payload.exp * 1000 <= Date.now()) {
+      clearSession(true);
+      return false;
+    }
+  } catch (_) { /* server decides if the token is invalid */ }
+  return true;
 }
 
 export function clearSession(clearStorage = true) {

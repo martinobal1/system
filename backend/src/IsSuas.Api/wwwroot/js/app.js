@@ -1,6 +1,6 @@
 import { api, setUnauthorizedHandler } from './core/api.js';
 import { applyNavByRole, closeNav, defaultPageForRole, initNav, isPageAllowedForRole, navigate, pageFromPath } from './core/nav.js';
-import { applyLoginSession, clearSession, state } from './core/state.js';
+import { applyLoginSession, clearSession, hasUsableSession, state } from './core/state.js';
 import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/ui.js';
     // Stranka vyziadana v URL pred prihlasenim; otvori sa az po uspesnom logine.
     var pendingRoute = null;
@@ -11,9 +11,10 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
       loginError.classList.remove('hidden');
     }
 
-    setUnauthorizedHandler(function () { logout(false); });
+    setUnauthorizedHandler(function () { logout(true); });
 
     function showApp() {
+      document.documentElement.classList.add('issuas-has-session');
       loginView.classList.add('hidden');
       appView.classList.remove('hidden');
       displayNameEl.textContent = state.displayName;
@@ -33,6 +34,7 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
     }
 
     function showLogin() {
+      document.documentElement.classList.remove('issuas-has-session');
       closeNav();
       if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
       appView.classList.add('hidden');
@@ -224,23 +226,18 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
 
     initNav();
 
-
-
-    // Stary token po reštarte API nefunguje — vzdy ukaz login (okrem SSO callback)
-    localStorage.removeItem('issuas.token');
-    localStorage.removeItem('issuas.name');
-    localStorage.removeItem('issuas.userName');
-    localStorage.removeItem('issuas.personId');
-    localStorage.removeItem('issuas.accountId');
-    state.token = null;
-    state.userName = '';
-    state.personId = '';
-    state.accountId = '';
     pendingRoute = pageFromPath(window.location.pathname);
     if (pendingRoute === 'search') {
       state.searchQuery = new URLSearchParams(window.location.search).get('q') || '';
     }
 
-    completeSsoCallbackFromUrl().then(function (handled) {
-      if (!handled) showLogin();
-    });
+    var isSsoCallback = (window.location.pathname || '').indexOf('/auth/callback') >= 0;
+    if (!isSsoCallback && state.token && hasUsableSession()) {
+      showApp();
+    } else {
+      completeSsoCallbackFromUrl().then(function (handled) {
+        if (handled) return;
+        if (state.token && hasUsableSession()) showApp();
+        else showLogin();
+      });
+    }

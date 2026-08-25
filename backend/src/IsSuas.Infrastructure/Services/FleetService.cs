@@ -15,6 +15,7 @@ public interface IFleetService
     Task<PagedResult<UasDto>> ListUasAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<UasDetailDto> GetUasAsync(Guid id, CancellationToken cancellationToken = default);
     Task<UasDto> CreateUasAsync(CreateUasRequest request, CancellationToken cancellationToken = default);
+    Task<UasDto> UpdateUasAsync(Guid id, UpdateUasRequest request, CancellationToken cancellationToken = default);
     Task<UasDto> SubmitUasAsync(Guid id, CancellationToken cancellationToken = default);
     Task<UasDto> ApproveUasAsync(Guid id, CancellationToken cancellationToken = default);
     Task<UasDto> TransitionUasAsync(Guid id, TransitionUasRequest request, CancellationToken cancellationToken = default);
@@ -165,6 +166,40 @@ public sealed class FleetService(
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("Uas.Create", nameof(Uas), entity.Id, null, MapUas(entity), cancellationToken: cancellationToken);
         return MapUas(entity);
+    }
+
+    public async Task<UasDto> UpdateUasAsync(Guid id, UpdateUasRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.UasWrite);
+        var uas = await LoadUasAsync(id, cancellationToken);
+        EnsureUasOrgAccess(uas);
+        if (uas.RowVersion != request.RowVersion)
+            throw new ConflictException("Záznam bol medzitým zmenený iným používateľom.");
+        if (uas.Status == UasLifecycleStatus.Decommissioned)
+            throw new ValidationException("Vyradený UAS už nie je možné upraviť.");
+
+        var serial = (request.SerialNumber ?? "").Trim();
+        var manufacturer = (request.Manufacturer ?? "").Trim();
+        var model = (request.Model ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(serial))
+            throw new ValidationException("Výrobné číslo je povinné.");
+        if (string.IsNullOrWhiteSpace(manufacturer))
+            throw new ValidationException("Výrobca je povinný.");
+        if (string.IsNullOrWhiteSpace(model))
+            throw new ValidationException("Typ (model) je povinný.");
+        if (await db.UasAircraft.AnyAsync(x => x.Id != id && x.SerialNumber == serial, cancellationToken))
+            throw new ConflictException("Výrobné číslo UAS už existuje.");
+
+        var before = MapUas(uas);
+        uas.SerialNumber = serial;
+        uas.Manufacturer = manufacturer;
+        uas.Model = model;
+        uas.LogbookNumber = string.IsNullOrWhiteSpace(request.LogbookNumber) ? null : request.LogbookNumber.Trim();
+        uas.InventoryAssetNumber = string.IsNullOrWhiteSpace(request.InventoryAssetNumber) ? null : request.InventoryAssetNumber.Trim();
+        uas.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("Uas.Update", nameof(Uas), uas.Id, before, MapUas(uas), cancellationToken: cancellationToken);
+        return MapUas(uas);
     }
 
     public async Task<UasDto> SubmitUasAsync(Guid id, CancellationToken cancellationToken = default)

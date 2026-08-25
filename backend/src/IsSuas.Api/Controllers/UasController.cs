@@ -26,6 +26,10 @@ public sealed class UasController(IFleetService service) : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
+    [HttpPatch("{id:guid}")]
+    public async Task<ActionResult<UasDto>> Update(Guid id, [FromBody] UpdateUasRequest request, CancellationToken cancellationToken)
+        => Ok(await service.UpdateUasAsync(id, request, cancellationToken));
+
     [HttpPost("{id:guid}/submit")]
     public async Task<ActionResult<UasDto>> Submit(Guid id, CancellationToken cancellationToken)
         => Ok(await service.SubmitUasAsync(id, cancellationToken));
