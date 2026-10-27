@@ -1,7 +1,7 @@
 import { api } from '../core/api.js';
 import { bindChartTooltips, colorForKey, entityLabelHtml, renderActivityBarsPanel, renderFleetModelsPanel, renderFlightHoursPanel, renderWeatherPanel, swatchHtml } from '../core/charts.js';
 import { ensureMapLibs } from '../core/maps.js';
-import { navigate } from '../core/nav.js';
+import { isPageAllowedForRole, navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
 import { content, makeTable, statusBadge, statusLabelSk, typeLabelSk } from '../core/ui.js';
 
@@ -32,7 +32,7 @@ export async function renderDashboard() {
         weather = await api('/api/v1/weather');
       } catch (_) { /* weather optional for overview */ }
 
-      const scopeLabel = scope === 'branch' ? 'Zlozka' : (scope === 'unit' ? 'Utvar' : 'Centralny');
+      const scopeLabel = scope === 'branch' ? 'Zložka' : (scope === 'unit' ? 'Útvar' : 'Centrálny prehľad');
       const scopeHint = d.scopeOrgUnitName
         ? scopeLabel + ': ' + d.scopeOrgUnitName
         : scopeLabel;
@@ -43,15 +43,15 @@ export async function renderDashboard() {
           return '<option value="' + o.id + '"' + (o.id === selectedOrg ? ' selected' : '') + '>' +
             o.code + ' — ' + o.name + '</option>';
         }).join('');
-        orgSelectHtml = '<label style="display:flex;gap:0.5rem;align-items:center">Zlozka ' +
-          '<select id="dash-org" style="width:auto;min-width:220px">' + opts + '</select></label>';
+        orgSelectHtml = '<label class="dash-org-pick">Zložka ' +
+          '<select id="dash-org">' + opts + '</select></label>';
       } else if (scope === 'unit') {
         const opts = unitOrgs.map(function (o) {
           return '<option value="' + o.id + '"' + (o.id === selectedOrg ? ' selected' : '') + '>' +
             o.code + ' — ' + o.name + '</option>';
         }).join('');
-        orgSelectHtml = '<label style="display:flex;gap:0.5rem;align-items:center">Utvar ' +
-          '<select id="dash-org" style="width:auto;min-width:220px">' + opts + '</select></label>';
+        orgSelectHtml = '<label class="dash-org-pick">Útvar ' +
+          '<select id="dash-org">' + opts + '</select></label>';
       }
 
       const upcoming = (d.upcomingOperations || []).map(function (o) {
@@ -60,12 +60,12 @@ export async function renderDashboard() {
           '<span>' + o.title + '</span></span></td><td>' + statusBadge(o.status) + '</td><td>' +
           entityLabelHtml(o.orgUnitName, o.orgUnitName) +
           '</td><td>' + new Date(o.start).toLocaleString('sk-SK') + '</td></tr>';
-      }).join('') || '<tr><td colspan="4">Ziadne bliziace sa operacie</td></tr>';
+      }).join('') || '<tr><td colspan="4" class="empty-cell">Žiadne blížiace sa operácie</td></tr>';
       const alerts = (d.criticalAlerts || []).map(function (a) {
         return '<tr class="row-tint" style="--row-accent:' + colorForKey(a.priority || a.typeCode) + '">' +
           '<td>' + statusBadge(a.priority) + '</td><td>' + typeLabelSk(a.typeCode) +
           '</td><td>' + a.title + '</td></tr>';
-      }).join('') || '<tr><td colspan="3">Ziadne kriticke upozornenia</td></tr>';
+      }).join('') || '<tr><td colspan="3" class="empty-cell">Žiadne kritické upozornenia</td></tr>';
 
       const weatherHtml = renderWeatherPanel(weather);
       var primaryHoursPie;
@@ -108,54 +108,89 @@ export async function renderDashboard() {
       );
       const modelsPanel = renderFleetModelsPanel(d.fleetByModel || [], d.fleet.totalUas);
       const activityBars = renderActivityBarsPanel(d);
-      const fleetMeta =
-        '<div class="meta">' +
-        '<span><i class="dot dot-ok"></i>' + ((d.fleet && d.fleet.inUse) || 0) + ' používané</span>' +
-        '<span><i class="dot" style="background:#8a97a6"></i>' + ((d.fleet && d.fleet.idle) || 0) + ' nepoužívané</span>' +
-        '<span><i class="dot dot-danger"></i>' + ((d.fleet && d.fleet.decommissioned) || 0) + ' vyradené</span>' +
-        '</div>';
+      const ICONS = {
+        clock: '<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>',
+        plane: '<path d="M10.5 3.5 12 2l1.5 1.5v6l7.5 4.5v2l-7.5-2.5v4.5l2.5 2V21l-4-1-4 1v-1.5l2.5-2V13L3 15.5v-2l7.5-4.5z"/>',
+        drone: '<circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="9.5" y="9.5" width="5" height="5" rx="1.2"/>',
+        calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+        alert: '<path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v5M12 17h.01"/>',
+        shield: '<path d="M12 3 4 7v5c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V7l-8-4z"/><path d="M12 8v5M12 16h.01"/>'
+      };
+      function kpi(opts) {
+        var go = opts.page && isPageAllowedForRole(opts.page);
+        var tag = go ? 'button type="button" data-go="' + opts.page + '"' : 'div';
+        return '<' + tag + ' class="kpi kpi-' + (opts.tone || 'teal') + '">' +
+          '<span class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[opts.icon] + '</svg></span>' +
+          '<span class="kpi-label">' + opts.label + '</span>' +
+          '<span class="kpi-value">' + opts.value + (opts.unit ? '<small>' + opts.unit + '</small>' : '') + '</span>' +
+          (opts.sub ? '<span class="kpi-sub">' + opts.sub + '</span>' : '') +
+          '</' + (go ? 'button' : 'div') + '>';
+      }
+      const fleet = d.fleet || {};
+      const hours = d.totalFlightHours != null ? Number(d.totalFlightHours).toLocaleString('sk-SK', { maximumFractionDigits: 1 }) : '0';
+      const kpis =
+        kpi({ icon: 'clock', label: 'Nálet celkom', value: hours, unit: 'h', sub: 'z denníka letov', page: 'flights' }) +
+        kpi({ icon: 'plane', label: 'Odletené lety', value: d.totalTakeoffs != null ? d.totalTakeoffs : 0, sub: 'potvrdené odlety', page: 'flights', tone: 'blue' }) +
+        kpi({ icon: 'drone', label: 'UAS vo flotile', value: fleet.totalUas || 0, sub: (fleet.inUse || 0) + ' používaných · ' + (fleet.idle || 0) + ' bez letu', page: 'uas', tone: 'violet' }) +
+        kpi({ icon: 'calendar', label: 'Operácie dnes', value: d.operationsToday || 0, sub: 'naplánované na dnes', page: 'operations', tone: 'blue' }) +
+        kpi({ icon: 'alert', label: 'Otvorené poruchy', value: d.openDefects || 0, sub: d.openDefects ? 'vyžadujú pozornosť' : 'všetko v poriadku', page: 'defects', tone: d.openDefects ? 'amber' : 'green' }) +
+        kpi({ icon: 'shield', label: 'Incidenty', value: d.openIncidents || 0, sub: d.openIncidents ? 'otvorené' : 'žiadne otvorené', page: 'incidents', tone: d.openIncidents ? 'red' : 'green' });
+
+      const hour = new Date().getHours();
+      const greet = hour < 10 ? 'Dobré ráno' : (hour < 18 ? 'Dobrý deň' : 'Dobrý večer');
+      const firstName = String(state.displayName || '').trim().split(/\s+/)[0] || '';
+      const today = new Date().toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const metaBits = [
+        statusLabelSk(d.roleHint),
+        scopeHint,
+        (d.confirmedMonthlyReports || 0) + ' odovzdaných výkazov',
+        (d.missingMonthlyReports || 0) + ' chýbajúcich',
+        (d.unreadNotifications || 0) + ' neprečítaných notifikácií'
+      ];
 
       content.innerHTML =
-        '<div class="stack">' +
-        '<div class="msg">Vitajte, ' + state.displayName + ' (rola: ' + statusLabelSk(d.roleHint) + ') — ' + scopeHint + '</div>' +
-        '<div class="toolbar">' +
-        '<button type="button" class="secondary dash-scope" data-scope="central"' + (scope === 'central' ? ' disabled' : '') + '>Centrálny</button>' +
-        '<button type="button" class="secondary dash-scope" data-scope="branch"' + (scope === 'branch' ? ' disabled' : '') + '>Zložka</button>' +
-        '<button type="button" class="secondary dash-scope" data-scope="unit"' + (scope === 'unit' ? ' disabled' : '') + '>Útvar</button>' +
+        '<div class="stack dash">' +
+        '<div class="dash-hero">' +
+        '<div class="dash-hero-text">' +
+        '<p class="dash-date">' + today + '</p>' +
+        '<h1>' + greet + (firstName ? ', ' + firstName : '') + '</h1>' +
+        '<p class="dash-meta">' + metaBits.map(function (b) { return '<span>' + b + '</span>'; }).join('') + '</p>' +
+        '</div>' +
+        '<div class="dash-hero-controls">' +
+        '<div class="segmented" role="tablist" aria-label="Rozsah prehľadu">' +
+        '<button type="button" class="dash-scope' + (scope === 'central' ? ' is-on' : '') + '" data-scope="central"' + (scope === 'central' ? ' aria-selected="true"' : '') + '>Centrálny</button>' +
+        '<button type="button" class="dash-scope' + (scope === 'branch' ? ' is-on' : '') + '" data-scope="branch"' + (scope === 'branch' ? ' aria-selected="true"' : '') + '>Zložka</button>' +
+        '<button type="button" class="dash-scope' + (scope === 'unit' ? ' is-on' : '') + '" data-scope="unit"' + (scope === 'unit' ? ' aria-selected="true"' : '') + '>Útvar</button>' +
+        '</div>' +
         orgSelectHtml +
         '</div>' +
-        '<div class="dash-grid">' + primaryHoursPie + uasPie + '</div>' +
-        '<div class="dash-grid">' + fleetPie + activityBars + '</div>' +
-        '<div class="dash-grid dash-grid-full">' + modelsPanel + '</div>' +
-        '<div class="dash-grid">' +
-        weatherHtml +
-        '<div class="stat-grid dash-stats">' +
-        '<div class="stat"><div class="n">' + d.fleet.totalUas + '</div><div class="l">UAS celkom</div>' + fleetMeta + '</div>' +
-        '<div class="stat"><div class="n">' + (d.totalFlightHours != null ? Number(d.totalFlightHours).toFixed(1) : '0') + '</div><div class="l">Nálet (denník)</div></div>' +
-        '<div class="stat"><div class="n">' + (d.totalTakeoffs != null ? d.totalTakeoffs : 0) + '</div><div class="l">Odletené lety</div></div>' +
-        '<div class="stat"><div class="n">' + (d.confirmedMonthlyReports != null ? d.confirmedMonthlyReports : 0) + '</div><div class="l">Odovzdane vykazy</div></div>' +
-        '<div class="stat"><div class="n">' + (d.missingMonthlyReports != null ? d.missingMonthlyReports : 0) + '</div><div class="l">Chybajuce vykazy</div></div>' +
-        '<div class="stat"><div class="n">' + d.operationsToday + '</div><div class="l">Operacie dnes</div></div>' +
-        '<div class="stat"><div class="n">' + d.openDefects + '</div><div class="l">Poruchy</div></div>' +
-        '<div class="stat"><div class="n">' + d.openIncidents + '</div><div class="l">Incidenty</div></div>' +
-        '<div class="stat"><div class="n">' + d.unreadNotifications + '</div><div class="l">Neprecitane</div></div>' +
         '</div>' +
-        '</div>' +
+        '<div class="kpi-grid">' + kpis + '</div>' +
+        '<div class="dash-row dash-row-map">' +
         '<div class="dash-map-panel">' +
         '<div class="dash-map-chrome">' +
         '<div><h2>Operačný priestor · Slovensko</h2>' +
         '<p>VFR prehľad vzdušných priestorov (LPS SR)</p></div>' +
-        '<button type="button" class="secondary" id="dash-open-map">Otvorit mapu</button>' +
+        '<button type="button" class="secondary" id="dash-open-map">Otvoriť mapu →</button>' +
         '</div>' +
         '<div id="dash-drone-map"></div>' +
         '</div>' +
-        '<div class="dash-grid">' +
-        '<div class="dash-table-panel"><h2>Najblizsie operacie</h2>' +
-        makeTable(['Nazov', 'Stav', 'Utvar', 'Zaciatok'], upcoming, true) + '</div>' +
-        '<div class="dash-table-panel"><h2>Kriticke upozornenia</h2>' +
-        makeTable(['Priorita', 'Typ', 'Nazov'], alerts, true) + '</div>' +
+        weatherHtml +
+        '</div>' +
+        '<div class="dash-row">' + primaryHoursPie + uasPie + '</div>' +
+        '<div class="dash-row">' + fleetPie + activityBars + '</div>' +
+        '<div class="dash-row dash-row-full">' + modelsPanel + '</div>' +
+        '<div class="dash-row">' +
+        '<div class="dash-table-panel"><div class="card-head"><h2>Najbližšie operácie</h2>' +
+        (isPageAllowedForRole('operations') ? '<button type="button" class="link-btn" data-go="operations">Všetky →</button>' : '') + '</div>' +
+        makeTable(['Názov', 'Stav', 'Útvar', 'Začiatok'], upcoming, true) + '</div>' +
+        '<div class="dash-table-panel"><div class="card-head"><h2>Kritické upozornenia</h2></div>' +
+        makeTable(['Priorita', 'Typ', 'Názov'], alerts, true) + '</div>' +
         '</div>' +
         '</div>';
+      content.querySelectorAll('[data-go]').forEach(function (el) {
+        el.addEventListener('click', function () { navigate(el.getAttribute('data-go')); });
+      });
       bindChartTooltips(content);
       content.querySelectorAll('.dash-scope').forEach(function (btn) {
         btn.onclick = function () {

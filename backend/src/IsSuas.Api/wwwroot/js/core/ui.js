@@ -282,3 +282,140 @@ export function bindFormReveals() {
     });
   });
 }
+
+function escAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * Moderný potvrdzovací dialóg (namiesto window.confirm).
+ * opts: { title, message (HTML), confirmLabel, danger, reasonLabel, reasonRequired }
+ * Vráti Promise: null pri zrušení, inak { reason }.
+ */
+export function confirmDialog(opts) {
+  var o = opts || {};
+  return new Promise(function (resolve) {
+    var wrap = document.createElement('div');
+    wrap.className = 'ui-dialog-backdrop';
+    wrap.innerHTML =
+      '<form class="ui-dialog" role="dialog" aria-modal="true">' +
+      '<div class="ui-dialog-icon' + (o.danger ? ' is-danger' : '') + '" aria-hidden="true">' +
+      (o.danger
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>') +
+      '</div>' +
+      '<h3>' + (o.title || 'Potvrdenie') + '</h3>' +
+      (o.message ? '<div class="ui-dialog-msg">' + o.message + '</div>' : '') +
+      (o.reasonLabel
+        ? '<label class="ui-dialog-reason">' + o.reasonLabel +
+          '<input name="reason" autocomplete="off"' + (o.reasonRequired ? ' required' : '') + ' placeholder="' + escAttr(o.reasonPlaceholder || '') + '" /></label>'
+        : '') +
+      '<div class="ui-dialog-actions">' +
+      '<button type="button" class="secondary" data-act="cancel">Zrušiť</button>' +
+      '<button type="submit" class="' + (o.danger ? 'btn-solid-danger' : '') + '">' + (o.confirmLabel || 'Potvrdiť') + '</button>' +
+      '</div></form>';
+    document.body.appendChild(wrap);
+    var form = wrap.querySelector('form');
+    var input = wrap.querySelector('input[name="reason"]');
+    function close(val) {
+      document.removeEventListener('keydown', onKey);
+      wrap.remove();
+      resolve(val);
+    }
+    function onKey(ev) { if (ev.key === 'Escape') close(null); }
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', function (ev) { if (ev.target === wrap) close(null); });
+    wrap.querySelector('[data-act="cancel"]').onclick = function () { close(null); };
+    form.onsubmit = function (ev) {
+      ev.preventDefault();
+      close({ reason: input ? input.value.trim() : '' });
+    };
+    setTimeout(function () { (input || form.querySelector('button[type="submit"]')).focus(); }, 20);
+  });
+}
+
+/** Spoločné údaje o používateľoch. */
+export const ACCESS_LEVEL_LABELS = { 1: 'Gestor', 2: 'Prevádzkovateľ', 3: 'Pilot' };
+export const ACCOUNT_STATUS = { Prepared: 0, Active: 1, TemporarilyBlocked: 2, Deactivated: 3 };
+
+export function accountLevel(a) {
+  var v = a && a.accessLevel;
+  if (v === 'Level1') return 1;
+  if (v === 'Level2') return 2;
+  if (v === 'Level3') return 3;
+  return Number(v) || 3;
+}
+
+export function isAccountRemoved(a) {
+  return !!a && (a.isActive === false || a.status === 3 || a.status === 'Deactivated');
+}
+
+export function initialsOf(first, last) {
+  var a = String(first || '').trim().charAt(0);
+  var b = String(last || '').trim().charAt(0);
+  return (a + b).toUpperCase() || '?';
+}
+
+export function avatarHtml(first, last, seed) {
+  var palette = ['#0e86a3', '#2563eb', '#7c3aed', '#db2777', '#d97706', '#16a34a', '#0f9488', '#475569'];
+  var key = String(seed || (first || '') + (last || ''));
+  var h = 0;
+  for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return '<span class="mini-avatar" style="--av:' + palette[h % palette.length] + '">' + initialsOf(first, last) + '</span>';
+}
+
+/**
+ * „Odstránenie“ používateľa = deaktivácia účtu (záznam aj história letov zostávajú kvôli auditu).
+ * Vráti true, ak sa používateľ odstránil.
+ */
+export async function removeAccountFlow(account) {
+  var name = ((account.firstName || '') + ' ' + (account.lastName || '')).trim() || account.userName;
+  var res = await confirmDialog({
+    title: 'Odstrániť používateľa?',
+    message: '<p><b>' + name + '</b> (@' + account.userName + ') sa už nebude môcť prihlásiť a zmizne zo zoznamov.</p>' +
+      '<p class="muted">Jeho lety, žiadosti a história zostanú zachované kvôli auditu. Účet môžete neskôr obnoviť.</p>',
+    confirmLabel: 'Odstrániť',
+    danger: true,
+    reasonLabel: 'Dôvod (zapíše sa do auditu)',
+    reasonPlaceholder: 'napr. odchod z útvaru',
+    reasonRequired: true
+  });
+  if (!res) return false;
+  await api('/api/v1/accounts/' + account.id + '/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: ACCOUNT_STATUS.Deactivated, reason: res.reason, rowVersion: account.rowVersion })
+  });
+  return true;
+}
+
+export async function restoreAccountFlow(account) {
+  var name = ((account.firstName || '') + ' ' + (account.lastName || '')).trim() || account.userName;
+  var res = await confirmDialog({
+    title: 'Obnoviť používateľa?',
+    message: '<p><b>' + name + '</b> (@' + account.userName + ') sa bude môcť znova prihlásiť.</p>',
+    confirmLabel: 'Obnoviť',
+    reasonLabel: 'Dôvod',
+    reasonPlaceholder: 'napr. návrat na útvar',
+    reasonRequired: true
+  });
+  if (!res) return false;
+  await api('/api/v1/accounts/' + account.id + '/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: ACCOUNT_STATUS.Active, reason: res.reason, rowVersion: account.rowVersion })
+  });
+  return true;
+}
+
+// Server posiela stavy ako čísla (enum). Preklad na názvy, ktoré pozná statusBadge / statusLabelSk.
+const ENUM_NAMES = {
+  flight: ['Draft', 'Ready', 'Closed', 'Cancelled'],
+  defect: ['Reported', 'UnderRepair', 'Resolved', 'Closed'],
+  operation: ['Draft', 'Submitted', 'Approved', 'Returned', 'Rejected', 'Cancelled', 'Completed'],
+  safety: ['Draft', 'Submitted', 'UnderInvestigation', 'ActionsInProgress', 'Closed', 'Cancelled'],
+  notification: ['Unread', 'Read', 'Resolved'],
+  telemetry: ['Received', 'Processed', 'NeedsPairing', 'Failed', 'DuplicateIgnored']
+};
+export function enumName(kind, value) {
+  if (typeof value === 'number' && ENUM_NAMES[kind] && ENUM_NAMES[kind][value] != null) return ENUM_NAMES[kind][value];
+  return value;
+}

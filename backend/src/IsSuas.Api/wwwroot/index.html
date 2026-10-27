@@ -3,67 +3,94 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IS SUAS</title>
+  <title>IS ŠUAS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="/css/dronemap.css" />
   <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/theme.css" />
   <script>
     try {
       if (localStorage.getItem('issuas.token')) document.documentElement.classList.add('issuas-has-session');
+      if (localStorage.getItem('issuas.navCollapsed') === '1') document.documentElement.classList.add('nav-collapsed');
     } catch (e) {}
   </script>
 </head>
 <body>
   <div id="login-view" class="login-shell">
-    <form id="login-form" class="login-card" autocomplete="off">
-      <p class="brand"><span class="brand-mark"><img src="/assets/logominv.png" alt="IS SUAS" /></span></p>
-      <h1>Prihlasenie</h1>
-      <p class="muted">Informacny system statnych bezpilotnych leteckych systemov</p>
-      <label>Pouzivatelske meno
-        <input id="username" autocomplete="off" required />
-      </label>
-      <label>Heslo
-        <input id="password" type="password" autocomplete="new-password" required />
-      </label>
-      <p id="login-error" class="error hidden"></p>
-      <button id="login-btn" type="submit">Prihlasit sa</button>
-    </form>
+    <aside class="login-hero" aria-hidden="true">
+      <div class="login-hero-top">
+        <span class="login-hero-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="9.5" y="9.5" width="5" height="5" rx="1.2"/></svg></span>
+        <span>IS ŠUAS</span>
+      </div>
+      <div class="login-hero-body">
+        <p class="login-eyebrow">Ministerstvo vnútra SR</p>
+        <h2>Riadenie štátnych bezpilotných leteckých systémov na jednom mieste.</h2>
+        <ul class="login-features">
+          <li><span>✓</span>Žiadosti o let a ich schvaľovanie</li>
+          <li><span>✓</span>Denník letov, piloti a osvedčenia</li>
+          <li><span>✓</span>Register UAS, poruchy a incidenty</li>
+        </ul>
+      </div>
+      <p class="login-hero-foot">© Ministerstvo vnútra Slovenskej republiky</p>
+    </aside>
+    <div class="login-main">
+      <form id="login-form" class="login-card" autocomplete="off">
+        <p class="brand"><span class="brand-mark"><img src="/assets/logominv.png" alt="Ministerstvo vnútra SR" /></span></p>
+        <h1>Vitajte späť</h1>
+        <p class="muted">Prihláste sa do Informačného systému štátnych bezpilotných leteckých systémov.</p>
+        <label>Používateľské meno
+          <input id="username" autocomplete="off" placeholder="napr. jan.novak" required />
+        </label>
+        <label>Heslo
+          <input id="password" type="password" autocomplete="new-password" placeholder="••••••••" required />
+        </label>
+        <p id="login-error" class="error hidden"></p>
+        <button id="login-btn" type="submit">Prihlásiť sa</button>
+      </form>
+    </div>
   </div>
 
   <div id="app-view" class="app hidden">
     <button type="button" class="nav-backdrop" id="nav-backdrop" aria-label="Zavrieť menu"></button>
     <aside class="sidebar" id="app-sidebar">
-      <button type="button" class="sidebar-brand" id="sidebar-brand-home" title="Prejsť na prehľad" aria-label="Prejsť na prehľad">
-        <span class="sidebar-brand-mark"><img src="/assets/logominv.png" alt="IS SUAS" /></span>
-      </button>
+      <div class="sidebar-head">
+        <button type="button" class="sidebar-brand" id="sidebar-brand-home" title="Prejsť na prehľad" aria-label="Prejsť na prehľad">
+          <span class="sidebar-brand-mark"><img src="/assets/logominv.png" alt="Ministerstvo vnútra SR" /></span>
+          <span class="sidebar-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="9.5" y="9.5" width="5" height="5" rx="1.2"/></svg></span>
+        </button>
+      </div>
       <nav id="app-nav">
-        <div class="nav-section" data-nav-section="overview">Prehlad</div>
-        <button type="button" data-page="dashboard" data-roles="1,2" class="nav active"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Prehlad</button>
-        <div class="nav-section" data-nav-section="org">Organizacia</div>
-        <button type="button" data-page="orgs" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/><path d="M7.5 7.5 9.5 9.5M14.5 14.5l2 2M16.5 7.5 14.5 9.5M9.5 14.5l-2 2"/></svg></span>Organizacna struktura</button>
-        <button type="button" data-page="accounts" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Prevadzkovatelia</button>
+        <div class="nav-section" data-nav-section="overview">Prehľad</div>
+        <button type="button" data-page="dashboard" data-roles="1,2" class="nav active"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Prehľad</button>
+        <div class="nav-section" data-nav-section="org">Organizácia</div>
+        <button type="button" data-page="orgs" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/><path d="M7.5 7.5 9.5 9.5M14.5 14.5l2 2M16.5 7.5 14.5 9.5M9.5 14.5l-2 2"/></svg></span>Organizačná štruktúra</button>
+        <button type="button" data-page="accounts" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Prevádzkovatelia</button>
         <button type="button" data-page="pilots" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M8 8h8"/><path d="M9.5 5.5 12 3l2.5 2.5"/></svg></span>Register PnD</button>
         <button type="button" data-page="certificates" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M16.5 15.5 18 17l3-3"/></svg></span>Osvedčenia</button>
-        <div class="nav-section" data-nav-section="flight">Letova cinnost</div>
+        <div class="nav-section" data-nav-section="flight">Letová činnosť</div>
         <button type="button" data-page="operations" data-roles="1,2,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h5l2-7 3 14 2-7h4"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>Žiadosti o let</button>
-        <button type="button" data-page="flights" data-roles="1,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l4 2v2l-4-1-4 1v-2l4-2V3z"/><path d="M8 15c0 2.5 1.8 4.5 4 4.5s4-2 4-4.5"/><path d="M5 21h14"/></svg></span>Dennik letov</button>
+        <button type="button" data-page="flights" data-roles="1,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l4 2v2l-4-1-4 1v-2l4-2V3z"/><path d="M8 15c0 2.5 1.8 4.5 4 4.5s4-2 4-4.5"/><path d="M5 21h14"/></svg></span>Denník letov</button>
         <button type="button" data-page="map" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13L9 17l6 2.5L21 17V4l-6 2.5L9 4z"/><path d="M9 4v13M15 6.5v13"/></svg></span>VFR mapa</button>
-        <button type="button" data-page="geozones" data-roles="1,2,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/><path d="M3 20h18" opacity=".45"/></svg></span>Mapa GEO zon</button>
+        <button type="button" data-page="geozones" data-roles="1,2,3" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/><path d="M3 20h18" opacity=".45"/></svg></span>Mapa GEO zón</button>
         <div class="nav-section" data-nav-section="fleet">Flotila</div>
         <button type="button" data-page="uas" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/><path d="M6.5 6.5 8.5 8.5M15.5 15.5l2 2M17.5 6.5 15.5 8.5M8.5 15.5l-2 2"/><circle cx="5" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="19" r="1.6"/></svg></span>Register UAS</button>
         <button type="button" data-page="components" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></span>Technická dokumentácia</button>
-        <div class="nav-section" data-nav-section="safety">Bezpecnost</div>
+        <div class="nav-section" data-nav-section="safety">Bezpečnosť</div>
         <button type="button" data-page="defects" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Poruchy</button>
         <button type="button" data-page="incidents" data-roles="1,2" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></span>Incidenty</button>
-        <button type="button" data-page="documents" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></span>Dokumenty</button>
-        <button type="button" data-page="reports" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16V10"/><path d="M12 16V7"/><path d="M16 16v-4"/></svg></span>Reporty</button>
-        <div class="nav-section" data-nav-section="admin">Sprava</div>
-        <button type="button" data-page="geozones-admin" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V7l-8-4z"/><path d="M9 12h6M12 9v6"/></svg></span>Sprava GEO zon</button>
-        <button type="button" data-page="admin" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>Administracia</button>
+        <div class="nav-section" data-nav-section="admin">Správa</div>
+        <button type="button" data-page="geozones-admin" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V7l-8-4z"/><path d="M9 12h6M12 9v6"/></svg></span>Správa GEO zón</button>
+        <button type="button" data-page="admin" data-roles="1" class="nav"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>Administrácia</button>
       </nav>
+      <div class="sidebar-foot">
+        <button type="button" class="sidebar-collapse" id="sidebar-collapse" aria-label="Zbaliť menu" title="Zbaliť menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/></svg>
+          <span>Zbaliť menu</span>
+        </button>
+      </div>
     </aside>
     <main>
       <header class="topbar">
@@ -71,17 +98,30 @@
           <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Otvoriť menu" aria-expanded="false" aria-controls="app-sidebar">
             <span class="burger" aria-hidden="true"></span>
           </button>
-          <div id="page-title">Prehlad</div>
+          <nav class="crumbs" aria-label="Umiestnenie">
+            <span id="page-section" class="crumb-section">Prehľad</span>
+            <span class="crumb-sep" aria-hidden="true">/</span>
+            <span id="page-title">Prehľad</span>
+          </nav>
         </div>
         <div class="userbox">
-          <form id="global-search-form" class="toolbar" style="margin:0;gap:0.35rem">
-            <input id="global-search-q" type="search" placeholder="Hladat..." style="min-width:160px;padding:0.45rem 0.6rem" />
-            <button type="submit" class="secondary" id="global-search-btn" style="padding:0.45rem 0.75rem">Hladat</button>
+          <form id="global-search-form" class="topbar-search" role="search">
+            <input id="global-search-q" type="search" placeholder="Hľadať drony, pilotov, lety…" aria-label="Hľadať" />
+            <kbd class="search-kbd">Ctrl K</kbd>
+            <button type="submit" class="secondary" id="global-search-btn">Hľadať</button>
           </form>
-          <span class="user-avatar" id="user-avatar" aria-hidden="true">G</span>
-          <span id="display-name"></span>
-          <button id="change-password-btn" type="button">Zmeniť heslo</button>
-          <button id="logout-btn" type="button">Odhlasit</button>
+          <div class="user-menu" id="user-menu">
+            <button type="button" class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false">
+              <span class="user-avatar" id="user-avatar" aria-hidden="true">G</span>
+              <span class="user-meta"><span id="display-name"></span><span class="user-role" id="user-role"></span></span>
+              <svg class="user-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="user-dropdown hidden" id="user-dropdown" role="menu">
+              <div class="user-dropdown-head"><b id="dropdown-name"></b><span id="dropdown-user"></span></div>
+              <button id="change-password-btn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Zmeniť heslo</button>
+              <button id="logout-btn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Odhlásiť sa</button>
+            </div>
+          </div>
         </div>
       </header>
       <section id="content" class="content"></section>

@@ -26,9 +26,9 @@ export async function renderGeozonesAdmin() {
         var actions = '—';
         if (i.status === 0 || i.status === 'Preview') {
           actions = '<button type="button" class="secondary geo-activate" data-id="' + i.id + '">Aktivovat</button>' +
-            '<button type="button" class="secondary geo-discard" data-id="' + i.id + '">Zrusit</button>';
+            '<button type="button" class="secondary geo-discard" data-id="' + i.id + '">Zrušiť</button>';
         } else if (active) {
-          actions = '<button type="button" class="secondary geo-remove" data-id="' + i.id + '">Odstranit z mapy</button>';
+          actions = '<button type="button" class="secondary geo-remove" data-id="' + i.id + '">Odstrániť z mapy</button>';
         }
         return '<tr class="row-tint" style="--row-accent:' + (active ? '#0d8f7a' : '#94a3b8') + '">' +
           '<td>' + (i.fileName || '—') + '</td>' +
@@ -50,15 +50,15 @@ export async function renderGeozonesAdmin() {
         '<h3>Importovat GEO zony</h3>' +
         '<p class="muted">Stiahnite aktualny ZIP/KML z <a href="https://letectvo.nsat.sk/bezpilotne-letectvo/zemepisne-oblasti-uas/" target="_blank" rel="noopener">letectvo.nsat.sk</a>, nahrajte sem a potvrdte aktivaciu.</p>' +
         '<form id="geo-import-form" class="form-grid">' +
-        '<label>Datum verzie udajov<input id="geo-version-date" type="date" /></label>' +
+        '<label>Dátum verzie udajov<input id="geo-version-date" type="date" /></label>' +
         '<label class="full">Subor ZIP alebo KML<input id="geo-file" type="file" accept=".kml,.zip,application/vnd.google-earth.kml+xml,application/zip" required /></label>' +
         '<div class="full toolbar"><button type="submit">Importovat (nahľad)</button></div>' +
         '</form>' +
         '<div id="geo-import-msg"></div>' +
         '<div id="geo-preview" class="hidden"></div>' +
         '</div>' +
-        sectionCard('Historia importov',
-          makeTable(['Subor', 'Verzia udajov', 'Import', 'Pouzivatel', 'Zony', 'Vysledok', 'Sprava', 'Akcie'], rows, true),
+        sectionCard('História importov',
+          makeTable(['Subor', 'Verzia udajov', 'Import', 'Používateľ', 'Zony', 'Vysledok', 'Sprava', 'Akcie'], rows, true),
           '#2b7bb9') +
         '</div>';
 
@@ -104,13 +104,13 @@ export async function renderGeozonesAdmin() {
             '<div><dt>Verzia udajov</dt><dd>' +
             (created.dataVersionDate ? new Date(created.dataVersionDate).toLocaleDateString('sk-SK') : '—') +
             '</dd></div>' +
-            '<div><dt>Pocet zon</dt><dd>' + created.zoneCount + '</dd></div>' +
+            '<div><dt>Počet zon</dt><dd>' + created.zoneCount + '</dd></div>' +
             '<div><dt>Stav</dt><dd>' + statusSk(created.status) + '</dd></div>' +
             '</dl>' +
             '<div class="toolbar" style="margin-top:0.75rem">' +
-            '<button type="button" id="geo-preview-activate">Potvrdit aktivaciu</button> ' +
-            '<button type="button" class="secondary" id="geo-preview-discard">Zrusit nahľad</button> ' +
-            '<button type="button" class="secondary" id="geo-preview-map">Otvorit mapu</button>' +
+            '<button type="button" id="geo-preview-activate">Potvrdiť aktivaciu</button> ' +
+            '<button type="button" class="secondary" id="geo-preview-discard">Zrušiť nahľad</button> ' +
+            '<button type="button" class="secondary" id="geo-preview-map">Otvoriť mapu</button>' +
             '</div></div>';
           document.getElementById('geo-preview-activate').onclick = async function () {
             try {
@@ -162,7 +162,7 @@ export async function renderGeozonesAdmin() {
       });
       content.querySelectorAll('.geo-remove').forEach(function (btn) {
         btn.onclick = async function () {
-          if (!confirmAction('Odstranit aktivny KML/GEO import z mapy?')) return;
+          if (!confirmAction('Odstrániť aktívny KML/GEO import z mapy?')) return;
           try {
             await api('/api/v1/geo-zones/imports/' + btn.dataset.id + '/remove', { method: 'POST', body: '{}' });
             navigate('geozones-admin');

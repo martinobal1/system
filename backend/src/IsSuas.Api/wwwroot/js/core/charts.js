@@ -298,7 +298,7 @@ export function bindChartTooltips(root) {
 
 export function renderWeatherChart(hourly) {
   var pts = (hourly || []).slice(0, 24);
-  if (!pts.length) return '<p class="muted">Graf nedostupny</p>';
+  if (!pts.length) return '<p class="muted">Graf nedostupný</p>';
   var w = 560, h = 168, padL = 38, padR = 36, padT = 12, padB = 26;
   var temps = pts.map(function (p) { return Number(p.temperatureC); });
   var winds = pts.map(function (p) { return Number(p.windSpeedMs); });
@@ -396,24 +396,24 @@ export function renderWeatherChart(hourly) {
 
 export function renderWeatherPanel(w) {
   if (!w) {
-    return '<div class="weather-panel"><h2>Open-Meteo pocasie</h2>' +
-      '<p class="muted">Pocasie momentalne nedostupne.</p></div>';
+    return '<div class="weather-panel"><h2>Počasie</h2>' +
+      '<p class="muted">Počasie momentálne nedostupné.</p></div>';
   }
   var observed = new Date(w.observedAt).toLocaleString('sk-SK');
   var valid = new Date(w.validUntil).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
   return '<div class="weather-panel">' +
     '<div class="weather-head">' +
-    '<div><h2>Open-Meteo pocasie</h2><p class="muted" style="margin:0.2rem 0 0">' +
+    '<div><h2>Počasie</h2><p class="muted" style="margin:0.2rem 0 0">' +
     w.stationName + ' · ' + w.conditionLabel + '</p></div>' +
     '<div class="weather-source">' + w.sourceLabel + '<br/>meranie ' + observed +
-    '<br/>platne do ' + valid + '</div></div>' +
+    '<br/>platné do ' + valid + '</div></div>' +
     '<div class="weather-now">' +
     '<div class="weather-temp">' + w.temperatureC.toFixed(1) + '°C' +
     '<small>pocitovo ' + w.feelsLikeC.toFixed(1) + '°C</small></div>' +
     '<div class="weather-kpis">' +
     '<div>Vietor <strong>' + w.windSpeedMs.toFixed(1) + ' m/s</strong></div>' +
-    '<div>Narazy <strong>' + w.windGustMs.toFixed(1) + ' m/s</strong></div>' +
-    '<div>Vlhkost <strong>' + w.relativeHumidityPct + ' %</strong></div>' +
+    '<div>Nárazy <strong>' + w.windGustMs.toFixed(1) + ' m/s</strong></div>' +
+    '<div>Vlhkosť <strong>' + w.relativeHumidityPct + ' %</strong></div>' +
     '<div>Tlak <strong>' + w.pressureHpa.toFixed(0) + ' hPa</strong></div>' +
     '</div></div>' +
     '<div class="weather-advice">' + w.flightAdvice + '</div>' +

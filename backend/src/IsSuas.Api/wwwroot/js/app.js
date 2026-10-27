@@ -26,6 +26,13 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
           : String(parts[0] || 'U').slice(0, 2);
         avatar.textContent = initials.toUpperCase();
       }
+      var roleNames = { 1: 'Gestor', 2: 'Prevádzkovateľ', 3: 'Pilot' };
+      var roleEl = document.getElementById('user-role');
+      if (roleEl) roleEl.textContent = roleNames[state.accessLevel] || '';
+      var ddName = document.getElementById('dropdown-name');
+      if (ddName) ddName.textContent = state.displayName || '';
+      var ddUser = document.getElementById('dropdown-user');
+      if (ddUser) ddUser.textContent = state.userName ? '@' + state.userName : '';
       applyNavByRole();
       var requested = pendingRoute;
       pendingRoute = null;
@@ -54,7 +61,7 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
       e.preventDefault();
       loginError.classList.add('hidden');
       loginBtn.disabled = true;
-      loginBtn.textContent = 'Prihlasujem...';
+      loginBtn.textContent = 'Prihlasujem…';
       try {
         const body = {
           userName: document.getElementById('username').value.trim(),
@@ -70,7 +77,7 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
         showError(err.message || 'Prihlasenie zlyhalo');
       } finally {
         loginBtn.disabled = false;
-        loginBtn.textContent = 'Prihlasit sa';
+        loginBtn.textContent = 'Prihlásiť sa';
       }
     });
 

@@ -37,7 +37,7 @@ export async function renderMonthly() {
           '<td>' + l.hours + ':' + String(l.minutes).padStart(2, '0') + '</td>' +
           '<td>' + l.takeoffs + '/' + l.landings + '</td>' +
           '<td>' + l.operationalFlights + '/' + l.trainingFlights + '/' + l.otherFlights + '</td></tr>';
-      }).join('') || '<tr><td colspan="5">Ziadne riadky — pridajte pilot×UAS</td></tr>';
+      }).join('') || '<tr><td colspan="5">Žiadne riadky — pridajte pilot×UAS</td></tr>';
 
       const authOpts = (auths || []).map(function (a) {
         return '<option value="' + a.pilotId + '|' + a.uasId + '">' + a.pilotName + ' × ' + a.uasLabel + '</option>';
@@ -50,29 +50,29 @@ export async function renderMonthly() {
 
       content.innerHTML = '<div class="stack">' +
         pageHead('Mesacny vykaz', 'Súhrn letovej činnosti útvaru za mesiac. Štatistiky na Prehľade čítajú len potvrdené výkazy.',
-          chipHtml('Utvar', report.orgUnitName || '—', 'chip-soft') +
+          chipHtml('Útvar', report.orgUnitName || '—', 'chip-soft') +
           chipHtml('Obdobie', month + '/' + year) +
           chipHtml('Stav', statusText, 'chip-ok') +
           chipHtml('Oprávnenia', (auths || []).length)) +
         '<div class="toolbar">' +
-        '<label>Utvar <select id="m-org" style="width:auto;min-width:220px">' + orgOpts + '</select></label>' +
+        '<label>Útvar <select id="m-org" style="width:auto;min-width:220px">' + orgOpts + '</select></label>' +
         '<label>Rok <input id="m-year" type="number" value="' + year + '" style="width:90px" /></label>' +
         '<label>Mesiac <input id="m-month" type="number" min="1" max="12" value="' + month + '" style="width:70px" /></label>' +
         '<button type="button" class="secondary" id="m-reload">Nacitat</button>' +
         '</div><div id="m-msg"></div>' +
         ((auths || []).length ? '' : '<div class="error">Pre vybraný útvar nie sú žiadne oprávnenia pilot×UAS. Vyberte krajský útvar (KR-…) alebo reštartujte API kvôli seedu.</div>') +
-        makeTable(['Pilot', 'UAS', 'Cas', 'Vzlet/prist.', 'Ucely O/V/I'], lineRows) +
+        makeTable(['Pilot', 'UAS', 'Čas', 'Vzlet/prist.', 'Ucely O/V/I'], lineRows) +
         '<div class="toolbar">' +
-        '<button type="button" id="m-reveal-add">Pridat riadok</button> ' +
-        '<button type="button" id="m-confirm">Potvrdit vykaz</button>' +
+        '<button type="button" id="m-reveal-add">Pridať riadok</button> ' +
+        '<button type="button" id="m-confirm">Potvrdiť vykaz</button>' +
         '<button type="button" class="secondary" id="m-none">Bez letovej cinnosti</button>' +
         '</div>' +
         '<div id="m-add-panel" class="form-panel hidden">' +
         '<div class="toolbar" style="justify-content:space-between;margin:0">' +
-        '<h3 style="margin:0">Novy riadok vykazu</h3>' +
+        '<h3 style="margin:0">Nový riadok vykazu</h3>' +
         '<button type="button" class="secondary" id="m-hide-add">Skryt</button></div>' +
         '<form id="m-add" class="form-grid">' +
-        '<label class="full">Hladat pilota / UAS' +
+        '<label class="full">Hľadať pilota / UAS' +
         '<input id="m-auth-q" type="search" placeholder="Zadajte meno pilota alebo oznacenie UAS…" autocomplete="off" />' +
         '</label>' +
         '<label class="full">Opravnenie (pilot × UAS)' +
@@ -87,8 +87,8 @@ export async function renderMonthly() {
         '<label>Vycvik<input id="m-tr" type="number" min="0" value="0" /></label>' +
         '<label>Ine<input id="m-ot" type="number" min="0" value="0" /></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">Ulozit riadok</button>' +
-        '<button type="button" class="secondary" id="m-cancel-add">Zrusit</button>' +
+        '<button type="submit">Uložiť riadok</button>' +
+        '<button type="button" class="secondary" id="m-cancel-add">Zrušiť</button>' +
         '</div></form></div>' +
         '</div>';
 

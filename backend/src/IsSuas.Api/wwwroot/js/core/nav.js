@@ -26,6 +26,8 @@ const pageModules = {
   search: () => import('../pages/search.js').then(m => m.renderSearch)
 };
 
+const removedPages = { documents: true, reports: true };
+
 // Zrusene a rolou nedostupne stranky presmerujeme skor, nez sa zapise URL.
 function resolvePage(page) {
   if (page === 'batteries') return 'components';
@@ -39,6 +41,8 @@ export function closeNav() {
 
 export async function navigate(requestedPage, options) {
   var page = resolvePage(requestedPage);
+  // Stránky odstránené z menu (napr. Dokumenty, Reporty) sa nedajú otvoriť ani priamo.
+  if (removedPages[page]) page = defaultPageForRole();
   var opts = options || {};
   if (!opts.fromHistory) {
     var url = urlForPage(page);
@@ -49,20 +53,129 @@ export async function navigate(requestedPage, options) {
   }
   syncNavActive(page);
   pageTitle.textContent = titles[page] || page;
+  syncSectionCrumb(page);
+  closeUserMenu();
   if (window.IsSuasDroneMap) window.IsSuasDroneMap.destroyMap();
   content.classList.toggle('content-map', page === 'map' || page === 'geozones');
-  content.innerHTML = '<div class="panel">Nacitavam...</div>';
+  content.innerHTML = loadingSkeleton();
   try {
     var loadPage = pageModules[page];
     if (!loadPage) throw new Error('Neznama stranka: ' + page);
     var render = await loadPage();
     await render();
+    enhanceLayout(content);
   } catch (err) {
     content.innerHTML = '<div class="error">' + err.message + '</div>';
   }
 }
 
+function loadingSkeleton() {
+  return '<div class="stack skeleton" aria-busy="true" aria-label="Načítavam">' +
+    '<div class="sk sk-title"></div><div class="sk sk-sub"></div>' +
+    '<div class="sk-grid"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>' +
+    '<div class="sk sk-block"></div></div>';
+}
+
+// Úpravy rozloženia spoločné pre všetky stránky (bez zásahu do logiky stránok):
+// panel s tlačidlami hneď pod hlavičkou presunieme do pravej časti hlavičky.
+function enhanceLayout(root) {
+  root.querySelectorAll('.page-head').forEach(function (head) {
+    var next = head.nextElementSibling;
+    while (next && next.id && /-msg$/.test(next.id) && !next.innerHTML.trim()) next = next.nextElementSibling;
+    if (!next || !next.classList.contains('toolbar')) return;
+    if (next.querySelector('input, select, textarea')) return;
+    var buttons = next.querySelectorAll('button');
+    if (!buttons.length || buttons.length > 4) return;
+    var actions = document.createElement('div');
+    actions.className = 'page-actions';
+    while (next.firstChild) actions.appendChild(next.firstChild);
+    next.remove();
+    var chips = head.querySelector(':scope > .chip-row');
+    var side = document.createElement('div');
+    side.className = 'page-head-side';
+    if (chips) side.appendChild(chips);
+    side.appendChild(actions);
+    head.appendChild(side);
+  });
+}
+
+// Drobčeková navigácia: názov sekcie menu, do ktorej stránka patrí.
+function syncSectionCrumb(page) {
+  var el = document.getElementById('page-section');
+  if (!el) return;
+  var btn = document.querySelector('#app-nav .nav[data-page="' + page + '"]');
+  var sec = btn ? btn.previousElementSibling : null;
+  while (sec && !sec.classList.contains('nav-section')) sec = sec.previousElementSibling;
+  var label = sec ? sec.textContent.trim() : 'IS ŠUAS';
+  el.textContent = label;
+  el.parentElement.classList.toggle('crumbs-single', label === (titles[page] || page));
+}
+
+function setNavCollapsed(collapsed) {
+  document.documentElement.classList.toggle('nav-collapsed', !!collapsed);
+  var btn = document.getElementById('sidebar-collapse');
+  if (btn) {
+    var label = collapsed ? 'Rozbaliť menu' : 'Zbaliť menu';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+    var span = btn.querySelector('span');
+    if (span) span.textContent = label;
+  }
+  try { localStorage.setItem('issuas.navCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+}
+
+export function closeUserMenu() {
+  var dd = document.getElementById('user-dropdown');
+  var trigger = document.getElementById('user-trigger');
+  if (dd) dd.classList.add('hidden');
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
+function initShellChrome() {
+  var collapseBtn = document.getElementById('sidebar-collapse');
+  if (collapseBtn) {
+    setNavCollapsed(document.documentElement.classList.contains('nav-collapsed'));
+    collapseBtn.addEventListener('click', function () {
+      setNavCollapsed(!document.documentElement.classList.contains('nav-collapsed'));
+    });
+  }
+  // V zbalenom menu ukáž názov položky ako tooltip.
+  document.querySelectorAll('#app-nav .nav').forEach(function (btn) {
+    if (!btn.title) btn.title = btn.textContent.trim();
+  });
+
+  var trigger = document.getElementById('user-trigger');
+  var dd = document.getElementById('user-dropdown');
+  if (trigger && dd) {
+    trigger.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var open = dd.classList.contains('hidden');
+      dd.classList.toggle('hidden', !open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    dd.addEventListener('click', function (ev) {
+      if (ev.target.closest('button')) closeUserMenu();
+    });
+    document.addEventListener('click', function (ev) {
+      if (!ev.target.closest('#user-menu')) closeUserMenu();
+    });
+  }
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeUserMenu();
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'k' || ev.key === 'K')) {
+      var q = document.getElementById('global-search-q');
+      if (q && q.offsetParent !== null) {
+        ev.preventDefault();
+        q.focus();
+        q.select();
+      }
+    }
+  });
+}
+
 export function initNav() {
+  initShellChrome();
   document.getElementById('menu-toggle').addEventListener('click', function () {
     setNavOpen(!appView.classList.contains('nav-open'));
   });
@@ -135,28 +248,28 @@ export function setNavOpen(open) {
 }
 
 export const titles = {
-  dashboard: 'Prehlad',
-  orgs: 'Organizacna struktura',
-  accounts: 'Prevadzkovatelia',
-  delegations: 'Delegacie opravneni',
+  dashboard: 'Prehľad',
+  orgs: 'Organizačná štruktúra',
+  accounts: 'Prevádzkovatelia',
+  delegations: 'Delegácie oprávnení',
   pilots: 'Register PnD',
   certificates: 'Osvedčenia',
   operations: 'Žiadosti o let',
-  flights: 'Dennik letov',
+  flights: 'Denník letov',
   defects: 'Poruchy',
   incidents: 'Incidenty',
   documents: 'Dokumenty',
   reports: 'Reporty',
-  calendar: 'Kalendar',
+  calendar: 'Kalendár',
   map: 'Mapa — VFR / vzdušné priestory',
-  geozones: 'Mapa GEO zon',
-  'geozones-admin': 'Sprava GEO zon',
-  admin: 'Administracia',
+  geozones: 'Mapa GEO zón',
+  'geozones-admin': 'Správa GEO zón',
+  admin: 'Administrácia',
   uas: 'Register UAS',
   components: 'Technická dokumentácia',
-  batteries: 'Baterie',
+  batteries: 'Batérie',
   monthly: 'Mesačné hlásenia o letoch',
-  search: 'Vysledky hladania'
+  search: 'Výsledky hľadania'
 };
 
 export const routes = {

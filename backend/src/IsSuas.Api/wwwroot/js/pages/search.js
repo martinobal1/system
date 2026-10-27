@@ -7,19 +7,19 @@ export async function renderSearch() {
       const q = (state.searchQuery || '').trim();
       document.getElementById('global-search-q').value = q;
       if (q.length < 2) {
-        content.innerHTML = '<div class="stack"><div class="msg">Zadajte aspon 2 znaky do hladania v hornom paneli.</div></div>';
+        content.innerHTML = '<div class="stack"><div class="msg">Zadajte aspon 2 znaky do hľadania v hornom paneli.</div></div>';
         return;
       }
       const res = await api('/api/v1/search?q=' + encodeURIComponent(q) + '&limit=8');
       const hits = res.hits || [];
       if (!hits.length) {
-        content.innerHTML = '<div class="stack"><div class="msg">Ziadne vysledky pre „' + q.replace(/</g, '') + '“.</div></div>';
+        content.innerHTML = '<div class="stack"><div class="msg">Žiadne vysledky pre „' + q.replace(/</g, '') + '“.</div></div>';
         return;
       }
       const typeLabels = {
         Uas: 'UAS',
         Pilot: 'Piloti',
-        Operation: 'Operacie',
+        Operation: 'Operácie',
         Account: 'Ucty',
         SafetyEvent: 'Incidenty',
         ControlAudit: 'Audit'

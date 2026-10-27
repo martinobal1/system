@@ -18,17 +18,17 @@ export async function renderReports() {
         '<h3>Preddefinovany report</h3>' +
         '<form id="rep-form" class="form-grid">' +
         '<label>Typ<select id="rep-type">' +
-        '<option value="MONTHLY">Mesacne vykazy</option>' +
+        '<option value="MONTHLY">Mesacne výkazy</option>' +
         '<option value="UAS">UAS</option><option value="PILOTS">Piloti</option>' +
-        '<option value="FLIGHTS">Lety</option><option value="OPERATIONS">Operacie</option>' +
+        '<option value="FLIGHTS">Lety</option><option value="OPERATIONS">Operácie</option>' +
         '<option value="BATTERIES">Baterie</option>' +
         '<option value="DEFECTS">Poruchy</option><option value="INCIDENTS">Incidenty</option>' +
         '</select></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">Zobrazit</button>' +
+        '<button type="submit">Zobraziť</button>' +
         '<button type="button" id="rep-xlsx">Stiahnuť Excel</button>' +
         '<button type="button" class="secondary" id="rep-csv">Export CSV</button>' +
-        '<button type="button" class="secondary" data-hide="rep-panel">Zrusit</button>' +
+        '<button type="button" class="secondary" data-hide="rep-panel">Zrušiť</button>' +
         '</div></form>' +
         '<div id="rep-result"></div></div>' +
         '<div id="off-panel" class="form-panel hidden">' +
@@ -36,24 +36,24 @@ export async function renderReports() {
         '<form id="off-form" class="form-grid">' +
         '<label>Typ<select id="off-type">' +
         '<option value="UAS">UAS</option><option value="FLIGHTS">Lety</option>' +
-        '<option value="OPERATIONS">Operacie</option><option value="INCIDENTS">Incidenty</option>' +
+        '<option value="OPERATIONS">Operácie</option><option value="INCIDENTS">Incidenty</option>' +
         '</select></label>' +
-        '<label class="full">Nazov<input id="off-title" placeholder="napr. Mesacny vykaz flotily" /></label>' +
+        '<label class="full">Názov<input id="off-title" placeholder="napr. Mesacny vykaz flotily" /></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">Vytvorit koncept</button>' +
-        '<button type="button" class="secondary" data-hide="off-panel">Zrusit</button>' +
+        '<button type="submit">Vytvoriť koncept</button>' +
+        '<button type="button" class="secondary" data-hide="off-panel">Zrušiť</button>' +
         '</div></form></div>' +
-        '<h2>Oficialne vykazy</h2>' +
-        makeTable(['Nazov', 'Typ', 'Verzia', 'Stav', 'Udaje k', 'Akcia'],
+        '<h2>Oficialne výkazy</h2>' +
+        makeTable(['Názov', 'Typ', 'Verzia', 'Stav', 'Udaje k', 'Akcia'],
           official.map(function (r) {
             var approve = (r.status === 0 || r.status === 'Draft')
               ? '<button type="button" class="secondary approve-off" data-id="' + r.id +
-                '" data-rv="' + r.rowVersion + '">Schvalit (iny ucet)</button>'
+                '" data-rv="' + r.rowVersion + '">Schváliť (iny ucet)</button>'
               : '—';
             return '<tr><td>' + r.titleSk + '</td><td>' + typeLabelSk(r.reportTypeCode) + '</td><td>' + r.version +
               '</td><td>' + statusBadge(r.status) + '</td><td>' + new Date(r.dataAsOf).toLocaleString('sk-SK') +
               '</td><td>' + approve + '</td></tr>';
-          }).join('') || '<tr><td colspan="6">Ziadne vykazy</td></tr>') +
+          }).join('') || '<tr><td colspan="6">Žiadne výkazy</td></tr>') +
         '</div>';
 
       bindFormReveals();
@@ -137,7 +137,7 @@ export async function renderReports() {
 
       document.querySelectorAll('.approve-off').forEach(function (btn) {
         btn.onclick = async function () {
-          if (!confirmAction('Schvalit oficialny vykaz?')) return;
+          if (!confirmAction('Schváliť oficialny vykaz?')) return;
           const msg = document.getElementById('rep-msg');
           msg.innerHTML = '<div class="msg">Prihlaste sa ako <b>schvalovatel</b> a skuste znova, ak ste gestor (SoD).</div>';
           try {

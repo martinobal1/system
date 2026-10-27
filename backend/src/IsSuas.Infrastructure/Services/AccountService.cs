@@ -233,6 +233,8 @@ public sealed class AccountService(
         account.Status = request.Status;
         if (request.Status == AccountStatus.Deactivated)
             account.IsActive = false;
+        else if (request.Status == AccountStatus.Active)
+            account.IsActive = true; // obnovenie odstráneného účtu
         account.UpdatedBy = currentUser.AccountId;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("Account.ChangeStatus", nameof(Account), account.Id, before, Map(account), cancellationToken: cancellationToken);

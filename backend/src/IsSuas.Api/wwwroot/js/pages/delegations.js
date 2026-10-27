@@ -34,11 +34,11 @@ export async function renderDelegations() {
           '</td><td>' + (d.reason || '') + '</td><td>' +
           (d.isActive
             ? '<button type="button" class="secondary revoke-del" data-id="' + d.id +
-              '" data-rv="' + d.rowVersion + '">Zrusit</button>'
+              '" data-rv="' + d.rowVersion + '">Zrušiť</button>'
             : '—') +
-          ' <button type="button" class="secondary hist-del" data-id="' + d.id + '">Historia</button>' +
+          ' <button type="button" class="secondary hist-del" data-id="' + d.id + '">História</button>' +
           '</td></tr>';
-      }).join('') || '<tr><td colspan="8">Ziadne aktivne delegacie</td></tr>';
+      }).join('') || '<tr><td colspan="8">Žiadne aktivne delegacie</td></tr>';
 
       content.innerHTML =
         '<div class="stack">' +
@@ -46,7 +46,7 @@ export async function renderDelegations() {
           chipHtml('Aktívne', items.length, 'chip-soft')) +
         '<div id="del-msg"></div>' +
         '<div class="toolbar">' +
-        '<button type="button" data-reveal="del-form">Nova delegacia</button>' +
+        '<button type="button" data-reveal="del-form">Nová delegacia</button>' +
         '</div>' +
         '<div id="del-form" class="form-panel hidden">' +
         '<h3>Delegovat opravnenie</h3>' +
@@ -56,8 +56,8 @@ export async function renderDelegations() {
         '<label>Platne do<input id="del-to-date" type="datetime-local" /></label>' +
         '<label class="full">Dovod<textarea id="del-reason" required></textarea></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">Vytvorit</button>' +
-        '<button type="button" class="secondary" data-hide="del-form">Zrusit</button>' +
+        '<button type="submit">Vytvoriť</button>' +
+        '<button type="button" class="secondary" data-hide="del-form">Zrušiť</button>' +
         '</div></form></div>' +
         sectionCard('Aktivne / zoznam', makeTable(['Od', 'Komu', 'Opravnenie', 'Stav', 'Od', 'Do', 'Dovod', 'Akcie'], rows, true), '#0d8f7a') +
         '<div id="del-history" class="history-panel hidden"></div>' +

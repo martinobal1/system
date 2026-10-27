@@ -37,9 +37,9 @@ export async function renderUas() {
         content.innerHTML = '<div class="stack">' +
           pageHead('Detail UAS', (u.registrationNumber || u.serialNumber) + ' · ' + u.manufacturer + ' ' + u.model,
             chipHtml('Stav', statusLabelSk(u.status), 'chip-soft') +
-            chipHtml('Utvar', u.owningOrgUnitName || '—')) +
+            chipHtml('Útvar', u.owningOrgUnitName || '—')) +
           '<div class="toolbar">' +
-          '<button type="button" class="secondary" id="uas-back">Spat na zoznam</button> ' +
+          '<button type="button" class="secondary" id="uas-back">Späť na zoznam</button> ' +
           (u.status === 'Draft' || u.status === 0
             ? '<button type="button" id="uas-register">Zaregistrovať</button> '
             : '') +
@@ -72,12 +72,12 @@ export async function renderUas() {
           '<div><dt>Užívateľ (útvar)</dt><dd>' + (u.owningOrgUnitName || '—') + '</dd></div>' +
           '<div><dt>Č. IM</dt><dd>' + (u.inventoryAssetNumber || '—') + '</dd></div>' +
           '</dl></div>' +
-          '<div class="form-panel"><h3>Transfer na iny utvar</h3>' +
+          '<div class="form-panel"><h3>Transfer na iny útvar</h3>' +
           '<form id="uas-transfer" class="form-grid">' +
-          '<label class="full">Novy utvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
+          '<label class="full">Nový útvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
           '<label class="full">Dovod<input id="uas-reason" required placeholder="Dovod transferu" /></label>' +
           '<div class="full toolbar"><button type="submit">Presunut UAS</button></div></form></div>' +
-          sectionCard('Historia pridelení', makeTable(['Utvar', 'Od', 'Do', 'Dovod'], hist, true), '#2b7bb9') +
+          sectionCard('História pridelení', makeTable(['Útvar', 'Od', 'Do', 'Dovod'], hist, true), '#2b7bb9') +
           sectionCard('Opravneni piloti', makeTable(['Pilot', 'Od', 'Do'], pilots, true), '#0d8f7a') +
           '</div>';
         document.getElementById('uas-back').onclick = function () {

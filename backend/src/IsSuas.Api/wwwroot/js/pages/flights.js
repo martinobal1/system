@@ -3,7 +3,7 @@ import { colorForKey, entityLabelHtml, swatchHtml } from '../core/charts.js';
 import { ensureMapLibs } from '../core/maps.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
-import { chipHtml, content, formatFlightGps, makeTable, pageHead, sectionCard, statusBadge, statusLabelSk } from '../core/ui.js';
+import { chipHtml, content, formatFlightGps, makeTable, pageHead, sectionCard, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
 import { submitFlightRequestFromForm } from '../shared/flightRequest.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
 
@@ -15,7 +15,7 @@ export async function renderFlights() {
         } catch (err) {
           state.flightDetailId = null;
           content.innerHTML = '<div class="error">' + (err.message || 'Let sa nenasiel') +
-            '</div><div class="toolbar"><button type="button" class="secondary" id="fl-back">Spat</button></div>';
+            '</div><div class="toolbar"><button type="button" class="secondary" id="fl-back">Späť</button></div>';
           document.getElementById('fl-back').onclick = function () { navigate('flights'); };
           return;
         }
@@ -36,7 +36,7 @@ export async function renderFlights() {
         var hasCoords = f.locationLat != null && f.locationLon != null &&
           isFinite(Number(f.locationLat)) && isFinite(Number(f.locationLon));
         var telemRows = imports.map(function (t) {
-          return '<tr><td>' + (t.fileName || '—') + '</td><td>' + statusBadge(t.status) +
+          return '<tr><td>' + (t.fileName || '—') + '</td><td>' + statusBadge(enumName('telemetry', t.status)) +
             '</td><td>' + fmtDt(t.receivedAt) + '</td><td>' + (t.processingMessage || '—') + '</td></tr>';
         }).join('') || '<tr><td colspan="4">Bez importov telemetrie</td></tr>';
         var notesBlock = '';
@@ -53,19 +53,19 @@ export async function renderFlights() {
           pageHead('Detail letu', (f.flightNumber || String(f.id).substring(0, 8)) +
             (f.purpose ? ' · ' + f.purpose : ''),
             chipHtml('Stav', statusLabelSk(f.status), 'chip-soft') +
-            chipHtml('Utvar', f.orgUnitName || '—')) +
+            chipHtml('Útvar', f.orgUnitName || '—')) +
           '<div class="toolbar">' +
-          '<button type="button" class="secondary" id="fl-back">Spat na dennik</button>' +
+          '<button type="button" class="secondary" id="fl-back">Späť na dennik</button>' +
           '</div>' +
           '<div class="form-panel"><h3>Zakladne udaje</h3><dl class="flight-meta">' +
           metaItem('Cislo letu', f.flightNumber) +
           metaItem('Dron', f.uasLabel) +
           metaItem('Pilot', f.pilotName) +
-          metaItem('Utvar', f.orgUnitName) +
+          metaItem('Útvar', f.orgUnitName) +
           metaItem('Vzlet', fmtDt(f.takeoffAt)) +
           metaItem('Pristatie', fmtDt(f.landingAt)) +
           metaItem('Trvanie', fmtDur(f.durationMinutes)) +
-          metaItem('Ucel', f.purpose || f.standaloneReason) +
+          metaItem('Účel', f.purpose || f.standaloneReason) +
           metaItem('Lokalita (GPS)', formatFlightGps(f) || '—') +
           metaItem('Polomer', f.locationRadiusMeters != null
             ? Math.round(Number(f.locationRadiusMeters)) + ' m' : null) +
@@ -181,7 +181,7 @@ export async function renderFlights() {
           ? (Math.floor(f.durationMinutes / 60) + 'h ' + (f.durationMinutes % 60) + 'm')
           : '—';
         return '<tr class="row-tint flight-row" data-id="' + f.id + '" style="--row-accent:' +
-          colorForKey(f.uasLabel || f.flightNumber || f.id) + '" title="Otvorit detail letu">' +
+          colorForKey(f.uasLabel || f.flightNumber || f.id) + '" title="Otvoriť detail letu">' +
           '<td><button type="button" class="linkish flight-open" data-id="' + f.id + '">' +
           '<span class="entity-label">' + swatchHtml(colorForKey(f.flightNumber || f.id)) +
           '<b>' + (f.flightNumber || String(f.id).substring(0, 8)) + '</b></span></button></td>' +
@@ -192,7 +192,7 @@ export async function renderFlights() {
           '<td>' + dur + '</td>' +
           '<td>' + (formatFlightGps(f) || '—') + '</td>' +
           '<td>' + (f.purpose || '—') + '</td>' +
-          '<td>' + statusBadge(f.status) + '</td>' +
+          '<td>' + statusBadge(enumName('flight', f.status)) + '</td>' +
           '</tr>';
       }).join('') || '<tr><td colspan="9">Zatial ziadne lety v denniku</td></tr>';
 
@@ -206,10 +206,10 @@ export async function renderFlights() {
 
       var orgFieldHtml = isL3 && homeOrg
         ? '<input type="hidden" id="fl-org" value="' + homeOrg.id + '" />' +
-          '<label>Utvar<input value="' +
+          '<label>Útvar<input value="' +
           String(homeOrg.code + ' — ' + homeOrg.name).replace(/"/g, '&quot;') +
           '" readonly /></label>'
-        : '<label>Utvar<select id="fl-org" required>' + orgOpts + '</select></label>';
+        : '<label>Útvar<select id="fl-org" required>' + orgOpts + '</select></label>';
 
       var pilotFieldHtml = isL3 && myPilot
         ? '<input type="hidden" id="fl-pilot" value="' + myPilot.id + '" />' +
@@ -220,7 +220,7 @@ export async function renderFlights() {
 
       content.innerHTML =
         '<div class="stack">' +
-        pageHead('Dennik letov', isL3
+        pageHead('Denník letov', isL3
           ? 'Váš osobný denník. Nový let začnite výberom miesta na mape GEO zón.'
           : 'Kliknite na let pre detail, mapu a trasu',
           chipHtml('Lety', items.length, 'chip-soft') +
@@ -230,18 +230,18 @@ export async function renderFlights() {
               ? chipHtml('Licencia', 'potvrdená', 'chip-ok') : ''))) +
         '<div class="chart-panel">' +
         '<div class="toolbar" style="margin:0">' +
-        '<button type="button" id="reveal-flight-form">Novy samostatny let</button> ' +
-        (isL3 ? '' : '<button type="button" class="secondary" id="fl-pick-map">Vybrat miesto na mape</button> ') +
+        '<button type="button" id="reveal-flight-form">+ Nový samostatný let</button> ' +
+        (isL3 ? '' : '<button type="button" class="secondary" id="fl-pick-map">Vybrať miesto na mape</button> ') +
         (isL3 ? '' : '<button type="button" class="secondary" id="import-telem">Import demo telemetrie</button>') +
         '</div>' +
         '<div id="flight-msg"></div>' +
         '<div id="flight-form-panel" class="form-panel hidden">' +
-        '<h3>' + (state.flightRequestMode ? 'Nová žiadosť o let' : 'Novy let do dennika') + '</h3>' +
+        '<h3>' + (state.flightRequestMode ? 'Nová žiadosť o let' : 'Nový let do denníka') + '</h3>' +
         '<form id="flight-create-form" class="form-grid">' +
         orgFieldHtml +
         '<label>Dron<select id="fl-uas">' + uasOpts + '</select></label>' +
         pilotFieldHtml +
-        '<label class="full muted" style="align-self:end">Cislo letu sa priradi automaticky (LET-' + new Date().getFullYear() + '-XXXX)</label>' +
+        '<label class="full muted" style="align-self:end">Číslo letu sa priradí automaticky (LET-' + new Date().getFullYear() + '-XXXX)</label>' +
         '<label class="full">GPS súradnice' +
         '<input id="fl-location" readonly placeholder="Vyberte bod na mape (lat, lon)" />' +
         '</label>' +
@@ -253,15 +253,15 @@ export async function renderFlights() {
           ? 'GPS sa nastaví klikom na mape GEO zón (otvorí sa pred formulárom).'
           : 'GPS nastavíte klikom na mape (polomer napr. 1 km).') +
         '</p>' +
-        '<label class="full">Ucel<input id="fl-purpose" required placeholder="napr. Hliadkovanie" /></label>' +
+        '<label class="full">Účel<input id="fl-purpose" required placeholder="napr. Hliadkovanie" /></label>' +
         '<label>Vzlet<input id="fl-takeoff" type="datetime-local" required value="' + toLocalInput(hourAgo) + '" /></label>' +
-        '<label>Pristatie<input id="fl-landing" type="datetime-local" required value="' + toLocalInput(nowLocal) + '" /></label>' +
+        '<label>Pristátie<input id="fl-landing" type="datetime-local" required value="' + toLocalInput(nowLocal) + '" /></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">' + (state.flightRequestMode ? 'Odoslať na schválenie' : 'Ulozit let') + '</button>' +
-        '<button type="button" class="secondary" id="fl-cancel">Zrusit</button>' +
-        '<button type="button" class="secondary" id="fl-clear-loc">Zrusit bod mapy</button>' +
+        '<button type="submit">' + (state.flightRequestMode ? 'Odoslať na schválenie' : 'Uložiť let') + '</button>' +
+        '<button type="button" class="secondary" id="fl-cancel">Zrušiť</button>' +
+        '<button type="button" class="secondary" id="fl-clear-loc">Zrušiť bod mapy</button>' +
         '</div></form></div>' +
-        makeTable(['Cislo letu', 'Datum', 'Cas', 'Dron', 'Pilot', 'Trvanie', 'GPS', 'Ucel', 'Stav'], rows, true) +
+        makeTable(['Číslo letu', 'Dátum', 'Čas', 'Dron', 'Pilot', 'Trvanie', 'GPS', 'Účel', 'Stav'], rows, true) +
         '</div></div>';
 
       if (!isL3) {
@@ -353,7 +353,7 @@ export async function renderFlights() {
             : null;
           var takeoff = new Date(document.getElementById('fl-takeoff').value);
           var landing = new Date(document.getElementById('fl-landing').value);
-          if (!orgId) throw new Error('Vyberte utvar');
+          if (!orgId) throw new Error('Vyberte útvar');
           if (!purpose) throw new Error('Vyplnte ucel letu');
           if (lat == null || lon == null || !isFinite(lat) || !isFinite(lon))
             throw new Error('Najprv vyberte miesto letu na mape');

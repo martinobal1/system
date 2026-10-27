@@ -27,14 +27,14 @@ export async function renderCalendar() {
       var byOrg = groupCounts(items, function (o) { return o.orgUnitName; });
       var urgentCount = items.filter(function (o) { return o.isUrgent; }).length;
       var statusPie = renderFlightHoursPanel(
-        'Operacie podla stavu',
+        'Operácie podľa stavu',
         items.length,
         byStatus,
         'Obdobie kalendara — rozdelenie stavov',
         'operacii'
       );
       var orgPie = renderFlightHoursPanel(
-        'Operacie podla utvaru',
+        'Operácie podľa útvaru',
         items.length,
         byOrg,
         'Kde su naplanovane aktivity',
@@ -49,7 +49,7 @@ export async function renderCalendar() {
           '</td><td>' + statusBadge(o.status) + '</td><td>' +
           entityLabelHtml(o.orgUnitName, o.orgUnitName) +
           '</td><td>' + (o.isUrgent ? statusBadge('Urgent') : 'Nie') + '</td></tr>';
-      }).join('') || '<tr><td colspan="6">Ziadne operacie v kalendari</td></tr>';
+      }).join('') || '<tr><td colspan="6">Žiadne operácie v kalendari</td></tr>';
 
       content.innerHTML =
         '<div class="stack">' +
@@ -58,7 +58,7 @@ export async function renderCalendar() {
           chipHtml('Operácie', items.length, 'chip-soft') +
           chipHtml('Neodkladné', urgentCount, urgentCount ? 'chip-danger' : 'chip-ok')) +
         '<div class="dash-grid">' + statusPie + orgPie + '</div>' +
-        makeTable(['Od', 'Do', 'Nazov', 'Stav', 'Utvar', 'Neodkladna'], rows) +
+        makeTable(['Od', 'Do', 'Názov', 'Stav', 'Útvar', 'Neodkladná'], rows) +
         '</div>';
       bindChartTooltips(content);
       return;

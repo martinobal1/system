@@ -27,7 +27,7 @@ export async function renderGeozones() {
         '<h2>GEO zony · Dopravny urad SR</h2>' +
         '<form class="map-search" id="geo-search-form">' +
         '<input type="search" id="geo-search-q" placeholder="Hladat obec / lokalitu (SK)…" />' +
-        '<button type="submit">Hladat</button></form>' +
+        '<button type="submit">Hľadať</button></form>' +
         (canPickFlight
           ? '<button type="button" class="secondary" id="map-pick-toggle">Označit miesto letu</button>'
           : '') +
@@ -42,9 +42,9 @@ export async function renderGeozones() {
             '<input type="range" id="map-flight-radius" min="100" max="5000" step="100" value="' +
             ((state.pendingFlightLocation && state.pendingFlightLocation.radiusM) || 1000) + '" />' +
             '<span id="map-radius-label">1000 m</span></label>' +
-            '<span class="map-pick-info" id="map-pick-info">Ziadny bod — zapnite „Označit miesto letu“ a kliknite na mapu</span>' +
+            '<span class="map-pick-info" id="map-pick-info">Žiadny bod — zapnite „Označit miesto letu“ a kliknite na mapu</span>' +
             '<button type="button" id="map-use-flight" disabled>Pouzit v denniku letov</button>' +
-            '<button type="button" class="secondary" id="map-clear-flight">Zrusit bod</button>' +
+            '<button type="button" class="secondary" id="map-clear-flight">Zrušiť bod</button>' +
             '</div>'
           : '') +
         '<div class="map-body geo-map-body">' +
@@ -68,7 +68,7 @@ export async function renderGeozones() {
         if (radiusEl && radiusLabel)
           radiusLabel.textContent = Math.round(Number(radiusEl.value)) + ' m';
         if (!area) {
-          info.textContent = 'Ziadny bod — zapnite „Označit miesto letu“ a kliknite na mapu';
+          info.textContent = 'Žiadny bod — zapnite „Označit miesto letu“ a kliknite na mapu';
           useBtn.disabled = true;
           return;
         }
@@ -140,11 +140,11 @@ export async function renderGeozones() {
           row('Podmienky letu', props.flightConditions) +
           row('Horizontalne hranice', props.horizontalLimits) +
           row('Vyskove obmedzenie', props.verticalLimits) +
-          row('Platnost od', props.validFrom ? new Date(props.validFrom).toLocaleString('sk-SK') : null) +
-          row('Platnost do', props.validTo ? new Date(props.validTo).toLocaleString('sk-SK') : null) +
+          row('Platnosť od', props.validFrom ? new Date(props.validFrom).toLocaleString('sk-SK') : null) +
+          row('Platnosť do', props.validTo ? new Date(props.validTo).toLocaleString('sk-SK') : null) +
           row('Kontakt / urad', props.authorityContact) +
           row('Zdroj', props.sourceLabel || 'Dopravny urad SR') +
-          row('Datum importu', props.importDate ? new Date(props.importDate).toLocaleString('sk-SK') : importedLabel) +
+          row('Dátum importu', props.importDate ? new Date(props.importDate).toLocaleString('sk-SK') : importedLabel) +
           row('Verzia udajov', props.dataVersionDate || versionLabel) +
           '</dl>';
         document.getElementById('geo-detail').innerHTML = html;

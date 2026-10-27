@@ -12,7 +12,7 @@ export async function renderMap() {
         '<h2>VFR Manual · Slovensko</h2>' +
         '<form class="map-search" id="map-search-form">' +
         '<input type="search" id="map-search-q" placeholder="Hladat adresu / miesto (SK)…" />' +
-        '<button type="submit">Hladat</button>' +
+        '<button type="submit">Hľadať</button>' +
         '</form>' +
         '<button type="button" class="secondary" id="map-pick-toggle">Označit miesto letu</button>' +
         '<button type="button" class="secondary" id="map-locate">Moja poloha</button>' +
@@ -24,12 +24,12 @@ export async function renderMap() {
         '<input type="range" id="map-flight-radius" min="100" max="5000" step="100" value="' +
         ((state.pendingFlightLocation && state.pendingFlightLocation.radiusM) || 1000) + '" />' +
         '<span id="map-radius-label">1000 m</span></label>' +
-        '<span class="map-pick-info" id="map-pick-info">Ziadny bod — zapnite „Označit miesto letu“ a kliknite na mapu</span>' +
+        '<span class="map-pick-info" id="map-pick-info">Žiadny bod — zapnite „Označit miesto letu“ a kliknite na mapu</span>' +
         '<button type="button" id="map-use-flight" disabled>Pouzit v denniku letov</button>' +
-        '<button type="button" class="secondary" id="map-clear-flight">Zrusit bod</button>' +
+        '<button type="button" class="secondary" id="map-clear-flight">Zrušiť bod</button>' +
         '</div>' +
         '<div class="map-body">' +
-        '<aside class="map-legend" id="map-legend"><p class="hint">Nacitavam legendu…</p></aside>' +
+        '<aside class="map-legend" id="map-legend"><p class="hint">Načítavam legendu…</p></aside>' +
         '<div class="map-canvas-wrap">' +
         '<div id="drone-map"></div>' +
         '<div id="map-fallback" class="map-fallback hidden"></div>' +
@@ -43,7 +43,7 @@ export async function renderMap() {
         if (radiusEl && radiusLabel)
           radiusLabel.textContent = Math.round(Number(radiusEl.value)) + ' m';
         if (!area) {
-          info.textContent = 'Ziadny bod — zapnite „Označit miesto letu“ a kliknite na mapu';
+          info.textContent = 'Žiadny bod — zapnite „Označit miesto letu“ a kliknite na mapu';
           useBtn.disabled = true;
           return;
         }

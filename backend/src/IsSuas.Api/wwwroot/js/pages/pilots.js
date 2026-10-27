@@ -2,7 +2,7 @@ import { api } from '../core/api.js';
 import { colorForKey } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
-import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge } from '../core/ui.js';
+import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
 import { bindCertLifecycleButtons, certActionButtons, certStatusHtml, certSuspendPanelHtml, isCertIssued, isCertSuspended } from '../shared/certs.js';
 
 export async function renderPilots() {
@@ -29,10 +29,10 @@ export async function renderPilots() {
           return '<tr class="flight-row" data-id="' + f.id + '"><td><button type="button" class="linkish fl-open" data-id="' + f.id + '">' +
             (f.flightNumber || String(f.id).substring(0, 8)) + '</button></td><td>' +
             (f.takeoffAt ? new Date(f.takeoffAt).toLocaleString('sk-SK') : '—') + '</td><td>' +
-            (f.uasLabel || '—') + '</td><td>' + (f.purpose || '—') + '</td><td>' + statusBadge(f.status) + '</td></tr>';
+            (f.uasLabel || '—') + '</td><td>' + (f.purpose || '—') + '</td><td>' + statusBadge(enumName('flight', f.status)) + '</td></tr>';
         }).join('') || '<tr><td colspan="5">Žiadne lety tohto pilota</td></tr>';
         const opRows = myOps.map(function (o) {
-          return '<tr><td>' + o.title + '</td><td>' + statusBadge(o.status) + '</td><td>' +
+          return '<tr><td>' + o.title + '</td><td>' + statusBadge(enumName('operation', o.status)) + '</td><td>' +
             new Date(o.plannedStart).toLocaleString('sk-SK') + '</td></tr>';
         }).join('') || '<tr><td colspan="3">Žiadne operácie</td></tr>';
         var mapBtnLabel = state.accessLevel === 3 ? 'Otvoriť mapu GEO zón' : 'Otvoriť VFR mapu';
@@ -102,7 +102,18 @@ export async function renderPilots() {
         return;
       }
       const items = await api('/api/v1/pilots');
-      var allowedTabs = { a1: 1, a2: 1, sts1: 1, sts2: 1 };
+      var canAddPilot = state.accessLevel === 1 || state.accessLevel === 2;
+      var orgOptsHtml = '';
+      if (state.accessLevel === 1) {
+        var orgList = [];
+        try { orgList = await api('/api/v1/org-units'); } catch (_) { orgList = []; }
+        orgOptsHtml = orgList.filter(function (o) { return o.isActive !== false; })
+          .sort(function (a, b) { return String(a.path || '').localeCompare(String(b.path || '')); })
+          .map(function (o) {
+            return '<option value="' + o.id + '">' + Array((o.level || 0) + 1).join('\u00a0\u00a0') + o.name + '</option>';
+          }).join('');
+      }
+      var allowedTabs = { a1: 1, a2: 1, sts1: 1, sts2: 1, none: 1 };
       var tab = allowedTabs[state.pilotRegisterTab] ? state.pilotRegisterTab : 'a1';
       function normCode(raw) {
         var t = String(raw || '').toUpperCase().replace(/[-\/\s]/g, '_');
@@ -132,10 +143,11 @@ export async function renderPilots() {
         if (a13 && !a2 && !sts1 && !sts2) return 'a1';
         return '';
       }
-      var groups = { a1: [], a2: [], sts1: [], sts2: [] };
+      var groups = { a1: [], a2: [], sts1: [], sts2: [], none: [] };
       (items || []).forEach(function (p) {
-        var k = ladderOf(p);
-        if (k && groups[k]) groups[k].push(p);
+        if (p.isActive === false) return;
+        var k = ladderOf(p) || 'none';
+        groups[k].push(p);
       });
       var list = groups[tab] || [];
       var headers = [
@@ -153,13 +165,15 @@ export async function renderPilots() {
         a1: ['A1_A3'],
         a2: ['A1_A3', 'A2'],
         sts1: ['A1_A3', 'A2', 'STS1'],
-        sts2: ['A1_A3', 'A2', 'STS1', 'STS2']
+        sts2: ['A1_A3', 'A2', 'STS1', 'STS2'],
+        none: []
       };
       var emptyText = {
         a1: 'Žiadni piloti iba s A1/A3',
         a2: 'Žiadni piloti s A1/A3 a A2',
         sts1: 'Žiadni piloti s A1/A3, A2 a STS1',
-        sts2: 'Žiadni piloti s A1/A3, A2, STS1 a STS2'
+        sts2: 'Žiadni piloti s A1/A3, A2, STS1 a STS2',
+        none: 'Žiadni piloti bez osvedčenia'
       };
       var rows = list.map(function (p, idx) {
         var a2 = certOf(p, 'A2');
@@ -195,25 +209,45 @@ export async function renderPilots() {
           '<td>' + permit + '</td>' +
           '<td>' + fmtDate(validFrom) + '</td>' +
           '<td>' + fmtDate(validTo) + '</td>' +
-          '<td>' + certBadgesHtml(tabBadges[tab]) + '</td>' +
+          '<td>' + (tab === 'none' ? ((p.certificateCodes || []).length ? certBadgesHtml(p.certificateCodes) : '<span class="badge badge-warn">Bez osvedčenia</span>') : certBadgesHtml(tabBadges[tab])) + '</td>' +
           '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
           '</tr>';
       }).join('') || '<tr><td colspan="11">' + (emptyText[tab] || 'Žiadni piloti') + '</td></tr>';
 
       content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
         pageHead('Register PnD',
-          'Karty podľa osvedčení: iba A1/A3; A1/A3 + A2; + STS1; + STS1 aj STS2.',
+          'Piloti rozdelení podľa osvedčení. Pilota môžete pridať aj bez osvedčenia.',
           chipHtml('A1/A3', groups.a1.length, 'chip-soft') +
           chipHtml('A1/A3 + A2', groups.a2.length, 'chip-soft') +
           chipHtml('+ STS1', groups.sts1.length, 'chip-soft') +
           chipHtml('+ STS1 + STS2', groups.sts2.length, 'chip-soft') +
-          '<span class="chip chip-soft">Legenda ' + certBadgesHtml(['A1_A3', 'A2', 'STS1', 'STS2']) + '</span>') +
+          chipHtml('Bez osvedčenia', groups.none.length, groups.none.length ? 'chip-warn' : 'chip-soft')) +
+        (canAddPilot ? '<div class="toolbar"><button type="button" id="pilot-add-btn">+ Pridať pilota</button></div>' : '') +
         '<div class="reg-tabs">' +
         '<button type="button" class="reg-tab' + (tab === 'a1' ? ' active' : '') + '" data-tab="a1">A1/A3</button>' +
         '<button type="button" class="reg-tab' + (tab === 'a2' ? ' active' : '') + '" data-tab="a2">A1/A3 + A2</button>' +
         '<button type="button" class="reg-tab' + (tab === 'sts1' ? ' active' : '') + '" data-tab="sts1">A1/A3 + A2 + STS1</button>' +
         '<button type="button" class="reg-tab' + (tab === 'sts2' ? ' active' : '') + '" data-tab="sts2">A1/A3 + A2 + STS1 + STS2</button>' +
+        '<button type="button" class="reg-tab' + (tab === 'none' ? ' active' : '') + '" data-tab="none">Bez osvedčenia <span class="tab-count">' + groups.none.length + '</span></button>' +
         '</div>' +
+        '<div id="pilot-msg"></div>' +
+        (canAddPilot
+          ? '<div id="pilot-create-panel" class="form-panel hidden">' +
+            '<h3>Nový pilot</h3>' +
+            '<p class="muted" style="margin:-0.4rem 0 0">Osvedčenie nie je povinné — pilot sa zaradí do karty <b>Bez osvedčenia</b> a osvedčenie mu môžete doplniť neskôr v menu Osvedčenia.</p>' +
+            '<form id="pilot-create-form" class="form-grid">' +
+            '<label>Meno<input id="pc-first" required autocomplete="off" /></label>' +
+            '<label>Priezvisko<input id="pc-last" required autocomplete="off" /></label>' +
+            '<label>E-mail do práce<input id="pc-email" type="email" placeholder="voliteľné" /></label>' +
+            (state.accessLevel === 1
+              ? '<label>Útvar<select id="pc-org" required>' + orgOptsHtml + '</select></label>'
+              : '<label>Útvar<input value="Váš útvar" readonly /></label>') +
+            '<label>Číslo licencie / povolenia<input id="pc-license" placeholder="voliteľné" /></label>' +
+            '<label>Poznámka<input id="pc-notes" placeholder="voliteľné" /></label>' +
+            '<div class="full toolbar"><button type="submit">Pridať pilota</button>' +
+            '<button type="button" class="secondary" id="pc-cancel">Zrušiť</button></div>' +
+            '</form></div>'
+          : '') +
         '<div class="chart-panel table-scroll">' +
         makeTable(headers, rows, true) +
         '</div></div>';
@@ -230,5 +264,39 @@ export async function renderPilots() {
           navigate('pilots');
         };
       });
+      var addBtn = document.getElementById('pilot-add-btn');
+      var createPanel = document.getElementById('pilot-create-panel');
+      if (addBtn && createPanel) {
+        addBtn.onclick = function () {
+          createPanel.classList.toggle('hidden');
+          if (!createPanel.classList.contains('hidden')) document.getElementById('pc-first').focus();
+        };
+        document.getElementById('pc-cancel').onclick = function () { createPanel.classList.add('hidden'); };
+        document.getElementById('pilot-create-form').onsubmit = async function (ev) {
+          ev.preventDefault();
+          var msg = document.getElementById('pilot-msg');
+          var orgEl = document.getElementById('pc-org');
+          try {
+            var created = await api('/api/v1/pilots', {
+              method: 'POST',
+              body: JSON.stringify({
+                firstName: document.getElementById('pc-first').value.trim(),
+                lastName: document.getElementById('pc-last').value.trim(),
+                email: document.getElementById('pc-email').value.trim() || null,
+                // L2: server pilota vždy zaradí do útvaru prevádzkovateľa
+                orgUnitId: orgEl ? orgEl.value : '00000000-0000-0000-0000-000000000000',
+                licenseNumber: document.getElementById('pc-license').value.trim() || null,
+                notes: document.getElementById('pc-notes').value.trim() || null
+              })
+            });
+            state.pilotRegisterTab = (created && created.certificateCodes && created.certificateCodes.length) ? state.pilotRegisterTab : 'none';
+            await navigate('pilots');
+            var m = document.getElementById('pilot-msg');
+            if (m) m.innerHTML = '<div class="msg">Pilot <b>' + (created.firstName || '') + ' ' + (created.lastName || '') + '</b> bol pridaný.</div>';
+          } catch (err) {
+            msg.innerHTML = '<div class="error">' + (err.message || 'Pridanie zlyhalo') + '</div>';
+          }
+        };
+      }
       return;
 }

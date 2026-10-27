@@ -29,17 +29,17 @@ export async function renderDocuments() {
         '<div id="doc-panel" class="form-panel hidden">' +
         '<h3>Nahrat dokument</h3>' +
         '<form id="doc-form" class="form-grid">' +
-        '<label class="full">Nazov<input id="doc-title" required placeholder="napr. Poistenie" /></label>' +
+        '<label class="full">Názov<input id="doc-title" required placeholder="napr. Poistenie" /></label>' +
         '<label>Typ kod<input id="doc-type" value="INSURANCE" /></label>' +
         '<label>UAS<select id="doc-uas">' + uasOpts + '</select></label>' +
-        '<label>Subor (nazov)<input id="doc-file" value="dokument.pdf" required /></label>' +
+        '<label>Subor (názov)<input id="doc-file" value="dokument.pdf" required /></label>' +
         '<label>Checksum<input id="doc-hash" value="demo-hash-001" required /></label>' +
-        '<label>Platnost do<input id="doc-validto" type="date" /></label>' +
+        '<label>Platnosť do<input id="doc-validto" type="date" /></label>' +
         '<label>Povinny<select id="doc-mandatory"><option value="false">Nie</option><option value="true">Ano</option></select></label>' +
         '<label>Nahradit dokument ID<input id="doc-supersede" placeholder="volitelne GUID aktualnej verzie" /></label>' +
         '<div class="full toolbar">' +
-        '<button type="submit">Ulozit dokument</button>' +
-        '<button type="button" class="secondary" data-hide="doc-panel">Zrusit</button>' +
+        '<button type="submit">Uložiť dokument</button>' +
+        '<button type="button" class="secondary" data-hide="doc-panel">Zrušiť</button>' +
         '</div></form></div>' +
         '<div id="chk-panel" class="form-panel hidden">' +
         '<h3>Spustit checklist</h3>' +
@@ -48,37 +48,37 @@ export async function renderDocuments() {
         '<label>UAS (ciel)<select id="chk-uas">' + uasOpts + '</select></label>' +
         '<div class="full toolbar">' +
         '<button type="submit">Spustit a vyplnit (demo Ano)</button>' +
-        '<button type="button" class="secondary" data-hide="chk-panel">Zrusit</button>' +
+        '<button type="button" class="secondary" data-hide="chk-panel">Zrušiť</button>' +
         '</div></form></div>' +
         '<div id="risk-panel" class="form-panel hidden">' +
         '<h3>Posudenie rizika</h3>' +
         '<form id="risk-form" class="form-grid">' +
         '<label>UAS<select id="risk-uas">' + uasOpts + '</select></label>' +
         '<label>Pravdepodobnost 1-5<input id="risk-l" type="number" min="1" max="5" value="3" /></label>' +
-        '<label>Zavaznost 1-5<input id="risk-s" type="number" min="1" max="5" value="3" /></label>' +
+        '<label>Závažnosť 1-5<input id="risk-s" type="number" min="1" max="5" value="3" /></label>' +
         '<div class="full toolbar">' +
         '<button type="submit">Vypocitat riziko</button>' +
-        '<button type="button" class="secondary" data-hide="risk-panel">Zrusit</button>' +
+        '<button type="button" class="secondary" data-hide="risk-panel">Zrušiť</button>' +
         '</div></form></div>' +
         '<h2>Dokumenty</h2>' +
-        makeTable(['Nazov', 'Typ', 'Verzia', 'Stav', 'Aktualny', 'Hash'],
+        makeTable(['Názov', 'Typ', 'Verzia', 'Stav', 'Aktualny', 'Hash'],
           docs.map(function (d) {
             return '<tr><td>' + d.title + '</td><td>' + typeLabelSk(d.documentTypeCode) + '</td><td>' + d.version +
               '</td><td>' + statusBadge(d.status) + '</td><td>' + (d.isCurrent ? 'Ano' : 'Nie') +
               '</td><td>' + String(d.contentHash).substring(0, 12) + '</td></tr>';
-          }).join('') || '<tr><td colspan="6">Ziadne dokumenty</td></tr>') +
+          }).join('') || '<tr><td colspan="6">Žiadne dokumenty</td></tr>') +
         '<h2>Sablony</h2>' +
-        makeTable(['Kod', 'Nazov', 'Druh', 'Verzia'],
+        makeTable(['Kod', 'Názov', 'Druh', 'Verzia'],
           templates.map(function (t) {
             return '<tr><td>' + t.code + '</td><td>' + t.nameSk + '</td><td>' + typeLabelSk(t.kind) +
               '</td><td>' + t.version + '</td></tr>';
-          }).join('') || '<tr><td colspan="4">Ziadne sablony</td></tr>') +
+          }).join('') || '<tr><td colspan="4">Žiadne sablony</td></tr>') +
         '<h2>Posudenia rizika</h2>' +
         makeTable(['Skóre', 'Trieda', 'P', 'Z', 'Metodika'],
           risks.map(function (r) {
             return '<tr><td>' + r.score + '</td><td>' + statusLabelSk(r.classification) + '</td><td>' + r.likelihood +
               '</td><td>' + r.severity + '</td><td>' + typeLabelSk(r.methodologyCode) + '</td></tr>';
-          }).join('') || '<tr><td colspan="5">Ziadne posudenia</td></tr>') +
+          }).join('') || '<tr><td colspan="5">Žiadne posudenia</td></tr>') +
         '</div>';
 
       bindFormReveals();
