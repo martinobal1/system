@@ -52,7 +52,8 @@ public static class PermissionCatalog
             [Permissions.NotificationsRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver, SystemRole.RemotePilot, SystemRole.TechnicalWorker, SystemRole.SafetyOfficer, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
             [Permissions.NotificationsWrite] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.SafetyOfficer],
             [Permissions.GeoZonesRead] = [SystemRole.CentralGestor, SystemRole.UnitAdministrator, SystemRole.Approver, SystemRole.RemotePilot, SystemRole.TechnicalWorker, SystemRole.SafetyOfficer, SystemRole.ControllerAuditor, SystemRole.ReadOnlyUser],
-            [Permissions.GeoZonesWrite] = [SystemRole.CentralGestor]
+            [Permissions.GeoZonesWrite] = [SystemRole.CentralGestor],
+            [Permissions.TrashManage] = [SystemRole.CentralGestor]
         };
 
     public static bool IsKnown(string permission) => RoleMap.ContainsKey(permission);

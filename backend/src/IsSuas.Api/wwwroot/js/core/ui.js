@@ -371,19 +371,20 @@ export function avatarHtml(first, last, seed) {
 export async function removeAccountFlow(account) {
   var name = ((account.firstName || '') + ' ' + (account.lastName || '')).trim() || account.userName;
   var res = await confirmDialog({
-    title: 'Odstrániť používateľa?',
-    message: '<p><b>' + name + '</b> (@' + account.userName + ') sa už nebude môcť prihlásiť a zmizne zo zoznamov.</p>' +
-      '<p class="muted">Jeho lety, žiadosti a história zostanú zachované kvôli auditu. Účet môžete neskôr obnoviť.</p>',
-    confirmLabel: 'Odstrániť',
+    title: 'Vymazať používateľa?',
+    message: '<p><b>' + escAttr(name) + '</b> (@' + escAttr(account.userName) + ') sa presunie do koša — už sa nebude môcť prihlásiť a zmizne zo zoznamov.</p>' +
+      '<p class="muted">Jeho lety, žiadosti a história zostanú zachované. Gestor ho môže v koši obnoviť alebo natrvalo vymazať.</p>',
+    confirmLabel: 'Vymazať',
     danger: true,
     reasonLabel: 'Dôvod (zapíše sa do auditu)',
     reasonPlaceholder: 'napr. odchod z útvaru',
     reasonRequired: true
   });
   if (!res) return false;
-  await api('/api/v1/accounts/' + account.id + '/status', {
-    method: 'PATCH',
-    body: JSON.stringify({ status: ACCOUNT_STATUS.Deactivated, reason: res.reason, rowVersion: account.rowVersion })
+  // Odstránenie = presun do koša (obnova a trvalé vymazanie: stránka Kôš, iba gestor).
+  await api('/api/v1/trash', {
+    method: 'POST',
+    body: JSON.stringify({ category: 'accounts', id: account.id, reason: res.reason })
   });
   return true;
 }

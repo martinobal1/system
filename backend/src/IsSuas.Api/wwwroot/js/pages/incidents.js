@@ -1,6 +1,7 @@
 import { api } from '../core/api.js';
 import { colorForKey, swatchHtml } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { bindFormReveals, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, severityBadge, statusBadge, typeLabelSk, enumName } from '../core/ui.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
 
@@ -26,7 +27,8 @@ export async function renderIncidents() {
           '"><td><span class="entity-label">' + swatchHtml(colorForKey(e.id || e.title)) +
           '<span>' + e.title + '</span></span></td><td>' + severityBadge(e.severity, 'safety') + '</td><td>' + statusBadge(enumName('safety', e.status)) +
           '</td><td>' + (e.initialReportLocked ? 'Ano' : 'Nie') + '</td><td>' +
-          (e.autoSuspendApplied ? 'Ano' : 'Nie') + '</td><td>' + submitBtn + '</td></tr>';
+          (e.autoSuspendApplied ? 'Ano' : 'Nie') + '</td><td><div class="row-actions-end">' +
+          (submitBtn === '—' ? '' : submitBtn + ' ') + trashButtonHtml('incidents', e.id, e.title, { compact: true }) + '</div></td></tr>';
       }).join('') || '<tr><td colspan="6">Žiadne udalosti — vytvorte prvu nizsie</td></tr>';
 
       content.innerHTML =

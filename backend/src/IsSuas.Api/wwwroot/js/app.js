@@ -1,5 +1,7 @@
-import { api, setUnauthorizedHandler } from './core/api.js';
-import { applyNavByRole, closeNav, defaultPageForRole, initNav, isPageAllowedForRole, navigate, pageFromPath } from './core/nav.js';
+import { api, setMaintenanceHandler, setUnauthorizedHandler } from './core/api.js';
+import { checkMaintenanceOnStart, initMaintenance, showMaintenanceScreen } from './core/maintenance.js';
+import { initTrashButtons } from './core/trash.js';
+import { applyDetailFromPath, applyNavByRole, closeNav, defaultPageForRole, initNav, isPageAllowedForRole, navigate, pageFromPath } from './core/nav.js';
 import { applyLoginSession, clearSession, hasUsableSession, state } from './core/state.js';
 import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/ui.js';
     // Stranka vyziadana v URL pred prihlasenim; otvori sa az po uspesnom logine.
@@ -12,6 +14,9 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
     }
 
     setUnauthorizedHandler(function () { logout(true); });
+    setMaintenanceHandler(function (status) { showMaintenanceScreen(status); });
+    initMaintenance();
+    initTrashButtons();
 
     function showApp() {
       document.documentElement.classList.add('issuas-has-session');
@@ -98,7 +103,10 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
         applyLoginSession(res);
         // Odkial prihlasenie zacalo (deep link), tam sa po logine vratime.
         var next = params.get('next');
-        if (next) pendingRoute = pageFromPath(next);
+        if (next) {
+          pendingRoute = pageFromPath(next);
+          applyDetailFromPath(next);
+        }
         window.history.replaceState({}, '', '/');
         showApp();
       } catch (err) {
@@ -234,6 +242,7 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
     initNav();
 
     pendingRoute = pageFromPath(window.location.pathname);
+    applyDetailFromPath(window.location.pathname);
     if (pendingRoute === 'search') {
       state.searchQuery = new URLSearchParams(window.location.search).get('q') || '';
     }
@@ -248,3 +257,5 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
         else showLogin();
       });
     }
+
+    checkMaintenanceOnStart();

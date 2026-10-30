@@ -2,6 +2,7 @@ import { api } from '../core/api.js';
 import { bindChartTooltips, colorForKey, fleetModelsFromUasList, renderFleetModelsPanel, swatchHtml } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusLabelSk } from '../core/ui.js';
 import { getTechDocCatalog, techDocSlug } from '../shared/techDocs.js';
 
@@ -47,7 +48,8 @@ export async function renderUas() {
             ? '<button type="button" class="secondary" id="uas-edit">Upraviť</button> '
             : '') +
           (u.status !== 'Decommissioned' && u.status !== 8
-            ? '<button type="button" class="secondary" id="uas-retire">Vyradiť</button>' : '') +
+            ? '<button type="button" class="secondary" id="uas-retire">Vyradiť</button> ' : '') +
+          trashButtonHtml('uas', u.id, (u.registrationNumber || u.serialNumber || 'UAS') + ' (' + (u.manufacturer || '') + ' ' + (u.model || '') + ')') +
           '</div>' +
           '<div id="uas-msg"></div>' +
           (canEditUas

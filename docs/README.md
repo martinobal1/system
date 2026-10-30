@@ -38,3 +38,6 @@ npm run dev
 - [6.8 Dokumenty](api-contracts-6.8-documents.md)
 - [6.9 Reporty](api-contracts-6.9-reports.md)
 - [6.10 Administrácia](api-contracts-6.10-admin.md)
+
+- [Režim údržby a núdzový vypínač](maintenance-mode.md)
+- [Kôš (mazanie záznamov)](kos.md)

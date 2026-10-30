@@ -15,12 +15,15 @@ public static class DatabaseSeeder
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IsSuasDbContext>();
+        // Seeder musí vidieť aj záznamy v koši, inak by demo dáta znova vytvoril (alebo narazil na unikátne indexy).
+        db.IgnoreTrashFilter = true;
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
 
         if (db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
         {
             await db.Database.EnsureCreatedAsync();
             await EnsureSqlitePilotCertificateColumnsAsync(db);
+            await EnsureSqliteTrashTableAsync(db);
             logger.LogInformation("SQLite databáza: {Path}", db.Database.GetDbConnection().DataSource);
         }
         else if (db.Database.IsRelational())
@@ -1341,7 +1344,8 @@ public static class DatabaseSeeder
             ("notifications.read", "Čítanie notifikácií", "MOD-11"),
             ("notifications.write", "Zápis notifikácií", "MOD-11"),
             ("geozones.read", "Čítanie GEO zón", "MOD-19"),
-            ("geozones.write", "Import GEO zón", "MOD-19")
+            ("geozones.write", "Import GEO zón", "MOD-19"),
+            ("trash.manage", "Správa koša (obnova, trvalé vymazanie)", "MOD-18")
         };
 
         var existing = await db.Permissions.ToDictionaryAsync(p => p.Code, StringComparer.Ordinal);
@@ -1417,6 +1421,34 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync();
+    }
+
+    // SQLite (vývoj) sa nevytvára migráciami, takže tabuľku koša doplníme ručne do existujúcej DB.
+    private static async Task EnsureSqliteTrashTableAsync(IsSuasDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "TrashEntries" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_TrashEntries" PRIMARY KEY,
+                "Category" TEXT NOT NULL,
+                "EntityType" TEXT NOT NULL,
+                "EntityId" TEXT NOT NULL,
+                "Title" TEXT NOT NULL,
+                "OrgUnitPath" TEXT NULL,
+                "Reason" TEXT NULL,
+                "DeletedAt" INTEGER NOT NULL,
+                "DeletedByAccountId" TEXT NULL,
+                "DeletedByUserName" TEXT NOT NULL,
+                "RestoredAt" INTEGER NULL,
+                "RestoredByUserName" TEXT NULL,
+                "PurgedAt" INTEGER NULL,
+                "PurgedByUserName" TEXT NULL
+            )
+            """);
+        await db.Database.ExecuteSqlRawAsync(
+            """CREATE INDEX IF NOT EXISTS "IX_TrashEntries_Category" ON "TrashEntries" ("Category")""");
+        await db.Database.ExecuteSqlRawAsync(
+            """CREATE INDEX IF NOT EXISTS "IX_TrashEntries_EntityType_EntityId" ON "TrashEntries" ("EntityType", "EntityId")""");
     }
 
     private static async Task EnsureSqlitePilotCertificateColumnsAsync(IsSuasDbContext db)

@@ -1,3 +1,4 @@
+using IsSuas.Application.SystemMaintenance;
 using IsSuas.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,16 @@ public sealed class IsSuasMaintenanceWorker(
             try
             {
                 using var scope = scopeFactory.CreateScope();
+                if (configuration.GetValue("MaintenanceMode:PauseBackgroundJobs", true))
+                {
+                    var maintenance = await scope.ServiceProvider.GetRequiredService<IMaintenanceModeService>()
+                        .GetStateAsync(stoppingToken);
+                    if (maintenance.IsActive)
+                    {
+                        logger.LogInformation("Background maintenance tick skipped: režim údržby je zapnutý.");
+                        continue;
+                    }
+                }
                 var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
                 var documents = scope.ServiceProvider.GetRequiredService<IDocumentService>();
                 var monthlyDeadlines = scope.ServiceProvider.GetRequiredService<IMonthlyReportDeadlineService>();

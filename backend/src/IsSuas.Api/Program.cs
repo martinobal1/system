@@ -26,15 +26,52 @@ builder.Services.AddSwaggerGen(options =>
         [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("bearer", document)] = []
     });
 });
+// Povolené cross-origin adresy sú v konfigurácii (Cors:AllowedOrigins), nie v kóde.
+// SPA vo wwwroot beží na rovnakej adrese ako API, takže v produkcii zvyčajne netreba nič.
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.AllowAnyHeader().AllowAnyMethod().WithOrigins(
-            "http://localhost:5173",
-            "http://127.0.0.1:5173"));
+    {
+        policy.AllowAnyHeader().AllowAnyMethod();
+        if (corsOrigins.Length > 0)
+            policy.WithOrigins(corsOrigins);
+    });
 });
 
+// Za reverznou proxy (nginx, IIS ARR, Traefik, load balancer...) — zapína sa v konfigurácii.
+// Bez zoznamu KnownProxies sa dôveruje len proxy na tom istom stroji (loopback).
+var useForwardedHeaders = builder.Configuration.GetValue("ReverseProxy:Enabled", false);
+if (useForwardedHeaders)
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        foreach (var proxy in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out var address))
+                options.KnownProxies.Add(address);
+        }
+    });
+}
+
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Núdzový vypínač: max. 5 pokusov za minútu z jednej IP adresy (ochrana proti hádaniu kľúča).
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(IsSuas.Api.SystemMaintenance.KillSwitchEndpoints.RateLimitPolicy, context =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 builder.Services.AddHttpClient("lps-gis", client =>
 {
     client.BaseAddress = new Uri("https://gis.lps.sk/server/rest/services/");
@@ -44,6 +81,8 @@ builder.Services.AddHttpClient("lps-gis", client =>
 
 var app = builder.Build();
 
+if (useForwardedHeaders)
+    app.UseForwardedHeaders();
 app.UseMiddleware<IsSuas.Api.ExceptionHandlingMiddleware>();
 app.UseMiddleware<IsSuas.Api.SecurityHeadersMiddleware>();
 
@@ -65,9 +104,12 @@ if (app.Environment.IsDevelopment())
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseCors();
+app.UseRateLimiter();
+app.UseMiddleware<IsSuas.Api.SystemMaintenance.MaintenanceModeMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+IsSuas.Api.SystemMaintenance.KillSwitchEndpoints.MapKillSwitch(app);
 app.MapFallbackToFile("index.html");
 
 await DatabaseSeeder.SeedAsync(app.Services);

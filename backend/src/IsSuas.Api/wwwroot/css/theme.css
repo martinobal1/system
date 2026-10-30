@@ -912,3 +912,17 @@ td:has(> .row-actions), td.row-actions { white-space: nowrap; }
   .dash-meta span { display: inline; }
   .kpi-label { font-size: 0.75rem; }
 }
+
+/* =========================== Kôš =========================== */
+.ui-dialog.trash-dep-dialog { width: min(560px, 100%); max-height: calc(100vh - 2rem); overflow: auto; }
+.trash-dep-tools { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.trash-dep-tools button { padding: 0.3rem 0.7rem; font-size: 0.85rem; }
+.trash-dep-list { max-height: 45vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; display: grid; gap: 0.6rem; }
+.trash-dep-group ul { list-style: none; margin: 0.3rem 0 0; padding: 0 0 0 1.4rem; display: grid; gap: 0.25rem; }
+.trash-dep-group label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; cursor: pointer; }
+.trash-dep-head { font-size: 0.92rem; }
+.trash-dep-badge { font-size: 0.72rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: #fef2f2; color: var(--danger); border: 1px solid #f8c9c5; }
+.trash-dep-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: var(--radius-sm); padding: 0.6rem 0.8rem; font-size: 0.88rem; }
+.trash-dep-warn ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+.bin-check { width: 2.2rem; }
+.bin-bulk { justify-content: flex-end; }

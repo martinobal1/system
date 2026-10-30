@@ -9,6 +9,8 @@ using IsSuas.Infrastructure.Messaging;
 using IsSuas.Infrastructure.Persistence;
 using IsSuas.Infrastructure.Services;
 using IsSuas.Infrastructure.Storage;
+using IsSuas.Infrastructure.SystemMaintenance;
+using IsSuas.Application.SystemMaintenance;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -58,6 +60,10 @@ public static class DependencyInjection
         services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<ISystemInfoService, SystemInfoService>();
         services.AddScoped<IGlobalSearchService, GlobalSearchService>();
+        services.AddScoped<ITrashService, TrashService>();
+        services.AddOptions<MaintenanceModeOptions>().Bind(configuration.GetSection(MaintenanceModeOptions.SectionName));
+        services.AddSingleton<MaintenanceModeStateCache>();
+        services.AddScoped<IMaintenanceModeService, MaintenanceModeService>();
         services.AddHostedService<IsSuasMaintenanceWorker>();
 
         var useInMemory = configuration.GetValue("Database:UseInMemory", false);

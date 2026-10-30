@@ -219,6 +219,8 @@ public sealed class ConfigRuleService(
             throw new ValidationException("Kľúč a ValueJson sú povinné.");
 
         var key = request.Key.Trim();
+        if (key.Equals(IsSuas.Application.SystemMaintenance.MaintenanceModeConstants.ConfigKey, StringComparison.OrdinalIgnoreCase))
+            throw new ValidationException("Režim údržby sa nastavuje len núdzovým vypínačom, nie cez konfiguračné pravidlá.");
         var existing = await db.ConfigRules.Where(r => r.Key == key).OrderByDescending(r => r.Version).ToListAsync(cancellationToken);
         var version = existing.Count == 0 ? 1 : existing[0].Version + 1;
 

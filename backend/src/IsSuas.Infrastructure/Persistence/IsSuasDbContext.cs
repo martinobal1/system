@@ -120,6 +120,29 @@ public class IsSuasDbContext(DbContextOptions<IsSuasDbContext> options) : DbCont
     public DbSet<GeoZoneImport> GeoZoneImports => Set<GeoZoneImport>();
     public DbSet<GeoZone> GeoZones => Set<GeoZone>();
     public DbSet<IntegrationConnector> IntegrationConnectors => Set<IntegrationConnector>();
+    public DbSet<TrashEntry> TrashEntries => Set<TrashEntry>();
+
+    /// <summary>
+    /// True = zobraziť aj záznamy v koši (používa kôš a seeder). Predvolene sú záznamy v koši všade skryté.
+    /// </summary>
+    public bool IgnoreTrashFilter { get; set; }
+
+    private bool _allowPhysicalDelete;
+
+    /// <summary>
+    /// Jediná výnimka z pravidla „nič fyzicky nemazať“: trvalé vymazanie z koša (iba gestor).
+    /// Použitie: using (db.AllowPhysicalDelete()) { ...; await db.SaveChangesAsync(); }
+    /// </summary>
+    public IDisposable AllowPhysicalDelete()
+    {
+        _allowPhysicalDelete = true;
+        return new PhysicalDeleteScope(this);
+    }
+
+    private sealed class PhysicalDeleteScope(IsSuasDbContext db) : IDisposable
+    {
+        public void Dispose() => db._allowPhysicalDelete = false;
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -136,15 +159,36 @@ public class IsSuasDbContext(DbContextOptions<IsSuasDbContext> options) : DbCont
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(IsSuasDbContext).Assembly);
+
+        // Kôš: entita s otvoreným záznamom v koši je skrytá vo všetkých dotazoch (zoznamy, detail, hľadanie, prehľady).
+        AddTrashFilter<Pilot>(modelBuilder, nameof(Pilot));
+        AddTrashFilter<PilotCertificate>(modelBuilder, nameof(PilotCertificate));
+        AddTrashFilter<Flight>(modelBuilder, nameof(Flight));
+        AddTrashFilter<Operation>(modelBuilder, nameof(Operation));
+        AddTrashFilter<Uas>(modelBuilder, nameof(Uas));
+        AddTrashFilter<Defect>(modelBuilder, nameof(Defect));
+        AddTrashFilter<SafetyEvent>(modelBuilder, nameof(SafetyEvent));
+        AddTrashFilter<Account>(modelBuilder, nameof(Account));
+
         base.OnModelCreating(modelBuilder);
+    }
+
+    private void AddTrashFilter<T>(ModelBuilder modelBuilder, string entityType) where T : AuditableEntity
+    {
+        modelBuilder.Entity<T>().HasQueryFilter(e =>
+            IgnoreTrashFilter
+            || !TrashEntries.Any(t => t.EntityType == entityType
+                && t.EntityId == e.Id
+                && t.RestoredAt == null
+                && t.PurgedAt == null));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // Soft-delete rule: never physically delete auditable business entities.
+        // Soft-delete rule: never physically delete auditable business entities (výnimka: trvalé vymazanie z koša).
         foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
         {
-            if (entry.State == EntityState.Deleted)
+            if (entry.State == EntityState.Deleted && !_allowPhysicalDelete)
                 throw new InvalidOperationException(
                     $"Fyzické mazanie entity {entry.Entity.GetType().Name} je zakázané. Použite deaktiváciu (IsActive=false).");
         }

@@ -3,6 +3,7 @@ import { colorForKey, entityLabelHtml, swatchHtml } from '../core/charts.js';
 import { ensureMapLibs } from '../core/maps.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, content, formatFlightGps, makeTable, pageHead, sectionCard, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
 import { submitFlightRequestFromForm } from '../shared/flightRequest.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
@@ -55,7 +56,8 @@ export async function renderFlights() {
             chipHtml('Stav', statusLabelSk(f.status), 'chip-soft') +
             chipHtml('Útvar', f.orgUnitName || '—')) +
           '<div class="toolbar">' +
-          '<button type="button" class="secondary" id="fl-back">Späť na dennik</button>' +
+          '<button type="button" class="secondary" id="fl-back">Späť na dennik</button> ' +
+          trashButtonHtml('flights', f.id, (f.flightNumber || 'Let') + (f.takeoffAt ? ' (' + new Date(f.takeoffAt).toLocaleDateString('sk-SK') + ')' : '')) +
           '</div>' +
           '<div class="form-panel"><h3>Zakladne udaje</h3><dl class="flight-meta">' +
           metaItem('Cislo letu', f.flightNumber) +

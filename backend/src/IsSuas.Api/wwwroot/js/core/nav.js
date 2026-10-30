@@ -21,12 +21,53 @@ const pageModules = {
   geozones: () => import('../pages/geozones.js').then(m => m.renderGeozones),
   'geozones-admin': () => import('../pages/geozones-admin.js').then(m => m.renderGeozonesAdmin),
   admin: () => import('../pages/admin.js').then(m => m.renderAdmin),
+  trash: () => import('../pages/trash.js').then(m => m.renderTrash),
   uas: () => import('../pages/uas.js').then(m => m.renderUas),
   components: () => import('../pages/components.js').then(m => m.renderComponents),
   search: () => import('../pages/search.js').then(m => m.renderSearch)
 };
 
 const removedPages = { documents: true, reports: true };
+
+// Detail (alebo vybraný záznam) stránky je súčasťou URL, napr. /register-pnd/<id>.
+// Vďaka tomu funguje tlačidlo Späť/Dopredu v prehliadači, obnovenie stránky aj odkaz na konkrétny záznam.
+const detailState = {
+  pilots: 'pilotDetailId',
+  flights: 'flightDetailId',
+  operations: 'operationDetailId',
+  uas: 'uasDetailId',
+  defects: 'defectDetailId',
+  components: 'techDocModelId',
+  orgs: 'orgSelectedId'
+};
+
+// Dočasné režimy (úprava, nový záznam), ktoré sa pri Späť/Dopredu zatvoria.
+function resetTransientModes() {
+  state.operationEditing = false;
+  state.uasEditing = false;
+  state.techDocCreating = false;
+}
+
+/** Nastaví detail podľa URL (pri štarte aplikácie a pri Späť/Dopredu). */
+export function applyDetailFromPath(path) {
+  var parts = splitPath(path);
+  var page = pageFromPath(path);
+  var key = page ? detailState[page] : null;
+  if (key) state[key] = parts.length > 1 ? parts[1] : null;
+}
+
+/** Klik v menu otvára zoznam, nie naposledy otvorený detail. */
+export function clearDetail(page) {
+  var key = detailState[page];
+  if (key) state[key] = null;
+}
+
+function splitPath(path) {
+  var raw = String(path || '').split('#')[0].split('?')[0];
+  return raw.split('/').filter(function (x) { return x.length > 0; }).map(function (x) {
+    try { return decodeURIComponent(x); } catch (_) { return x; }
+  });
+}
 
 // Zrusene a rolou nedostupne stranky presmerujeme skor, nez sa zapise URL.
 function resolvePage(page) {
@@ -39,7 +80,10 @@ export function closeNav() {
   setNavOpen(false);
 }
 
+var navSeq = 0;
+
 export async function navigate(requestedPage, options) {
+  var mySeq = ++navSeq;
   var page = resolvePage(requestedPage);
   // Stránky odstránené z menu (napr. Dokumenty, Reporty) sa nedajú otvoriť ani priamo.
   if (removedPages[page]) page = defaultPageForRole();
@@ -64,6 +108,11 @@ export async function navigate(requestedPage, options) {
     var render = await loadPage();
     await render();
     enhanceLayout(content);
+    // Stránka mohla detail sama zmeniť (záznam neexistuje, vybraný predvolený útvar...) — zosúladíme URL bez nového kroku v histórii.
+    var actualUrl = urlForPage(page);
+    if (mySeq === navSeq && page !== 'search' && actualUrl !== window.location.pathname + window.location.search) {
+      window.history.replaceState({ page: page }, '', actualUrl);
+    }
   } catch (err) {
     content.innerHTML = '<div class="error">' + err.message + '</div>';
   }
@@ -187,13 +236,17 @@ export function initNav() {
   document.querySelectorAll('.nav').forEach(function (btn) {
     btn.addEventListener('click', function () {
       closeNav();
+      clearDetail(btn.dataset.page);
+      resetTransientModes();
       navigate(btn.dataset.page);
     });
   });
 
   document.getElementById('sidebar-brand-home').addEventListener('click', function () {
     closeNav();
-    navigate(defaultPageForRole());
+    var home = defaultPageForRole();
+    clearDetail(home);
+    navigate(home);
   });
 
   document.getElementById('global-search-form').addEventListener('submit', function (ev) {
@@ -208,6 +261,8 @@ export function initNav() {
     if (page === 'search') {
       state.searchQuery = new URLSearchParams(window.location.search).get('q') || '';
     }
+    resetTransientModes();
+    applyDetailFromPath(window.location.pathname);
     if (!page || !isPageAllowedForRole(page)) page = defaultPageForRole();
     navigate(page, { fromHistory: true });
   });
@@ -265,6 +320,7 @@ export const titles = {
   geozones: 'Mapa GEO zón',
   'geozones-admin': 'Správa GEO zón',
   admin: 'Administrácia',
+  trash: 'Kôš',
   uas: 'Register UAS',
   components: 'Technická dokumentácia',
   batteries: 'Batérie',
@@ -290,6 +346,7 @@ export const routes = {
   geozones: 'geo-zony',
   'geozones-admin': 'sprava-geo-zon',
   admin: 'administracia',
+  trash: 'kos',
   uas: 'register-uas',
   components: 'technicka-dokumentacia',
   batteries: 'baterie',
@@ -299,13 +356,15 @@ export const routes = {
 
 export function urlForPage(page) {
   var url = '/' + (routes[page] || page);
+  var key = detailState[page];
+  if (key && state[key]) url += '/' + encodeURIComponent(state[key]);
   if (page === 'search' && state.searchQuery) url += '?q=' + encodeURIComponent(state.searchQuery);
   return url;
 }
 
 export function pageFromPath(path) {
-  var raw = String(path || '').split('#')[0].split('?')[0];
-  var slug = raw.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
+  // Prvý úsek cesty je stránka, druhý (ak je) detail: /register-pnd/<id>
+  var slug = (splitPath(path)[0] || '').toLowerCase();
   if (!slug) return null;
   for (var page in routes) {
     if (routes[page] === slug) return page;

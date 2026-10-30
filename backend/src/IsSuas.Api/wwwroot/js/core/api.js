@@ -1,6 +1,12 @@
 import { state } from './state.js';
 
 let unauthorizedHandler = null;
+let maintenanceHandler = null;
+
+// Server pocas rezimu udrzby vracia 503 s hlavickou X-Maintenance-Mode; obrazovku zobrazi app.js.
+export function setMaintenanceHandler(handler) {
+  maintenanceHandler = handler;
+}
 
 // Reakcia na vyprsanu sesiu je vec UI vrstvy, preto si ju app.js zaregistruje sem.
 export function setUnauthorizedHandler(handler) {
@@ -26,6 +32,14 @@ export async function api(path, options = {}) {
       detail = body.detail || body.title || detail;
     } catch {}
     throw new Error(detail);
+  }
+
+  if (res.status === 503 && res.headers.get('X-Maintenance-Mode')) {
+    let body = null;
+    try { body = await res.json(); } catch {}
+    const message = (body && (body.detail || body.title)) || 'Prebieha údržba systému.';
+    if (maintenanceHandler) maintenanceHandler({ isActive: true, message: message, plannedEndAt: body && body.plannedEndAt });
+    throw new Error(message);
   }
 
   if (!res.ok) {

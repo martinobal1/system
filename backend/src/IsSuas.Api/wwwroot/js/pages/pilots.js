@@ -2,6 +2,7 @@ import { api } from '../core/api.js';
 import { colorForKey } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
 import { bindCertLifecycleButtons, certActionButtons, certStatusHtml, certSuspendPanelHtml, isCertIssued, isCertSuspended } from '../shared/certs.js';
 
@@ -68,7 +69,8 @@ export async function renderPilots() {
             '<span class="chip chip-soft">Kategórie ' + certBadgesHtml(certCodes) + '</span>') +
           '<div class="toolbar">' +
           '<button type="button" class="secondary" id="pilot-back">Späť na pilotov</button> ' +
-          '<button type="button" class="secondary" id="pilot-map">' + mapBtnLabel + '</button>' +
+          '<button type="button" class="secondary" id="pilot-map">' + mapBtnLabel + '</button> ' +
+          trashButtonHtml('pilots', pilot.id, name) +
           '</div>' +
           certSuspendPanelHtml() +
           '<div id="pilot-cert-msg"></div>' +

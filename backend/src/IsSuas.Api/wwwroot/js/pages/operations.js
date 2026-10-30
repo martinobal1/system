@@ -4,6 +4,7 @@ import { ensureMapLibs } from '../core/maps.js';
 import { navigate } from '../core/nav.js';
 import { beginFlightRequestFlow } from '../shared/flightRequest.js';
 import { state } from '../core/state.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, statusBadge, statusLabelSk } from '../core/ui.js';
 
 export async function renderOperations() {
@@ -127,6 +128,9 @@ export async function renderOperations() {
         if (canDeleteOwn(op)) {
           actionBar +=
             ' <button type="button" class="btn-danger" id="op-d-delete">Vymazať</button>';
+        }
+        if (state.accessLevel === 1 || state.accessLevel === 2) {
+          actionBar += ' ' + trashButtonHtml('operations', op.id, op.title);
         }
 
         var editBlock = '';

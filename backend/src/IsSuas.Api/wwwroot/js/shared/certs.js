@@ -1,5 +1,6 @@
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { addDaysLocal, content, isoDateLocal, statusBadge } from '../core/ui.js';
 
 export function isCertIssued(c) {
@@ -48,6 +49,7 @@ export function certActionButtons(pilotId, c, name) {
   }
   html += ' <button type="button" class="secondary cert-revoke" data-pilot="' + pilotId +
     '" data-id="' + cid + '" data-code="' + code + '" data-name="' + safe + '">Odobrať</button>';
+  html += ' ' + trashButtonHtml('certificates', cid, (c.titleSk || code) + ' – ' + (name || ''), { compact: true });
   return html;
 }
 

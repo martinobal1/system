@@ -2,6 +2,7 @@ import { api } from '../core/api.js';
 import { colorForKey, swatchHtml } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
+import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, severityBadge, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
 
@@ -60,8 +61,9 @@ export async function renderDefects() {
           '<div class="toolbar">' +
           '<button type="button" class="secondary" id="def-back">Späť na zoznam</button> ' +
           (isOpenDefect(d)
-            ? '<button type="button" id="def-resolve">Vyriešiť</button>'
+            ? '<button type="button" id="def-resolve">Vyriešiť</button> '
             : '') +
+          trashButtonHtml('defects', d.id, d.title || 'Porucha') +
           '</div>' +
           '<div id="def-msg"></div>' +
           '<div class="form-panel"><h3>Bezpilotné lietadlo</h3><dl class="flight-meta">' +
