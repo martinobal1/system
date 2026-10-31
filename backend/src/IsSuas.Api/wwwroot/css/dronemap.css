@@ -328,3 +328,56 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================== Mapa VFR (rovnaká skladba ako VFR Manual LPS SR) =========================== */
+.vfrm-grid-label { background: none; border: 0; width: 0 !important; height: 0 !important; }
+.vfrm-grid-label span {
+  position: absolute; left: 0; top: 0; display: block;
+  font: 600 11px/1 Inter, system-ui, sans-serif; color: #2c3a47; white-space: nowrap;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; transform: translate(4px, -14px);
+}
+.vfrm-grid-label.is-lon span { transform: translate(-50%, 4px); }
+.vfrm-wind { background: none; border: 0; }
+.vfrm-wind svg { display: block; filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9)); }
+
+.vfrm-layers { background: #fff; border-radius: 6px; }
+.vfrm-layers-toggle {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.6rem;
+  background: #fff !important; color: #1f2d3a !important; border: 0 !important; box-shadow: none !important;
+  font-size: 0.82rem; font-weight: 600; border-radius: 6px; cursor: pointer;
+}
+.vfrm-layers-toggle:hover { background: #f1f5f9 !important; }
+.vfrm-layers-panel { padding: 0.25rem 0.75rem 0.7rem; min-width: 230px; max-height: 60vh; overflow: auto; }
+.vfrm-layers-panel h4 { margin: 0.6rem 0 0.3rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #5a6d7e; }
+.vfrm-layers-panel label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; padding: 0.15rem 0; cursor: pointer; }
+.vfrm-legend { margin: 0.55rem 0 0; font-size: 0.75rem; color: #475569; line-height: 1.7; }
+.vfrm-legend .sw { display: inline-block; width: 14px; height: 10px; margin-right: 0.35rem; vertical-align: -1px; border-radius: 2px; }
+.vfrm-legend .sw.is-active { background: rgba(255, 0, 0, 0.28); border: 2px solid #e60000; }
+.vfrm-legend .sw.is-planned { background: rgba(255, 170, 0, 0.5); border: 2px solid #ffaa00; }
+.vfrm-src { margin: 0.45rem 0 0; font-size: 0.7rem; color: #64748b; }
+
+.vfrm-nav a { display: flex !important; align-items: center; justify-content: center; color: #1f2d3a; }
+.vfrm-coords, .vfrm-effective {
+  background: rgba(255, 255, 255, 0.88); padding: 0.15rem 0.45rem; border-radius: 4px;
+  font: 500 11px/1.4 Inter, system-ui, sans-serif; color: #1f2d3a; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
+}
+.vfrm-status-warning {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 800; max-width: min(560px, 90%);
+  padding: 0.5rem 0.8rem; border-radius: 6px; background: #b42318; color: #fff;
+  font-size: 0.82rem; font-weight: 600; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+}
+
+.vfrm-identify-head { display: grid; gap: 0.1rem; margin-bottom: 0.3rem; }
+.vfrm-identify-head span { font-size: 0.75rem; color: #64748b; }
+.vfrm-identify-item { border: 1px solid #e2e8f0; border-radius: 6px; margin: 0.4rem 0; background: #fff; }
+.vfrm-identify-item summary { cursor: pointer; padding: 0.45rem 0.6rem; display: grid; gap: 0.05rem; list-style: none; }
+.vfrm-identify-item summary::-webkit-details-marker { display: none; }
+.vfrm-identify-item summary span { font-weight: 600; font-size: 0.85rem; }
+.vfrm-identify-item summary small { font-size: 0.72rem; color: #64748b; }
+.vfrm-identify-item[open] summary { border-bottom: 1px solid #eef2f6; }
+.vfrm-attrs { margin: 0; padding: 0.4rem 0.6rem 0.5rem; display: grid; gap: 0.2rem; }
+.vfrm-attrs > div { display: grid; grid-template-columns: 9rem 1fr; gap: 0.4rem; font-size: 0.8rem; }
+.vfrm-attrs dt { color: #64748b; }
+.vfrm-attrs dd { margin: 0; color: #1f2d3a; word-break: break-word; }
+#geo-zone-info:empty { display: none; }
+#geo-zone-info { margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid #e2e8f0; }

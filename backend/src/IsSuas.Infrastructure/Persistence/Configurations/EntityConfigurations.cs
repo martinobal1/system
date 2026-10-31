@@ -129,6 +129,22 @@ internal sealed class ConfigRuleConfiguration : IEntityTypeConfiguration<ConfigR
     }
 }
 
+internal sealed class UasTypeDocConfiguration : IEntityTypeConfiguration<UasTypeDoc>
+{
+    public void Configure(EntityTypeBuilder<UasTypeDoc> builder)
+    {
+        AuditableConfig.Configure(builder);
+        builder.ToTable("UasTypeDocs");
+        builder.Property(x => x.Slug).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Manufacturer).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Model).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.DataJson).HasColumnType("text").IsRequired();
+        builder.Property(x => x.ManualStorageKey).HasMaxLength(512);
+        builder.Property(x => x.ManualFileName).HasMaxLength(260);
+        builder.HasIndex(x => x.Slug).IsUnique();
+    }
+}
+
 internal sealed class UasConfiguration : IEntityTypeConfiguration<Uas>
 {
     public void Configure(EntityTypeBuilder<Uas> builder)
@@ -146,6 +162,8 @@ internal sealed class UasConfiguration : IEntityTypeConfiguration<Uas>
         builder.HasIndex(x => x.RegistrationNumber).IsUnique().HasFilter("\"RegistrationNumber\" IS NOT NULL");
         builder.HasIndex(x => x.CertificateNumber);
         builder.HasIndex(x => x.InventoryAssetNumber);
+        builder.Property(x => x.PendingReason).HasMaxLength(1000);
+        builder.HasIndex(x => x.PendingOrgUnitId);
         builder.HasOne(x => x.OwningOrgUnit).WithMany().HasForeignKey(x => x.OwningOrgUnitId)
             .OnDelete(DeleteBehavior.SetNull);
     }

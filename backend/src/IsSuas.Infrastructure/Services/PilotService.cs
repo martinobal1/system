@@ -20,6 +20,7 @@ public interface IPilotService
     Task<PilotCertificateDto> AddCertificateAsync(Guid pilotId, CreatePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> IssueCertificateAsync(Guid pilotId, Guid certificateId, IssuePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> GrantCertificateAsync(Guid pilotId, GrantPilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotDto> RequestOwnCertificateAsync(RequestPilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> RevokeCertificateAsync(Guid pilotId, Guid certificateId, RevokePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> SuspendCertificateAsync(Guid pilotId, Guid certificateId, SuspendPilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> ResumeCertificateAsync(Guid pilotId, Guid certificateId, CancellationToken cancellationToken = default);
@@ -346,12 +347,82 @@ public sealed class PilotService(
             });
         }
 
+        // Pridelením sa vybavia aj žiadosti pilota o tento alebo nižší stupeň.
+        foreach (var req in pilot.Certificates.Where(IsOpenCertificateRequest)
+                     .Where(c => chain.Contains(NormalizeCertCode(c.CertificateTypeCode), StringComparer.OrdinalIgnoreCase)).ToList())
+        {
+            req.IsActive = false;
+            req.UpdatedBy = currentUser.AccountId;
+        }
+
         RecalculateCurrencyFlags(pilot);
         await SyncLevel3LicenseAsync(pilot, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("PilotCertificate.Grant", nameof(PilotCertificate), granted!.Id, null,
             MapCertificate(granted), cancellationToken: cancellationToken);
         return MapCertificate(granted);
+    }
+
+    private const string CertificateRequestNote = "Žiadosť pilota o osvedčenie";
+
+    private static bool IsOpenCertificateRequest(PilotCertificate c) =>
+        c.IsActive && c.Status == CertificateStatus.Draft
+        && c.Notes != null && c.Notes.StartsWith(CertificateRequestNote, StringComparison.Ordinal);
+
+    public async Task<PilotDto> RequestOwnCertificateAsync(RequestPilotCertificateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (currentUser.AccountId is not Guid accountId)
+            throw new ForbiddenException("Chýba identita používateľa.");
+        var account = await db.Accounts.AsNoTracking()
+            .Where(a => a.Id == accountId)
+            .Select(a => new { a.AccessLevel, a.PersonId })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new ForbiddenException("Účet nebol nájdený.");
+        if (account.AccessLevel != AccessLevel.Level3)
+            throw new ForbiddenException("O osvedčenie žiada pilot (úroveň 3).");
+
+        var typeCode = NormalizeCertCode(request.CertificateTypeCode);
+        if (typeCode is not ("A1_A3" or "A2" or "STS1" or "STS2"))
+            throw new ValidationException("Povolené typy osvedčenia sú A1/A3, A2, STS1 a STS2.");
+
+        var pilotId = await db.Pilots.AsNoTracking()
+            .Where(p => p.PersonId == account.PersonId && p.IsActive)
+            .Select(p => (Guid?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("K vášmu účtu nie je v registri PnD žiadny pilot. Obráťte sa na správcu útvaru.");
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+
+        var now = clock.UtcNow;
+        var alreadyHas = pilot.Certificates.Any(c => c.IsActive && c.Status == CertificateStatus.Issued
+            && NormalizeCertCode(c.CertificateTypeCode) == typeCode
+            && (c.ValidFrom == null || c.ValidFrom <= now) && (c.ValidTo == null || c.ValidTo >= now));
+        if (alreadyHas)
+            throw new ValidationException($"Osvedčenie {CertificateTitle(typeCode)} už máte.");
+        if (pilot.Certificates.Any(c => IsOpenCertificateRequest(c) && NormalizeCertCode(c.CertificateTypeCode) == typeCode))
+            throw new ConflictException("O toto osvedčenie ste už požiadali. Žiadosť čaká na vybavenie.");
+
+        var note = string.IsNullOrWhiteSpace(request.Note) ? "" : " — " + request.Note.Trim();
+        if (note.Length > 500) note = note[..500];
+        var cert = new PilotCertificate
+        {
+            PilotId = pilot.Id,
+            CertificateTypeCode = typeCode,
+            TitleSk = $"Žiadosť o {CertificateTitle(typeCode)}",
+            Version = pilot.Certificates.Where(c => NormalizeCertCode(c.CertificateTypeCode) == typeCode)
+                .Select(c => c.Version).DefaultIfEmpty(0).Max() + 1,
+            Status = CertificateStatus.Draft,
+            Notes = CertificateRequestNote + note,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CreatedBy = currentUser.AccountId,
+            UpdatedBy = currentUser.AccountId
+        };
+        db.PilotCertificates.Add(cert);
+        pilot.Certificates.Add(cert);
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("PilotCertificate.Request", nameof(PilotCertificate), cert.Id, null,
+            MapCertificate(cert), cancellationToken: cancellationToken);
+        return Map(pilot);
     }
 
     private static IReadOnlyList<string> PrerequisiteChain(string typeCode) => typeCode switch
@@ -1068,10 +1139,17 @@ public sealed class PilotService(
             .OrderBy(c => c.CertificateTypeCode switch { "A1_A3" => 0, "A2" => 1, "STS1" => 2, _ => 3 })
             .ToList();
 
+        var requests = p.Certificates.Where(IsOpenCertificateRequest).ToList();
+        var requestedCodes = requests
+            .Select(c => NormalizeCertCode(c.CertificateTypeCode))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new(p.Id, p.PersonId, p.Person.FirstName, p.Person.LastName, p.Person.Email, p.OrgUnitId, p.OrgUnit.Name,
             p.LicenseNumber, p.PersonalBadgeNumber, p.GestorCertificateNumber, p.LogbookNumber,
             p.Status, p.CurrencyValidUntil, p.LastFlightAt,
-            PilotEligibility.CanAssignToOperation(p, now), p.IsActive, p.RowVersion, certCodes, certItems);
+            PilotEligibility.CanAssignToOperation(p, now), p.IsActive, p.RowVersion, certCodes, certItems,
+            requestedCodes, requests.Count > 0 ? requests.Max(c => c.CreatedAt) : (DateTimeOffset?)null);
     }
 
     private static string NormalizeCertCode(string code)

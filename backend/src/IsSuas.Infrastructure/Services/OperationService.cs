@@ -72,6 +72,7 @@ public sealed class OperationService(
         policy.EnsurePermission(Permissions.OperationsWrite);
         if (currentUser.AccountId is null)
             throw new ForbiddenException("Chýba identita používateľa.");
+        await EnsureCallerPilotCertifiedAsync(cancellationToken);
 
         if (request.IsUrgent && string.IsNullOrWhiteSpace(request.UrgentReason))
             throw new ValidationException("Neodkladná operácia vyžaduje povinný dôvod.");
@@ -173,6 +174,45 @@ public sealed class OperationService(
         return new OperationResourceDto(resource.Id, resource.ResourceType, resource.ResourceId, resource.RoleCode, resource.DisplayName);
     }
 
+    /// <summary>Pilot (úroveň 3) môže žiadať o let len s platným osvedčením (preukazom PnD).</summary>
+    private async Task EnsureCallerPilotCertifiedAsync(CancellationToken cancellationToken)
+    {
+        if (currentUser.AccountId is not Guid accountId)
+            return;
+        var account = await db.Accounts.AsNoTracking()
+            .Where(a => a.Id == accountId)
+            .Select(a => new { a.AccessLevel, a.PersonId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (account is null || account.AccessLevel != AccessLevel.Level3)
+            return;
+        var now = clock.UtcNow;
+        var certified = await db.PilotCertificates.AnyAsync(c =>
+            c.Pilot.PersonId == account.PersonId && c.Pilot.IsActive
+            && c.IsActive && c.Status == CertificateStatus.Issued
+            && (c.ValidFrom == null || c.ValidFrom <= now)
+            && (c.ValidTo == null || c.ValidTo >= now), cancellationToken);
+        if (!certified)
+            throw new ForbiddenException("Nemáte platné osvedčenie na lietanie (preukaz PnD). Najprv oň požiadajte.");
+    }
+
+    /// <summary>Každý pilot priradený k žiadosti musí mať platné osvedčenie.</summary>
+    private async Task EnsurePilotsCertifiedAsync(IReadOnlyCollection<Guid> pilotIds, CancellationToken cancellationToken)
+    {
+        if (pilotIds.Count == 0)
+            return;
+        var now = clock.UtcNow;
+        var certifiedIds = await db.PilotCertificates.AsNoTracking()
+            .Where(c => pilotIds.Contains(c.PilotId)
+                && c.IsActive && c.Status == CertificateStatus.Issued
+                && (c.ValidFrom == null || c.ValidFrom <= now)
+                && (c.ValidTo == null || c.ValidTo >= now))
+            .Select(c => c.PilotId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (pilotIds.Any(id => !certifiedIds.Contains(id)))
+            throw new ValidationException("Priradený pilot nemá platné osvedčenie na lietanie (preukaz PnD).");
+    }
+
     public async Task<OperationDto> SubmitAsync(Guid id, uint rowVersion, CancellationToken cancellationToken = default)
     {
         policy.EnsurePermission(Permissions.OperationsWrite);
@@ -185,6 +225,10 @@ public sealed class OperationService(
             throw new ValidationException("Operácia musí mať priradené UAS.");
         if (!op.Resources.Any(r => r.ResourceType == OperationResourceType.Pilot && r.IsActive))
             throw new ValidationException("Operácia musí mať priradeného pilota.");
+        await EnsureCallerPilotCertifiedAsync(cancellationToken);
+        await EnsurePilotsCertifiedAsync(
+            op.Resources.Where(r => r.ResourceType == OperationResourceType.Pilot && r.IsActive).Select(r => r.ResourceId).ToList(),
+            cancellationToken);
 
         var docBlock = await documents.GetOperationDocumentBlockAsync(op.Id, cancellationToken);
         if (docBlock.IsBlocked)

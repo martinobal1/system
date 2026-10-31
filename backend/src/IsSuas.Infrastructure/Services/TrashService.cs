@@ -116,6 +116,9 @@ public sealed class TrashService(
         if (IsGestor)
             return;
 
+        if (target.Category == TrashCategories.Uas)
+            throw new ForbiddenException("UAS môže vymazať iba gestor (úroveň 1). Správca útvaru ho môže vyradiť alebo vrátiť na MV SR.");
+
         policy.EnsurePermission(target.WritePermission);
 
         if (target.Category == TrashCategories.Accounts && target.AccountLevel == AccessLevel.Level1)

@@ -80,6 +80,10 @@ public sealed class OrgUnitService(
         }
 
         var kind = request.Kind ?? InferKind(parent, request.Code);
+        if (parent is not null && parent.Kind != OrgUnitKind.Root && kind != OrgUnitKind.Unit)
+            throw new ValidationException("Pod zložkou alebo útvarom môže byť len bežný útvar — zložka sa určuje podľa nadradeného útvaru.");
+        if (parent is not null && parent.Kind == OrgUnitKind.Root && kind == OrgUnitKind.Unit)
+            throw new ValidationException("Útvar musí patriť do zložky (Policajný zbor, HaZZ alebo Civilná ochrana).");
 
         var entity = new OrgUnit
         {
@@ -140,6 +144,15 @@ public sealed class OrgUnitService(
             policy.EnsureOrgAccess(newParent.Path);
         }
 
+        // Útvar sa nesmie presunúť do inej zložky (napr. z Policajného zboru pod HaZZ).
+        if (entity.Kind == OrgUnitKind.Unit)
+        {
+            var oldBranch = BranchSegment(entity.Path);
+            var newBranch = newParent is null ? null : BranchSegment(newParent.Path);
+            if (newBranch is null || !string.Equals(oldBranch, newBranch, StringComparison.Ordinal))
+                throw new ValidationException("Útvar je možné presunúť len v rámci svojej zložky.");
+        }
+
         var before = Map(entity);
         var previousParentId = entity.ParentId;
         entity.ParentId = request.NewParentId;
@@ -180,7 +193,7 @@ public sealed class OrgUnitService(
         policy.EnsureOrgAccess(entity.Path);
 
         if (await db.OrgUnits.AnyAsync(x => x.ParentId == id && x.IsActive, cancellationToken))
-            throw new ValidationException("Najprv odoberte (deaktivujte) podradené útvary.");
+            throw new ValidationException("Najprv vymažte podradené útvary tohto útvaru.");
 
         var before = Map(entity);
         entity.IsActive = false;
@@ -209,6 +222,13 @@ public sealed class OrgUnitService(
         entity.UpdatedBy = currentUser.AccountId;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("OrgUnit.Reactivate", nameof(OrgUnit), entity.Id, before, Map(entity), cancellationToken: cancellationToken);
+    }
+
+    /// <summary>Druhý segment cesty /koreň/zložka/... = identifikátor zložky.</summary>
+    private static string? BranchSegment(string? path)
+    {
+        var parts = (path ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? parts[1] : null;
     }
 
     private static OrgUnitKind InferKind(OrgUnit? parent, string code)

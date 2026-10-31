@@ -47,7 +47,8 @@ public sealed record FleetModelCountDto(
     string Model,
     int Count,
     int InUse,
-    int Idle);
+    int Idle,
+    int Decommissioned = 0);
 
 public sealed record FlightHoursSliceDto(string Key, string Label, decimal Hours, int FlightCount);
 

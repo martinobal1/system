@@ -3,8 +3,8 @@ import { bindChartTooltips, colorForKey, fleetModelsFromUasList, renderFleetMode
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
-import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusLabelSk } from '../core/ui.js';
-import { getTechDocCatalog, techDocSlug } from '../shared/techDocs.js';
+import { chipHtml, confirmAction, confirmDialog, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusLabelSk } from '../core/ui.js';
+import { ensureTechDocCatalog, getTechDocCatalog, techDocSlug } from '../shared/techDocs.js';
 
 function escAttr(value) {
   return String(value || '')
@@ -14,6 +14,7 @@ function escAttr(value) {
 }
 
 export async function renderUas() {
+      await ensureTechDocCatalog();
       if (state.uasDetailId) {
         const detail = await api('/api/v1/uas/' + state.uasDetailId);
         const u = detail.uas;
@@ -27,13 +28,39 @@ export async function renderUas() {
           return '<tr><td>' + p.pilotName + '</td><td>' + new Date(p.validFrom).toLocaleDateString('sk-SK') +
             '</td><td>' + (p.validTo ? new Date(p.validTo).toLocaleDateString('sk-SK') : 'platne') + '</td></tr>';
         }).join('') || '<tr><td colspan="3">Ziadni opravneni piloti</td></tr>';
-        const orgOpts = orgs.map(function (o) {
-          return '<option value="' + o.id + '"' + (o.id === u.owningOrgUnitId ? ' selected' : '') + '>' +
-            o.code + ' — ' + o.name + '</option>';
-        }).join('');
+        // Prideliť sa dá len útvaru (nie zložke ani ministerstvu) a nie tomu, ktorý dron už má.
+        const unitOpts = orgs.filter(function (o) {
+          return (o.kind === 'Unit' || o.kind === 4) && o.isActive !== false && o.id !== u.owningOrgUnitId;
+        }).sort(function (a, b) { return String(a.path || '').localeCompare(String(b.path || '')); })
+          .map(function (o) { return '<option value="' + o.id + '">' + escAttr(o.name) + ' (' + escAttr(o.code) + ')</option>'; }).join('');
         const canEditUas = state.accessLevel === 1
           && u.status !== 'Decommissioned' && u.status !== 8;
         const editOpen = canEditUas && !!state.uasEditing;
+        const isDecomUas = u.status === 'Decommissioned' || u.status === 8;
+        // Gestor (L1) ponúkne UAS útvaru → správca útvaru (L2) ho prijme alebo odmietne.
+        // Správca môže svoj UAS vrátiť na MV SR alebo vyradiť; gestor ho môže odobrať (späť na MV SR).
+        const mvRoot = orgs.find(function (o) { return o.kind === 'Root' || o.kind === 0; }) || null;
+        const isAtMv = !!mvRoot && u.owningOrgUnitId === mvRoot.id;
+        const hasOffer = !!u.pendingOrgUnitId;
+        const canOfferUas = state.accessLevel === 1 && !isDecomUas && !hasOffer;
+        const canCancelOffer = state.accessLevel === 1 && hasOffer;
+        const canAnswerOffer = state.accessLevel === 2 && hasOffer && !!u.pendingForCaller && !isDecomUas;
+        const canTakeBackUas = state.accessLevel === 1 && !isDecomUas && !!mvRoot && !isAtMv && !!u.owningOrgUnitId;
+        const canReturnUas = state.accessLevel === 2 && !isDecomUas && !!mvRoot && !isAtMv && !!u.owningOrgUnitId;
+        const canRetireUas = !isDecomUas && (state.accessLevel === 1 || (state.accessLevel === 2 && !isAtMv && !!u.owningOrgUnitId));
+        const offerDate = u.pendingSince ? new Date(u.pendingSince).toLocaleDateString('sk-SK') : '';
+        const offerBanner = hasOffer
+          ? '<div class="uas-offer-banner"><div><b>' + (canAnswerOffer ? 'Gestor vám ponúka tento dron.' : 'Čaká na prijatie útvarom ' + escAttr(u.pendingOrgUnitName || '') + '.') + '</b>' +
+            '<span>' + (canAnswerOffer ? 'Útvar: ' + escAttr(u.pendingOrgUnitName || '') + ' · ' : '') + 'Ponuka od ' + offerDate +
+            (u.pendingReason ? ' · ' + escAttr(u.pendingReason) : '') + '</span></div>' +
+            '<div class="toolbar" style="margin:0">' +
+            (canAnswerOffer
+              ? '<button type="button" id="uas-offer-accept">Prijať dron</button>' +
+                '<button type="button" class="secondary danger-ghost" id="uas-offer-reject">Odmietnuť</button>'
+              : '') +
+            (canCancelOffer ? '<button type="button" class="secondary" id="uas-offer-cancel">Zrušiť ponuku</button>' : '') +
+            '</div></div>'
+          : '';
         state.uasEditing = false;
         content.innerHTML = '<div class="stack">' +
           pageHead('Detail UAS', (u.registrationNumber || u.serialNumber) + ' · ' + u.manufacturer + ' ' + u.model,
@@ -47,11 +74,15 @@ export async function renderUas() {
           (canEditUas
             ? '<button type="button" class="secondary" id="uas-edit">Upraviť</button> '
             : '') +
-          (u.status !== 'Decommissioned' && u.status !== 8
+          (canReturnUas
+            ? '<button type="button" class="secondary" id="uas-return">Vrátiť dron na MV SR</button> ' : '') +
+          (canTakeBackUas
+            ? '<button type="button" class="secondary" id="uas-takeback">Odobrať dron (späť na MV SR)</button> ' : '') +
+          (canRetireUas
             ? '<button type="button" class="secondary" id="uas-retire">Vyradiť</button> ' : '') +
           trashButtonHtml('uas', u.id, (u.registrationNumber || u.serialNumber || 'UAS') + ' (' + (u.manufacturer || '') + ' ' + (u.model || '') + ')') +
           '</div>' +
-          '<div id="uas-msg"></div>' +
+          '<div id="uas-msg"></div>' + offerBanner +
           (canEditUas
             ? '<div id="uas-edit-panel" class="form-panel' + (editOpen ? '' : ' hidden') + '"><h3>Upraviť kartu</h3>' +
               '<form id="uas-edit-form" class="form-grid">' +
@@ -74,11 +105,14 @@ export async function renderUas() {
           '<div><dt>Užívateľ (útvar)</dt><dd>' + (u.owningOrgUnitName || '—') + '</dd></div>' +
           '<div><dt>Č. IM</dt><dd>' + (u.inventoryAssetNumber || '—') + '</dd></div>' +
           '</dl></div>' +
-          '<div class="form-panel"><h3>Transfer na iny útvar</h3>' +
-          '<form id="uas-transfer" class="form-grid">' +
-          '<label class="full">Nový útvar<select id="uas-new-org">' + orgOpts + '</select></label>' +
-          '<label class="full">Dovod<input id="uas-reason" required placeholder="Dovod transferu" /></label>' +
-          '<div class="full toolbar"><button type="submit">Presunut UAS</button></div></form></div>' +
+          (canOfferUas
+            ? '<div class="form-panel"><h3>Prideliť dron útvaru</h3>' +
+              '<p class="muted" style="margin:-0.4rem 0 0">Dron prejde útvaru až potom, keď ho správca útvaru prijme.</p>' +
+              '<form id="uas-transfer" class="form-grid">' +
+              '<label class="full">Útvar<select id="uas-new-org" required>' + unitOpts + '</select></label>' +
+              '<label class="full">Poznámka<input id="uas-reason" maxlength="1000" placeholder="voliteľné" /></label>' +
+              '<div class="full toolbar"><button type="submit">Ponúknuť útvaru</button></div></form></div>'
+            : '') +
           sectionCard('História pridelení', makeTable(['Útvar', 'Od', 'Do', 'Dovod'], hist, true), '#2b7bb9') +
           sectionCard('Opravneni piloti', makeTable(['Pilot', 'Od', 'Do'], pilots, true), '#0d8f7a') +
           '</div>';
@@ -137,6 +171,23 @@ export async function renderUas() {
             navigate('uas');
           } catch (err) { document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>'; }
         };
+        var returnBtn = document.getElementById('uas-return');
+        if (returnBtn) returnBtn.onclick = async function () {
+          var ok = await confirmDialog({
+            title: 'Vrátiť dron na MV SR?',
+            message: '<p>UAS <b>' + escAttr(u.registrationNumber || u.serialNumber || '') + '</b> sa vráti Ministerstvu vnútra SR. ' +
+              'Váš útvar ho potom už neuvidí a späť ho môže prideliť iba gestor.</p>',
+            confirmLabel: 'Vrátiť dron'
+          });
+          if (!ok) return;
+          try {
+            await api('/api/v1/uas/' + u.id + '/transfer', {
+              method: 'POST',
+              body: JSON.stringify({ newOrgUnitId: mvRoot.id, effectiveAt: new Date().toISOString(), reason: 'Vrátenie na MV SR' })
+            });
+            state.uasDetailId = null; navigate('uas');
+          } catch (err) { document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>'; }
+        };
         var retireBtn = document.getElementById('uas-retire');
         if (retireBtn) retireBtn.onclick = async function () {
           if (!confirmAction('Vyradiť tento UAS?')) return;
@@ -164,26 +215,83 @@ export async function renderUas() {
             navigate('components');
           };
         }
-        document.getElementById('uas-transfer').onsubmit = async function (ev) {
+        function uasMsgError(err) { document.getElementById('uas-msg').innerHTML = '<div class="error">' + escAttr(err.message || 'Akcia zlyhala') + '</div>'; }
+        if (canOfferUas) document.getElementById('uas-transfer').onsubmit = async function (ev) {
           ev.preventDefault();
+          var target = document.getElementById('uas-new-org').value;
+          if (!target) { uasMsgError(new Error('Vyberte útvar')); return; }
+          try {
+            await api('/api/v1/uas/' + u.id + '/offer', {
+              method: 'POST',
+              body: JSON.stringify({ orgUnitId: target, reason: document.getElementById('uas-reason').value.trim() || null })
+            });
+            navigate('uas');
+          } catch (err) { uasMsgError(err); }
+        };
+        var acceptBtn = document.getElementById('uas-offer-accept');
+        if (acceptBtn) acceptBtn.onclick = async function () {
+          try {
+            await api('/api/v1/uas/' + u.id + '/offer/accept', { method: 'POST', body: '{}' });
+            navigate('uas');
+          } catch (err) { uasMsgError(err); }
+        };
+        var rejectBtn = document.getElementById('uas-offer-reject') || document.getElementById('uas-offer-cancel');
+        if (rejectBtn) rejectBtn.onclick = async function () {
+          var isCancel = rejectBtn.id === 'uas-offer-cancel';
+          var ok = await confirmDialog({
+            title: isCancel ? 'Zrušiť ponuku?' : 'Odmietnuť dron?',
+            message: isCancel
+              ? '<p>Ponuka pre útvar <b>' + escAttr(u.pendingOrgUnitName || '') + '</b> sa zruší a dron ostane tam, kde je.</p>'
+              : '<p>Dron sa vášmu útvaru nepridelí a ostane na MV SR.</p>',
+            confirmLabel: isCancel ? 'Zrušiť ponuku' : 'Odmietnuť',
+            danger: !isCancel
+          });
+          if (!ok) return;
+          try {
+            await api('/api/v1/uas/' + u.id + '/offer/reject', { method: 'POST', body: '{}' });
+            if (!isCancel) state.uasDetailId = null;
+            navigate('uas');
+          } catch (err) { uasMsgError(err); }
+        };
+        var takeBackBtn = document.getElementById('uas-takeback');
+        if (takeBackBtn) takeBackBtn.onclick = async function () {
+          var ok = await confirmDialog({
+            title: 'Odobrať dron útvaru?',
+            message: '<p>Dron sa útvaru <b>' + escAttr(u.owningOrgUnitName || '') + '</b> odoberie a vráti sa na MV SR.</p>',
+            confirmLabel: 'Odobrať dron',
+            danger: true
+          });
+          if (!ok) return;
           try {
             await api('/api/v1/uas/' + u.id + '/transfer', {
               method: 'POST',
-              body: JSON.stringify({
-                newOrgUnitId: document.getElementById('uas-new-org').value,
-                effectiveAt: new Date().toISOString(),
-                reason: document.getElementById('uas-reason').value.trim()
-              })
+              body: JSON.stringify({ newOrgUnitId: mvRoot.id, effectiveAt: new Date().toISOString(), reason: 'Odobratie gestorom' })
             });
             navigate('uas');
-          } catch (err) {
-            document.getElementById('uas-msg').innerHTML = '<div class="error">' + err.message + '</div>';
-          }
+          } catch (err) { uasMsgError(err); }
         };
         return;
       }
-      const data = await api('/api/v1/uas?page=1&pageSize=500');
-      const list = data.items || [];
+      const data = await api('/api/v1/uas?page=1&pageSize=500&includeOffers=true');
+      const allUas = data.items || [];
+      // Záložky podľa výrobcu (ako v Registri PnD) — najpočetnejší výrobca prvý, „Všetky“ na konci.
+      function mfrKey(u) { return String(u.manufacturer || '').trim() || 'Neuvedený'; }
+      var mfrCounts = {};
+      allUas.forEach(function (u) { var k = mfrKey(u); mfrCounts[k] = (mfrCounts[k] || 0) + 1; });
+      var mfrNames = Object.keys(mfrCounts).sort(function (a, b) {
+        return mfrCounts[b] - mfrCounts[a] || a.localeCompare(b, 'sk');
+      });
+      var mfrTab = state.uasMfrTab === '__all' || mfrCounts[state.uasMfrTab] ? state.uasMfrTab : (mfrNames[0] || '__all');
+      if (mfrNames.length <= 1) mfrTab = '__all';
+      const list = mfrTab === '__all' ? allUas : allUas.filter(function (u) { return mfrKey(u) === mfrTab; });
+      var mfrTabsHtml = mfrNames.length > 1
+        ? '<div class="reg-tabs">' + mfrNames.map(function (n) {
+            return '<button type="button" class="reg-tab uas-mfr-tab' + (mfrTab === n ? ' active' : '') + '" data-mfr="' + escAttr(n) + '">' +
+              escAttr(n) + ' <span class="tab-count">' + mfrCounts[n] + '</span></button>';
+          }).join('') +
+          '<button type="button" class="reg-tab uas-mfr-tab' + (mfrTab === '__all' ? ' active' : '') + '" data-mfr="__all">Všetky <span class="tab-count">' + allUas.length + '</span></button>' +
+          '</div>'
+        : '';
       const canAddUas = state.accessLevel === 1;
       var orgCreateOpts = '';
       if (canAddUas) {
@@ -209,14 +317,21 @@ export async function renderUas() {
         var typeCell = docEntry
           ? '<button type="button" class="linkish uas-type-link" data-slug="' + docEntry.id + '">' + (mdl || '—') + '</button>'
           : (mdl || '—');
-        return '<tr class="row-tint uas-row" data-id="' + u.id + '" style="--row-accent:' + colorForKey(key) + ';cursor:pointer">' +
+        var isDecom = u.status === 'Decommissioned' || u.status === 8;
+        var accent = isDecom ? '#d92d20' : colorForKey(key);
+        return '<tr class="row-tint uas-row' + (isDecom ? ' is-decommissioned' : '') + '" data-id="' + u.id + '" style="--row-accent:' + accent + ';cursor:pointer"' +
+          (isDecom ? ' title="Vyradené z prevádzky"' : '') + '>' +
           '<td>' + (idx + 1) + '</td>' +
           '<td>' + (u.certificateNumber || '—') + '</td>' +
           '<td>' + dereg + '</td>' +
-          '<td><span class="entity-label">' + swatchHtml(colorForKey(key)) +
-          '<span>' + (u.registrationNumber || '—') + '</span></span></td>' +
-          '<td>' + typeCell + '</td>' +
-          '<td>' + (mfr || '—') + '</td>' +
+          '<td><span class="entity-label">' + swatchHtml(accent) +
+          '<span>' + (u.registrationNumber || '—') + '</span>' +
+          (isDecom ? '<span class="uas-decom-badge">Vyradené</span>' : '') +
+          (u.pendingOrgUnitId && !isDecom
+            ? '<span class="uas-offer-badge" title="Čaká na prijatie útvarom ' + escAttr(u.pendingOrgUnitName || '') + '">' +
+              (state.accessLevel === 2 && u.pendingForCaller ? 'Na prijatie' : 'Ponúknuté: ' + escAttr(u.pendingOrgUnitName || '')) + '</span>'
+            : '') + '</span></td>' +
+          '<td><span class="uas-type-cell">' + typeCell + (mfr ? '<small>' + escAttr(mfr) + '</small>' : '') + '</span></td>' +
           '<td>' + (u.serialNumber || '—') + '</td>' +
           '<td>' + (u.logbookNumber || '—') + '</td>' +
           '<td>' + (u.owningOrgUnitName || '—') + '</td>' +
@@ -227,17 +342,26 @@ export async function renderUas() {
               : '—') + '</td>'
             : '') +
           '</tr>';
-      }).join('') || '<tr><td colspan="' + (canAddUas ? '11' : '10') + '">Zatiaľ žiadne UAS v registri</td></tr>';
+      }).join('') || '<tr><td colspan="' + (canAddUas ? '10' : '9') + '">Zatiaľ žiadne UAS v registri</td></tr>';
       const uasModelsPanel = renderFleetModelsPanel(fleetModelsFromUasList(list), list.length, {
         subtitle: 'Zloženie registra podľa typu UAS',
         limit: 12
       });
-      content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
+      var offersForMe = state.accessLevel === 2
+        ? allUas.filter(function (x) { return x.pendingOrgUnitId && x.pendingForCaller && x.status !== 'Decommissioned' && x.status !== 8; })
+        : [];
+      var offersNotice = offersForMe.length
+        ? '<div class="uas-offer-banner"><div><b>Gestor vám ponúka ' + offersForMe.length +
+          (offersForMe.length === 1 ? ' dron' : offersForMe.length < 5 ? ' drony' : ' dronov') + ' na prijatie.</b>' +
+          '<span>Otvorte dron označený „Na prijatie“ a potvrďte ho tlačidlom Prijať dron.</span></div></div>'
+        : '';
+      content.innerHTML = '<div class="stack">' + searchHighlightBanner() + offersNotice +
         pageHead('Register UAS',
           canAddUas
             ? 'Register štátnych bezpilotných lietadiel — pridať / upraviť / vyradiť.'
             : 'Register štátnych bezpilotných lietadiel. Pridať môže len L1.',
-          chipHtml('UAS', list.length, 'chip-soft')) +
+          chipHtml('UAS', allUas.length, 'chip-soft') +
+          (mfrNames.length > 1 ? chipHtml('Výrobcovia', mfrNames.length, 'chip-soft') : '')) +
         (canAddUas
           ? '<div class="toolbar"><button type="button" id="uas-add-btn">Pridať UAS</button></div>' +
             '<div id="uas-list-msg"></div>' +
@@ -253,14 +377,14 @@ export async function renderUas() {
             '<button type="button" class="secondary" id="uas-c-cancel">Zrušiť</button></div></form></div>'
           : '') +
         uasModelsPanel +
-        '<div class="chart-panel table-scroll">' +
+        mfrTabsHtml +
+        '<div class="chart-panel table-scroll uas-register">' +
         makeTable([
           'P.č.',
           'Č. osvedčenia o zápise do registra',
           'Dátum výmazu z registra',
           'Poznávacia značka',
-          'Typ',
-          'Výrobca',
+          'Typ / výrobca',
           'Výrobné číslo',
           'Ev.č. denníka',
           'Užívateľ (útvar)',
@@ -268,6 +392,12 @@ export async function renderUas() {
         ].concat(canAddUas ? ['Akcie'] : []), rows, true) +
         '</div></div>';
       bindChartTooltips(content);
+      content.querySelectorAll('.uas-mfr-tab').forEach(function (btn) {
+        btn.onclick = function () {
+          state.uasMfrTab = btn.dataset.mfr;
+          navigate('uas');
+        };
+      });
       if (canAddUas) {
         document.getElementById('uas-add-btn').onclick = function () {
           var panel = document.getElementById('uas-create-panel');

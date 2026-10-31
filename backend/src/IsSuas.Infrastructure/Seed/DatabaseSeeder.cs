@@ -1593,10 +1593,21 @@ public static class DatabaseSeeder
     {
         await PruneDuplicatePnDCertificatesAsync(db);
         var now = DateTimeOffset.UtcNow;
+
+        // Demo preukazy patria len demo pilotom zo seedu (CreatedBy == null). Piloti vytvorení
+        // používateľom začínajú bez osvedčenia — preukazy, ktoré im sem omylom pridal starší seed, sa zrušia.
+        var seedPrefixes = new[] { "DU-A1A3-", "DU-A2-", "EU-STS1-", "EU-STS2-" };
+        var wronglySeeded = await db.PilotCertificates
+            .Where(c => c.IsActive && c.CreatedBy == null && c.Pilot.CreatedBy != null)
+            .ToListAsync();
+        foreach (var c in wronglySeeded.Where(c => c.ExternalNumber != null
+                     && seedPrefixes.Any(px => c.ExternalNumber.StartsWith(px, StringComparison.OrdinalIgnoreCase))))
+            c.IsActive = false;
+
         var pilots = await db.Pilots
             .Include(p => p.Certificates)
             .Include(p => p.Person)
-            .Where(p => p.IsActive)
+            .Where(p => p.IsActive && p.CreatedBy == null)
             .OrderBy(p => p.LicenseNumber)
             .ToListAsync();
 
@@ -1736,13 +1747,19 @@ public static class DatabaseSeeder
     private static async Task PruneDuplicatePnDCertificatesAsync(IsSuasDbContext db)
     {
         var codes = new[] { "A1_A3", "A2", "STS1", "STS2", "STS", "A1A3", "OPEN_A1_A3", "OPEN_A2" };
+        // Len demo piloti zo seedu (CreatedBy == null); osvedčenia reálnych pilotov spravuje človek.
         var all = await db.PilotCertificates
-            .Where(c => codes.Contains(c.CertificateTypeCode))
+            .Where(c => codes.Contains(c.CertificateTypeCode) && c.Pilot.CreatedBy == null)
             .ToListAsync();
         if (all.Count == 0) return;
 
+        // Žiadosti pilotov o osvedčenie (Draft) sa nemažú — čakajú na vybavenie gestorom.
+        static bool IsPilotRequest(Domain.Pilots.PilotCertificate c) =>
+            c.Status == CertificateStatus.Draft && c.Notes != null
+            && c.Notes.StartsWith("Žiadosť pilota o osvedčenie", StringComparison.Ordinal);
+
         var doomed = all
-            .Where(c => !c.IsActive || c.Status != CertificateStatus.Issued)
+            .Where(c => c.IsActive ? (c.Status != CertificateStatus.Issued && !IsPilotRequest(c)) : false)
             .Select(c => c.Id)
             .ToHashSet();
 
@@ -2048,7 +2065,15 @@ public static class DatabaseSeeder
             .ToListAsync();
         var pairSet = existingPairs.Select(x => (x.PilotId, x.UasId)).ToHashSet();
 
-        var pilots = await db.Pilots.AsNoTracking().Where(p => p.IsActive).ToListAsync();
+        // Demo oprávnenia na drony len pre demo pilotov zo seedu; reálnym pilotom ich prideľuje človek.
+        var cutoff = DateTimeOffset.UtcNow;
+        var wronglyAuthorized = await db.PilotUasAuthorizations
+            .Where(x => x.IsActive && x.CreatedBy == null && x.Pilot.CreatedBy != null && (x.ValidTo == null || x.ValidTo > cutoff))
+            .ToListAsync();
+        foreach (var x in wronglyAuthorized)
+            x.ValidTo = cutoff;
+
+        var pilots = await db.Pilots.AsNoTracking().Where(p => p.IsActive && p.CreatedBy == null).ToListAsync();
         var drones = await db.UasAircraft.AsNoTracking()
             .Where(u => u.IsActive && u.OwningOrgUnitId != null)
             .ToListAsync();
@@ -2101,7 +2126,7 @@ public static class DatabaseSeeder
             added++;
         }
 
-        if (added > 0)
+        if (added > 0 || wronglyAuthorized.Count > 0)
             await db.SaveChangesAsync();
     }
 

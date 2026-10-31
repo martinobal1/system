@@ -41,6 +41,7 @@ public class IsSuasDbContext(DbContextOptions<IsSuasDbContext> options) : DbCont
     public DbSet<ConfigRule> ConfigRules => Set<ConfigRule>();
     public DbSet<Uas> UasAircraft => Set<Uas>();
     public DbSet<UasAssignment> UasAssignments => Set<UasAssignment>();
+    public DbSet<UasTypeDoc> UasTypeDocs => Set<UasTypeDoc>();
     public DbSet<UasStatusHistory> UasStatusHistories => Set<UasStatusHistory>();
     public DbSet<Component> Components => Set<Component>();
     public DbSet<Installation> Installations => Set<Installation>();

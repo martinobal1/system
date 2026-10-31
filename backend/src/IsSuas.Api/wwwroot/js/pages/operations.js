@@ -3,6 +3,7 @@ import { colorForKey, entityLabelHtml, swatchHtml } from '../core/charts.js';
 import { ensureMapLibs } from '../core/maps.js';
 import { navigate } from '../core/nav.js';
 import { beginFlightRequestFlow } from '../shared/flightRequest.js';
+import { bindCertGate, certGateHtml, loadMyPilotCertState } from '../shared/pilotCertGate.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, statusBadge, statusLabelSk } from '../core/ui.js';
@@ -467,17 +468,24 @@ export async function renderOperations() {
           '</td><td>' + actions + '</td></tr>';
       }).join('') || '<tr><td colspan="6">Zatiaľ žiadne žiadosti o let</td></tr>';
 
+      // Pilot bez osvedčenia nemôže žiadať o let — namiesto toho požiada o osvedčenie.
+      var certState = isL3 ? await loadMyPilotCertState() : { certified: true };
       content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
         pageHead('Žiadosti o let',
           'Nová žiadosť → schválenie L1/L2 → po skutočnom lete L1/L2 potvrdia odlet (denník + grafy).',
           chipHtml('Žiadosti', items.length, 'chip-soft') +
           chipHtml('Na schválenie', pendingCount, pendingCount ? 'chip-danger' : 'chip-ok')) +
         // Ziadost o let podava pilot (L3); L1/L2 ziadosti len schvaluju.
-        (isL3 ? '<div class="toolbar"><button type="button" id="reveal-op-form">Nová žiadosť o let</button></div>' : '') +
+        (isL3
+          ? (certState.certified
+            ? '<div class="toolbar"><button type="button" id="reveal-op-form">Nová žiadosť o let</button></div>'
+            : certGateHtml(certState))
+          : '') +
         '<div id="op-msg"></div>' +
         makeTable(['Názov', 'Stav', 'Útvar', 'Začiatok', 'Neodkladná', 'Akcie'], rows, true) +
         '</div>';
 
+      if (isL3 && !certState.certified) bindCertGate(function () { navigate('operations'); });
       var newRequestBtn = document.getElementById('reveal-op-form');
       if (newRequestBtn) {
         newRequestBtn.onclick = function () {

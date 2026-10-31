@@ -1,3 +1,4 @@
+import { navigate } from '../core/nav.js';
 import { api } from '../core/api.js';
 import { state } from '../core/state.js';
 import { certBadgesHtml, chipHtml, content, foldText, makeTable, pageHead, sectionCard } from '../core/ui.js';
@@ -20,6 +21,31 @@ export async function renderCertificates() {
       }
       function fmtDate(iso) {
         return iso ? new Date(iso).toLocaleDateString('sk-SK') : 'neobmedzene';
+      }
+      var CERT_LABELS = { A1_A3: 'A1/A3', A2: 'A2', STS1: 'STS1', STS2: 'STS2' };
+      var CERT_ORDER = { A1_A3: 0, A2: 1, STS1: 2, STS2: 3 };
+      function escH(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function requestsOf(p) { return (p && p.requestedCertificateCodes) || []; }
+      // Žiadosti pilotov o osvedčenie (pilot klikol „Požiadať o osvedčenie na lietanie“).
+      function certRequestsHtml() {
+        var reqPilots = (pilots || []).filter(function (p) { return requestsOf(p).length; });
+        if (!reqPilots.length) return '';
+        var rowsHtml = reqPilots.map(function (p) {
+          var name = ((p.firstName || '') + ' ' + (p.lastName || '')).trim() || p.licenseNumber || p.id;
+          var codes = requestsOf(p).slice().sort(function (a, b) { return (CERT_ORDER[a] || 0) - (CERT_ORDER[b] || 0); });
+          return '<tr><td>' + escH(name) + '</td><td>' + escH(p.orgUnitName || '—') + '</td><td>' +
+            certBadgesHtml(codes) + '</td><td>' +
+            (p.certificateRequestedAt ? new Date(p.certificateRequestedAt).toLocaleDateString('sk-SK') : '—') + '</td><td>' +
+            '<button type="button" class="cert-req-handle" data-id="' + p.id + '" data-code="' + escH(codes[codes.length - 1]) + '">Vybaviť</button>' +
+            '</td></tr>';
+        }).join('');
+        return sectionCard('Žiadosti o osvedčenie (' + reqPilots.length + ')',
+          '<p class="muted" style="margin:0 0 0.5rem">Piloti, ktorí požiadali o osvedčenie na lietanie. „Vybaviť“ predvyplní formulár nižšie.</p>' +
+          makeTable(['Pilot', 'Útvar', 'Žiada o', 'Dátum žiadosti', ''], rowsHtml, true), '#c47b1a');
       }
       var pendingCount = (pilots || []).filter(function (p) {
         var a = accByPerson[p.personId];
@@ -58,7 +84,15 @@ export async function renderCertificates() {
                 '</div>';
               }).join('')
             : '<span class="muted">Žiadne osvedčenie</span>';
-          return '<tr data-search="' + String(certSearchHay(p)).replace(/"/g, '&quot;') + '"><td>' + name +
+          if (requestsOf(p).length) {
+            certHtml += '<div style="margin-top:0.25rem"><span class="badge badge-warn">Žiada o: ' +
+              requestsOf(p).map(function (c) { return escH(CERT_LABELS[c] || c); }).join(', ') + '</span></div>';
+          }
+          return '<tr class="cert-pilot-row" data-pilot="' + p.id + '" title="Otvoriť pilota a spravovať jeho osvedčenia" data-search="' +
+            String(certSearchHay(p)).replace(/"/g, '&quot;') + '"><td><span class="cert-pilot-name"><b>' + escH(name) + '</b>' +
+            '<span class="row-actions" style="justify-content:flex-start;margin-top:0.25rem">' +
+            '<button type="button" class="secondary cert-quick-grant" data-id="' + p.id + '">+ Prideliť</button>' +
+            '<button type="button" class="linkish cert-open-pilot" data-id="' + p.id + '">Detail pilota</button></span></span>' +
             '</td><td>' + (p.orgUnitName || '—') + '</td><td>' +
             licChip(accByPerson[p.personId]) + '</td><td>' + certHtml + '</td></tr>';
         }).join('') || '<tr><td colspan="4">Žiadni piloti (úroveň 3) v dostupných útvaroch.</td></tr>';
@@ -108,6 +142,7 @@ export async function renderCertificates() {
         '<div class="full toolbar"><button type="submit">Prideliť osvedčenie</button></div>' +
         '</form><div id="cert-msg"></div></div>' +
         certSuspendPanelHtml() +
+        '<div id="cert-requests">' + certRequestsHtml() + '</div>' +
         sectionCard('Piloti a osvedčenia',
           '<div id="cert-pilot-table">' +
           makeTable(['Pilot', 'Útvar', 'Licencia', 'Osvedčenia'], rows, true) +
@@ -143,8 +178,11 @@ export async function renderCertificates() {
         var wrap = document.getElementById('cert-pilot-table');
         if (!wrap) return;
         wrap.innerHTML = makeTable(['Pilot', 'Útvar', 'Licencia', 'Osvedčenia'], certRowsHtml(), true);
+        var reqWrap = document.getElementById('cert-requests');
+        if (reqWrap) { reqWrap.innerHTML = certRequestsHtml(); bindCertRequestButtons(); }
         allCertPilotOpts = rebuildCertPilotOpts();
         bindCertPageActions();
+        bindCertRowActions();
         filterCertTable(foldText(certSearchInput && certSearchInput.value));
       }
       function bindCertPageActions() {
@@ -159,6 +197,45 @@ export async function renderCertificates() {
             await reloadCertData();
             paintCertTable();
           }
+        });
+      }
+      function bindCertRequestButtons() {
+        content.querySelectorAll('.cert-req-handle').forEach(function (btn) {
+          btn.onclick = function () {
+            var opt = allCertPilotOpts.find(function (o) { return o.value === btn.dataset.id; });
+            pickCertPilot(opt);
+            var typeSel = document.getElementById('cert-type');
+            if (typeSel && btn.dataset.code) typeSel.value = btn.dataset.code;
+            var form = document.getElementById('cert-grant-form');
+            if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          };
+        });
+      }
+      // Klik na pilota vo výsledkoch: „+ Prideliť“ predvyplní formulár hore, riadok / „Detail pilota“ otvorí kartu pilota.
+      function bindCertRowActions() {
+        content.querySelectorAll('.cert-quick-grant').forEach(function (btn) {
+          btn.onclick = function (ev) {
+            ev.stopPropagation();
+            pickCertPilot(allCertPilotOpts.find(function (o) { return o.value === btn.dataset.id; }));
+            var form = document.getElementById('cert-grant-form');
+            if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var typeSel = document.getElementById('cert-type');
+            if (typeSel) typeSel.focus();
+          };
+        });
+        content.querySelectorAll('.cert-open-pilot').forEach(function (btn) {
+          btn.onclick = function (ev) {
+            ev.stopPropagation();
+            state.pilotDetailId = btn.dataset.id;
+            navigate('pilots');
+          };
+        });
+        content.querySelectorAll('tr.cert-pilot-row').forEach(function (tr) {
+          tr.onclick = function (ev) {
+            if (ev.target.closest('button, a, input, select')) return;
+            state.pilotDetailId = tr.dataset.pilot;
+            navigate('pilots');
+          };
         });
       }
       function pickCertPilot(opt) {
@@ -269,5 +346,7 @@ export async function renderCertificates() {
         }
       };
       bindCertPageActions();
+      bindCertRequestButtons();
+      bindCertRowActions();
       return;
 }

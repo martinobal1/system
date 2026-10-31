@@ -1,3 +1,65 @@
+import { api } from '../core/api.js';
+import { state } from '../core/state.js';
+
+// Katalóg je v databáze (/api/v1/uas-types): vlastné typy, skryté vstavané typy a PDF manuály.
+// Vstavané typy (napr. Mavic 3T) ostávajú v kóde nižšie.
+var serverRows = null;
+
+export async function ensureTechDocCatalog() {
+  try {
+    serverRows = (await api('/api/v1/uas-types')) || [];
+  } catch (_) {
+    serverRows = serverRows || null;
+    return;
+  }
+  // Jednorazový presun typov, ktoré gestor kedysi uložil len vo svojom prehliadači.
+  if (Number(state.accessLevel) === 1) {
+    var extras = loadTechDocExtras();
+    var removed = loadTechDocRemoved();
+    if (extras.length || removed.length) {
+      var known = {};
+      serverRows.forEach(function (r) { known[r.slug] = r; });
+      try {
+        for (var i = 0; i < extras.length; i++) {
+          var e = extras[i];
+          if (!known[e.id]) await saveTechDocToServer(e);
+        }
+        for (var j = 0; j < removed.length; j++) {
+          if (!known[removed[j]] || !known[removed[j]].isHidden) await hideTechDocOnServer(removed[j]);
+        }
+        saveTechDocExtras([]);
+        saveTechDocRemoved([]);
+        serverRows = (await api('/api/v1/uas-types')) || [];
+      } catch (_) { /* skúsi sa nabudúce */ }
+    }
+  }
+}
+
+function saveTechDocToServer(doc) {
+  return api('/api/v1/uas-types/' + encodeURIComponent(doc.id), {
+    method: 'PUT',
+    body: JSON.stringify({
+      manufacturer: doc.manufacturer,
+      model: doc.model,
+      data: {
+        manufacturer: doc.manufacturer,
+        model: doc.model,
+        classEu: doc.classEu || '—',
+        tagline: doc.tagline || '',
+        matchModels: doc.matchModels && doc.matchModels.length ? doc.matchModels : [doc.model],
+        sections: doc.sections || []
+      }
+    })
+  });
+}
+
+function hideTechDocOnServer(id, doc) {
+  return api('/api/v1/uas-types/' + encodeURIComponent(id) + '/hide', {
+    method: 'POST',
+    body: JSON.stringify({ manufacturer: doc ? doc.manufacturer : null, model: doc ? doc.model : null })
+  });
+}
+
 export function getTechDocFormSchema() {
   function f(key, label, opts) {
     opts = opts || {};
@@ -146,8 +208,16 @@ export function saveTechDocRemoved(list) {
   localStorage.setItem('issuas.techDoc.removed', JSON.stringify(list || []));
 }
 
-export function addTechDocToCatalog(doc) {
+export async function addTechDocToCatalog(doc) {
   var id = techDocSlug(doc.manufacturer, doc.model);
+  var saved = { id: id, manufacturer: doc.manufacturer, model: doc.model, classEu: doc.classEu || '—', tagline: doc.tagline || '',
+    matchModels: doc.matchModels || [doc.model], sections: doc.sections || [] };
+  if (serverRows !== null) {
+    await saveTechDocToServer(saved);
+    await ensureTechDocCatalog();
+    return id;
+  }
+  // Záloha, keď server nie je dostupný: len v tomto prehliadači.
   var extras = loadTechDocExtras().filter(function (d) { return d.id !== id; });
   extras.push({
     id: id,
@@ -160,9 +230,16 @@ export function addTechDocToCatalog(doc) {
   });
   saveTechDocExtras(extras);
   saveTechDocRemoved(loadTechDocRemoved().filter(function (x) { return x !== id; }));
+  return id;
 }
 
-export function removeTechDocFromCatalog(id) {
+export async function removeTechDocFromCatalog(id) {
+  if (serverRows !== null) {
+    var doc = getTechDocCatalog().find(function (d) { return d.id === id; });
+    await hideTechDocOnServer(id, doc);
+    await ensureTechDocCatalog();
+    return;
+  }
   saveTechDocExtras(loadTechDocExtras().filter(function (d) { return d.id !== id; }));
   var removed = loadTechDocRemoved();
   if (removed.indexOf(id) < 0) {
@@ -346,6 +423,7 @@ export function getTechDocBuiltInCatalog() {
 }
 
 export function getTechDocCatalog() {
+  if (serverRows !== null) return catalogFromServer();
   var removed = loadTechDocRemoved();
   var builtIn = getTechDocBuiltInCatalog().filter(function (d) {
     return removed.indexOf(d.id) < 0;
@@ -355,4 +433,44 @@ export function getTechDocCatalog() {
       && !builtIn.some(function (b) { return b.id === d.id; });
   });
   return builtIn.concat(extras);
+}
+
+function catalogFromServer() {
+  var bySlug = {};
+  serverRows.forEach(function (r) { bySlug[r.slug] = r; });
+  function withManual(doc, row) {
+    if (row && row.hasManual) {
+      doc.hasManual = true;
+      doc.manualFileName = row.manualFileName;
+      doc.manualSizeBytes = row.manualSizeBytes;
+      doc.manualUploadedAt = row.manualUploadedAt;
+    }
+    return doc;
+  }
+  function fromRow(row, base) {
+    var d = row.data || {};
+    var hasSections = Array.isArray(d.sections) && d.sections.length > 0;
+    var doc = Object.assign({}, base || {}, {
+      id: row.slug,
+      manufacturer: d.manufacturer || row.manufacturer || (base && base.manufacturer) || '',
+      model: d.model || row.model || (base && base.model) || ''
+    });
+    if (hasSections || !base) {
+      doc.classEu = d.classEu || (base && base.classEu) || '—';
+      doc.tagline = d.tagline != null ? d.tagline : (base && base.tagline) || '';
+      doc.matchModels = Array.isArray(d.matchModels) && d.matchModels.length ? d.matchModels : [doc.model];
+      doc.sections = hasSections ? d.sections : ((base && base.sections) || []);
+    }
+    return withManual(doc, row);
+  }
+  var builtIn = getTechDocBuiltInCatalog()
+    .filter(function (d) { return !(bySlug[d.id] && bySlug[d.id].isHidden); })
+    .map(function (d) { return bySlug[d.id] ? fromRow(bySlug[d.id], d) : d; });
+  var builtInIds = {};
+  builtIn.forEach(function (d) { builtInIds[d.id] = true; });
+  getTechDocBuiltInCatalog().forEach(function (d) { builtInIds[d.id] = true; });
+  var custom = serverRows
+    .filter(function (r) { return !r.isHidden && !builtInIds[r.slug] && r.data && Array.isArray(r.data.sections); })
+    .map(function (r) { return fromRow(r, null); });
+  return builtIn.concat(custom);
 }

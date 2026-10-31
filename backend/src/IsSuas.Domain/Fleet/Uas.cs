@@ -28,6 +28,12 @@ public class Uas : AuditableEntity
     public Guid? ApprovedByAccountId { get; set; }
     public int TotalFlightCount { get; set; }
     public int TotalFlightMinutes { get; set; }
+    /// <summary>Útvar, ktorému gestor UAS ponúkol; UAS mu patrí až po prijatí správcom útvaru.</summary>
+    public Guid? PendingOrgUnitId { get; set; }
+    /// <summary>Kedy bola ponuka vytvorená.</summary>
+    public DateTimeOffset? PendingSince { get; set; }
+    /// <summary>Dôvod / poznámka gestora k ponuke.</summary>
+    public string? PendingReason { get; set; }
     public ICollection<UasAssignment> Assignments { get; set; } = new List<UasAssignment>();
     public ICollection<Installation> Installations { get; set; } = new List<Installation>();
     public ICollection<UasStatusHistory> StatusHistory { get; set; } = new List<UasStatusHistory>();

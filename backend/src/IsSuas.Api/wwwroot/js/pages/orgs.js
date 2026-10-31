@@ -297,7 +297,7 @@ export async function renderOrgs() {
         ? '<button type="button" class="secondary" id="org-reactivate">' + ICO.restore + ' Aktivovať útvar</button>'
         : '<button type="button" class="secondary" id="org-add-child">' + ICO.plus + ' Podútvar</button>' +
           '<button type="button" class="secondary" id="org-edit">' + ICO.edit + ' Upraviť</button>' +
-          (kindKey(selected) === 'root' ? '' : '<button type="button" class="secondary danger-ghost" id="org-deactivate">' + ICO.trash + '</button>');
+          (kindKey(selected) === 'root' ? '' : '<button type="button" class="secondary danger-ghost" id="org-deactivate">' + ICO.trash + ' Vymazať útvar</button>');
     }
     if (canManageUsers && selected.isActive !== false) {
       orgActions += '<button type="button" id="org-add-user">' + ICO.user + ' Pridať používateľa</button>';
@@ -340,7 +340,7 @@ export async function renderOrgs() {
       '<input type="hidden" id="org-id" value="" /><input type="hidden" id="org-rv" value="" /><input type="hidden" id="org-orig-parent" value="" />' +
       '<label>Názov<input id="org-name" required placeholder="napr. Okresné riaditeľstvo Bratislava I" maxlength="200" /></label>' +
       '<label>Kód<input id="org-code" required placeholder="napr. OR-BA-1" maxlength="64" /></label>' +
-      '<label>Typ<select id="org-kind"><option value="4">Útvar</option><option value="1">Zložka PZ</option><option value="2">Zložka HaZZ</option><option value="3">Zložka CO</option><option value="0">Koreň (MV)</option></select></label>' +
+      '<label>Zložka<select id="org-kind"><option value="pz">Policajný zbor</option><option value="hazz">Hasičský a záchranný zbor</option><option value="co">Civilná ochrana</option></select></label>' +
       '<label>Nadradený útvar<select id="org-parent"></select></label>' +
       '<div class="full toolbar"><button type="submit">Uložiť</button><button type="button" class="secondary" id="org-cancel">Zrušiť</button></div>' +
       '</form></div>' +
@@ -348,8 +348,9 @@ export async function renderOrgs() {
       '<h3>Nový používateľ</h3>' +
       '<p class="muted" style="margin:-0.4rem 0 0">Útvar: <b>' + (selected ? esc(selected.name) : '') + '</b>. Heslo sa vygeneruje automaticky.</p>' +
       '<form id="org-user-form" class="form-grid">' +
-      '<label>Meno<input id="org-user-first" required autocomplete="off" /></label>' +
-      '<label>Priezvisko<input id="org-user-last" required autocomplete="off" /></label>' +
+      '<label class="full hidden" id="org-user-title-wrap">Názov prevádzkovateľa<input id="org-user-title" autocomplete="off" maxlength="128" placeholder="napr. Letka PZ Bratislava" /></label>' +
+      '<label id="org-user-first-wrap">Meno<input id="org-user-first" required autocomplete="off" /></label>' +
+      '<label id="org-user-last-wrap">Priezvisko<input id="org-user-last" required autocomplete="off" /></label>' +
       '<label>Login<input id="org-user-login" required autocomplete="off" placeholder="napr. janko.novak" /></label>' +
       '<label>E-mail<input id="org-user-email" type="email" placeholder="voliteľné" /></label>' +
       (state.accessLevel === 1
@@ -476,10 +477,15 @@ export async function renderOrgs() {
   if (!selected) return;
 
   // formulár útvaru
-  function parentOptionsHtml(excludeId) {
+  // Nadradený útvar sa ponúka len zo zvolenej zložky (PZ / HaZZ / CO) — útvar nemôže byť napr. typu HaZZ pod Policajným zborom.
+  function branchNode(branch) {
+    return items.find(function (o) { return kindKey(o) === branch && o.isActive !== false; }) || null;
+  }
+  function parentOptionsHtml(excludeId, branch) {
     var ex = excludeId ? descendants(excludeId).map(function (o) { return o.id; }).concat([excludeId]) : [];
-    return '<option value="">— koreň (bez nadradeného) —</option>' +
-      items.filter(function (o) { return ex.indexOf(o.id) < 0 && o.isActive !== false; })
+    return items.filter(function (o) {
+        return ex.indexOf(o.id) < 0 && o.isActive !== false && kindKey(o) !== 'root' && branchOf(o) === branch;
+      })
         .sort(function (a, b) { return String(a.path || '').localeCompare(String(b.path || '')); })
         .map(function (o) {
           return '<option value="' + o.id + '">' + Array((o.level || 0) + 1).join('   ') + esc(o.name) + '</option>';
@@ -499,9 +505,18 @@ export async function renderOrgs() {
       codeEl.value = org.code; codeEl.readOnly = true;
       document.getElementById('org-name').value = org.name;
       var kindEl = document.getElementById('org-kind');
-      kindEl.value = String({ root: 0, pz: 1, hazz: 2, co: 3, unit: 4 }[kindKey(org)]);
+      var orgBranch = branchOf(org);
+      kindEl.value = orgBranch;
       kindEl.disabled = true;
-      parentEl.innerHTML = parentOptionsHtml(org.id);
+      if (kindKey(org) === 'unit' && ['pz', 'hazz', 'co'].indexOf(orgBranch) >= 0) {
+        parentEl.innerHTML = parentOptionsHtml(org.id, orgBranch);
+        parentEl.disabled = false;
+      } else {
+        // zložka / koreň sa nepresúva
+        var cur = org.parentId ? byId[org.parentId] : null;
+        parentEl.innerHTML = '<option value="' + (cur ? cur.id : '') + '">' + (cur ? esc(cur.name) : '— bez nadradeného —') + '</option>';
+        parentEl.disabled = true;
+      }
       parentEl.value = org.parentId || '';
     } else {
       document.getElementById('org-panel-title').textContent = parentId ? 'Nový podútvar' : 'Nový útvar';
@@ -510,28 +525,63 @@ export async function renderOrgs() {
       document.getElementById('org-orig-parent').value = '';
       codeEl.value = ''; codeEl.readOnly = false;
       document.getElementById('org-name').value = '';
-      document.getElementById('org-kind').disabled = false;
-      document.getElementById('org-kind').value = '4';
-      parentEl.innerHTML = parentOptionsHtml(null);
-      parentEl.value = parentId || '';
+      var kindSel = document.getElementById('org-kind');
+      kindSel.disabled = false;
+      parentEl.disabled = false;
+      var startParent = parentId ? byId[parentId] : null;
+      var startBranch = startParent ? branchOf(startParent) : 'pz';
+      if (['pz', 'hazz', 'co'].indexOf(startBranch) < 0) startBranch = 'pz';
+      kindSel.value = startBranch;
+      fillParentsForBranch(startBranch, startParent && branchOf(startParent) === startBranch ? startParent.id : null);
     }
     panel.classList.remove('hidden');
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     document.getElementById('org-name').focus();
   }
+  function fillParentsForBranch(branch, preferId) {
+    var parentEl = document.getElementById('org-parent');
+    parentEl.innerHTML = parentOptionsHtml(null, branch);
+    var bn = branchNode(branch);
+    var want = preferId || (bn ? bn.id : '');
+    if (want && parentEl.querySelector('option[value="' + want + '"]')) parentEl.value = want;
+  }
+  var kindSelEl = document.getElementById('org-kind');
+  if (kindSelEl) kindSelEl.addEventListener('change', function () {
+    if (document.getElementById('org-id').value) return; // pri úprave sa zložka nemení
+    var parentEl = document.getElementById('org-parent');
+    var cur = parentEl.value && byId[parentEl.value];
+    fillParentsForBranch(kindSelEl.value, cur && branchOf(cur) === kindSelEl.value ? cur.id : null);
+  });
   function openUserForm(level) {
     document.getElementById('org-panel').classList.add('hidden');
     var panel = document.getElementById('org-user-panel');
-    ['org-user-first', 'org-user-last', 'org-user-login', 'org-user-email'].forEach(function (id) { document.getElementById(id).value = ''; });
+    ['org-user-title', 'org-user-first', 'org-user-last', 'org-user-login', 'org-user-email'].forEach(function (id) { document.getElementById(id).value = ''; });
     var lvl = document.getElementById('org-user-level');
     if (lvl && lvl.tagName === 'SELECT') lvl.value = String(level || 2);
+    syncUserNameFields();
     var res = document.getElementById('org-user-result');
     res.classList.add('hidden'); res.innerHTML = '';
     document.getElementById('org-user-form').classList.remove('hidden');
     panel.classList.remove('hidden');
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    document.getElementById('org-user-first').focus();
+    document.getElementById(isOperatorForm() ? 'org-user-title' : 'org-user-first').focus();
   }
+  // Úroveň 2 (prevádzkovateľ) má len názov, meno a priezvisko iba úroveň 3 (pilot).
+  function isOperatorForm() {
+    var lvl = document.getElementById('org-user-level');
+    return !!lvl && Number(lvl.value) === 2;
+  }
+  function syncUserNameFields() {
+    var op = isOperatorForm();
+    document.getElementById('org-user-title-wrap').classList.toggle('hidden', !op);
+    document.getElementById('org-user-first-wrap').classList.toggle('hidden', op);
+    document.getElementById('org-user-last-wrap').classList.toggle('hidden', op);
+    document.getElementById('org-user-title').required = op;
+    document.getElementById('org-user-first').required = !op;
+    document.getElementById('org-user-last').required = !op;
+  }
+  var lvlSel = document.getElementById('org-user-level');
+  if (lvlSel && lvlSel.tagName === 'SELECT') lvlSel.addEventListener('change', syncUserNameFields);
   var b;
   if ((b = document.getElementById('org-add-btn'))) b.onclick = function () { openOrgForm('create', null, null); };
   if ((b = document.getElementById('org-add-child'))) b.onclick = function () { openOrgForm('create', null, selected.id); };
@@ -550,9 +600,9 @@ export async function renderOrgs() {
   if ((b = document.getElementById('org-deactivate'))) {
     b.onclick = async function () {
       var ok = await confirmDialog({
-        title: 'Deaktivovať útvar?',
-        message: '<p>Útvar <b>' + esc(selected.name) + '</b> sa skryje zo stromu. Neskôr ho môžete znova aktivovať (zaškrtnite „Neaktívne útvary“).</p>',
-        confirmLabel: 'Deaktivovať',
+        title: 'Vymazať útvar?',
+        message: '<p>Útvar <b>' + esc(selected.name) + '</b> sa odstráni zo stromu. Ak ste ho vymazali omylom, obnovíte ho cez zaškrtávacie pole „Neaktívne útvary“ a tlačidlo „Aktivovať útvar“.</p>',
+        confirmLabel: 'Vymazať',
         danger: true
       });
       if (!ok) return;
@@ -560,7 +610,7 @@ export async function renderOrgs() {
         await api('/api/v1/org-units/' + selected.id, { method: 'DELETE' });
         state.orgSelectedId = selected.parentId || null;
         navigate('orgs');
-      } catch (err) { showMsg('<div class="error">' + esc(err.message || 'Deaktivácia zlyhala') + '</div>'); }
+      } catch (err) { showMsg('<div class="error">' + esc(err.message || 'Vymazanie zlyhalo') + '</div>'); }
     };
   }
   if ((b = document.getElementById('org-reactivate'))) {
@@ -582,9 +632,13 @@ export async function renderOrgs() {
       if (!id) {
         var code = document.getElementById('org-code').value.trim();
         if (!code) throw new Error('Vyplňte kód');
+        var chosenBranch = document.getElementById('org-kind').value;
+        var parentNode = parentVal ? byId[parentVal] : null;
+        if (!parentNode) throw new Error('Vyberte nadradený útvar');
+        if (branchOf(parentNode) !== chosenBranch) throw new Error('Nadradený útvar musí patriť do zvolenej zložky');
         var created = await api('/api/v1/org-units', {
           method: 'POST',
-          body: JSON.stringify({ code: code, name: name, parentId: parentVal, kind: Number(document.getElementById('org-kind').value) })
+          body: JSON.stringify({ code: code, name: name, parentId: parentVal, kind: 4 })
         });
         if (created && created.id) state.orgSelectedId = created.id;
       } else {
@@ -610,13 +664,15 @@ export async function renderOrgs() {
     ev.preventDefault();
     var result = document.getElementById('org-user-result');
     var level = Number(document.getElementById('org-user-level').value);
+    var isOp = level === 2;
     try {
+      if (isOp && !document.getElementById('org-user-title').value.trim()) throw new Error('Vyplňte názov prevádzkovateľa');
       var created = await api('/api/v1/accounts', {
         method: 'POST',
         body: JSON.stringify({
           userName: document.getElementById('org-user-login').value.trim(),
-          firstName: document.getElementById('org-user-first').value.trim(),
-          lastName: document.getElementById('org-user-last').value.trim(),
+          firstName: isOp ? document.getElementById('org-user-title').value.trim() : document.getElementById('org-user-first').value.trim(),
+          lastName: isOp ? '' : document.getElementById('org-user-last').value.trim(),
           email: document.getElementById('org-user-email').value.trim() || null,
           homeOrgUnitId: selected.id,
           accessLevel: level

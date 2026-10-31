@@ -123,7 +123,8 @@ public sealed class ReportingService(
                 g.Key.Model,
                 g.Count(),
                 g.Count(IsInUse),
-                g.Count(IsIdle)))
+                g.Count(IsIdle),
+                g.Count(IsDecommissioned)))
             .OrderByDescending(x => x.Count)
             .ThenBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
             .ToList();

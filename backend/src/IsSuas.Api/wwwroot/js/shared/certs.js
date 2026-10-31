@@ -167,3 +167,80 @@ export function bindCertLifecycleButtons(onDone) {
     };
   });
 }
+
+// ---------- Prideliť / zmeniť osvedčenie (detail pilota, stránka Osvedčenia) ----------
+function escC(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+
+/** Formulár na pridelenie alebo zmenu osvedčenia jednému pilotovi (L1/L2). */
+export function certGrantFormHtml(pilotName, current) {
+  if (state.accessLevel !== 1 && state.accessLevel !== 2) return '';
+  var cur = current || {};
+  function opt(v, label) {
+    return '<option value="' + v + '"' + (cur.code === v ? ' selected' : '') + '>' + label + '</option>';
+  }
+  return '<div class="form-panel" id="pcg-panel">' +
+    '<h3 style="margin:0 0 0.3rem">Prideliť / zmeniť osvedčenie</h3>' +
+    '<p class="muted" style="margin:0 0 0.75rem">Pilot: <b>' + escC(pilotName) + '</b>. Vyššie osvedčenie doplní aj nižšie ' +
+    '(STS2 → STS1 + A2 + A1/A3). Pridelenie rovnakej kategórie znova nahradí číslo a platnosť.</p>' +
+    '<form id="pcg-form" class="form-grid">' +
+    '<label>Kategória<select id="pcg-type">' +
+    opt('A1_A3', 'A1/A3 — otvorená kategória') + opt('A2', 'A2 — otvorená kategória') +
+    opt('STS1', 'STS1 — štandardný scenár') + opt('STS2', 'STS2 — štandardný scenár') +
+    '</select></label>' +
+    '<label>Číslo osvedčenia<input id="pcg-number" placeholder="voliteľné" value="' + escC(cur.number || '') + '" /></label>' +
+    '<label>Platnosť od<input id="pcg-from" type="date" value="' + escC(cur.from || '') + '" /></label>' +
+    '<label>Platnosť do<input id="pcg-to" type="date" value="' + escC(cur.to || '') + '" /></label>' +
+    '<label class="full">MTOW / text platnosti<input id="pcg-mtow" placeholder="voliteľné, napr. MTOW 25 kg" value="' + escC(cur.mtow || '') + '" /></label>' +
+    '<div class="full toolbar"><button type="submit">Uložiť osvedčenie</button></div>' +
+    '</form><div id="pcg-msg"></div></div>';
+}
+
+/** Oživí formulár; onDone(message) po úspechu. */
+export function bindCertGrantForm(pilotId, onDone) {
+  var form = document.getElementById('pcg-form');
+  if (!form) return;
+  form.onsubmit = async function (ev) {
+    ev.preventDefault();
+    var msg = document.getElementById('pcg-msg');
+    var from = document.getElementById('pcg-from').value;
+    var to = document.getElementById('pcg-to').value;
+    if (from && to && to < from) { msg.innerHTML = '<div class="error">Platnosť do musí byť po platnosti od.</div>'; return; }
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      await api('/api/v1/pilots/' + pilotId + '/certificates/grant', {
+        method: 'POST',
+        body: JSON.stringify({
+          certificateTypeCode: document.getElementById('pcg-type').value,
+          externalNumber: document.getElementById('pcg-number').value.trim() || null,
+          validFrom: from ? new Date(from).toISOString() : null,
+          validTo: to ? new Date(to).toISOString() : null,
+          mtowOrValidityText: document.getElementById('pcg-mtow').value.trim() || null
+        })
+      });
+      if (onDone) onDone('Osvedčenie uložené.');
+    } catch (err) {
+      btn.disabled = false;
+      msg.innerHTML = '<div class="error">' + escC(err.message || 'Uloženie zlyhalo.') + '</div>';
+    }
+  };
+}
+
+/** Predvyplní formulár hodnotami existujúceho osvedčenia (tlačidlo „Zmeniť“ v tabuľke). */
+export function fillCertGrantForm(c) {
+  if (!c || !document.getElementById('pcg-form')) return;
+  var t = String(c.certificateTypeCode || '').toUpperCase().replace(/[-\/\s]/g, '_');
+  if (t === 'A1A3' || t === 'A1' || t === 'A3') t = 'A1_A3';
+  if (t === 'STS') t = 'STS1';
+  document.getElementById('pcg-type').value = t;
+  document.getElementById('pcg-number').value = c.externalNumber || '';
+  document.getElementById('pcg-from').value = c.validFrom ? isoDateLocal(new Date(c.validFrom)) : '';
+  document.getElementById('pcg-to').value = c.validTo ? isoDateLocal(new Date(c.validTo)) : '';
+  document.getElementById('pcg-mtow').value = c.mtowOrValidityText || '';
+  document.getElementById('pcg-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('pcg-number').focus();
+}

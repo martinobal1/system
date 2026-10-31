@@ -14,6 +14,11 @@ public sealed class PilotsController(IPilotService service) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PilotDto>>> List(CancellationToken cancellationToken)
         => Ok(await service.ListAsync(cancellationToken));
 
+    /// <summary>Prihlásený pilot (úroveň 3) požiada o osvedčenie na lietanie.</summary>
+    [HttpPost("me/certificate-request")]
+    public async Task<ActionResult<PilotDto>> RequestCertificate([FromBody] RequestPilotCertificateRequest request, CancellationToken cancellationToken)
+        => Ok(await service.RequestOwnCertificateAsync(request, cancellationToken));
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<PilotDetailDto>> Get(Guid id, CancellationToken cancellationToken)
         => Ok(await service.GetAsync(id, cancellationToken));

@@ -4,7 +4,13 @@ import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
 import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
-import { bindCertLifecycleButtons, certActionButtons, certStatusHtml, certSuspendPanelHtml, isCertIssued, isCertSuspended } from '../shared/certs.js';
+import { bindCertGrantForm, bindCertLifecycleButtons, certActionButtons, certGrantFormHtml, certStatusHtml, certSuspendPanelHtml, fillCertGrantForm, isCertIssued, isCertSuspended } from '../shared/certs.js';
+
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
 
 export async function renderPilots() {
       if (state.pilotDetailId) {
@@ -59,7 +65,10 @@ export async function renderPilots() {
             '</td><td>' + (c.validFrom ? new Date(c.validFrom).toLocaleDateString('sk-SK') : '—') +
             '</td><td>' + (c.validTo ? new Date(c.validTo).toLocaleDateString('sk-SK') : '—') +
             '</td><td>' + (c.mtowOrValidityText || '—') + '</td>' +
-            '<td class="row-actions">' + certActionButtons(pilot.id, c, name) + '</td></tr>';
+            '<td class="row-actions">' +
+            (state.accessLevel === 1 || state.accessLevel === 2
+              ? '<button type="button" class="secondary cert-edit" data-id="' + c.id + '">Zmeniť</button>' : '') +
+            certActionButtons(pilot.id, c, name) + '</td></tr>';
         }).join('') || '<tr><td colspan="8">Žiadne preukazy</td></tr>';
         content.innerHTML = '<div class="stack">' +
           pageHead('Pilot · ' + name, mapBtnHint,
@@ -75,6 +84,7 @@ export async function renderPilots() {
           certSuspendPanelHtml() +
           '<div id="pilot-cert-msg"></div>' +
           sectionCard('Preukazy PnD (A1/A3 · A2 · STS1 · STS2)', makeTable(['Kategória', 'Názov', 'Číslo', 'Stav', 'Platnosť od', 'Platnosť do', 'MTOW / platnosť', 'Akcie'], certRows, true), '#0d8f7a') +
+          certGrantFormHtml(name, (pilot.requestedCertificateCodes || []).length ? { code: pilot.requestedCertificateCodes[0] } : null) +
           sectionCard('Denník letov', makeTable(['Číslo', 'Čas', 'Dron', 'Účel', 'Stav'], flightRows, true), '#2b7bb9') +
           sectionCard('Operácie (útvar)', makeTable(['Názov', 'Stav', 'Začiatok'], opRows, true), '#c47b1a') +
           '</div>';
@@ -94,6 +104,16 @@ export async function renderPilots() {
               : '<div class="msg">' + okMsg + '</div>';
           }
           if (!errMsg) navigate('pilots');
+        });
+        bindCertGrantForm(pilot.id, function (okMsg) {
+          var box = document.getElementById('pilot-cert-msg');
+          if (box) box.innerHTML = '<div class="msg">' + okMsg + '</div>';
+          navigate('pilots');
+        });
+        content.querySelectorAll('.cert-edit').forEach(function (btn) {
+          btn.onclick = function () {
+            fillCertGrantForm(certs.find(function (c) { return c.id === btn.dataset.id; }));
+          };
         });
         content.querySelectorAll('.fl-open').forEach(function (btn) {
           btn.onclick = function () {
@@ -152,13 +172,14 @@ export async function renderPilots() {
         groups[k].push(p);
       });
       var list = groups[tab] || [];
+      // Kompaktná tabuľka: meno + e-mail v jednom stĺpci, platnosť od–do v jednom stĺpci.
       var headers = [
-        'P.č.', 'ČOZ', 'Priezvisko', 'Meno', 'Útvar', 'e-mail do práce',
-        'Č. povolenia DÚ', 'Platnosť od', 'Platnosť do', 'Kategória', 'Osv. ges.'
+        'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar',
+        'Č. povolenia DÚ', 'Platnosť od – do', 'Kategória', 'Osv. ges.'
       ];
       if (tab === 'sts1' || tab === 'sts2') {
         headers = [
-          'P.č.', 'ČOZ', 'Priezvisko', 'Meno', 'Útvar', 'e-mail do práce',
+          'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar',
           'Číslo povolenia / osvedčenia', 'Platnosť od', 'Kategória',
           'MTOW alebo platnosť', 'Číslo osvedčenia gestora'
         ];
@@ -194,10 +215,9 @@ export async function renderPilots() {
           '" title="Otvoriť detail pilota">' +
           '<td>' + (idx + 1) + '</td>' +
           '<td>' + (p.personalBadgeNumber || '—') + '</td>' +
-          '<td>' + (p.lastName || '—') + '</td>' +
-          '<td>' + (p.firstName || '—') + '</td>' +
-          '<td>' + (p.orgUnitName || '—') + '</td>' +
-          '<td>' + (p.email || '—') + '</td>';
+          '<td><span class="pilot-name-cell"><b>' + escHtml(((p.lastName || '') + ' ' + (p.firstName || '')).trim() || '—') + '</b>' +
+          (p.email ? '<small>' + escHtml(p.email) + '</small>' : '') + '</span></td>' +
+          '<td>' + escHtml(p.orgUnitName || '—') + '</td>';
         if (tab === 'sts1' || tab === 'sts2') {
           return common +
             '<td>' + permit + '</td>' +
@@ -209,12 +229,11 @@ export async function renderPilots() {
         }
         return common +
           '<td>' + permit + '</td>' +
-          '<td>' + fmtDate(validFrom) + '</td>' +
-          '<td>' + fmtDate(validTo) + '</td>' +
-          '<td>' + (tab === 'none' ? ((p.certificateCodes || []).length ? certBadgesHtml(p.certificateCodes) : '<span class="badge badge-warn">Bez osvedčenia</span>') : certBadgesHtml(tabBadges[tab])) + '</td>' +
+          '<td><span class="pilot-valid-cell">' + fmtDate(validFrom) + '<small>do ' + fmtDate(validTo) + '</small></span></td>' +
+          '<td>' + (tab === 'none' ? ((p.certificateCodes || []).length ? certBadgesHtml(p.certificateCodes) : ('<span class="badge badge-warn">Bez osvedčenia</span>' + ((p.requestedCertificateCodes || []).length ? ' <span class="badge badge-pending" title="Pilot požiadal o osvedčenie">Žiada o ' + (p.requestedCertificateCodes || []).map(function (c) { return c === 'A1_A3' ? 'A1/A3' : c; }).join(', ') + '</span>' : ''))) : certBadgesHtml(tabBadges[tab])) + '</td>' +
           '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
           '</tr>';
-      }).join('') || '<tr><td colspan="11">' + (emptyText[tab] || 'Žiadni piloti') + '</td></tr>';
+      }).join('') || '<tr><td colspan="' + headers.length + '">' + (emptyText[tab] || 'Žiadni piloti') + '</td></tr>';
 
       content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
         pageHead('Register PnD',
@@ -250,7 +269,7 @@ export async function renderPilots() {
             '<button type="button" class="secondary" id="pc-cancel">Zrušiť</button></div>' +
             '</form></div>'
           : '') +
-        '<div class="chart-panel table-scroll">' +
+        '<div class="chart-panel table-scroll pilot-register">' +
         makeTable(headers, rows, true) +
         '</div></div>';
 

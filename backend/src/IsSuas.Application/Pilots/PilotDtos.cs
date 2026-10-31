@@ -21,7 +21,10 @@ public sealed record PilotDto(
     bool IsActive,
     uint RowVersion,
     IReadOnlyList<string> CertificateCodes,
-    IReadOnlyList<PilotCertListItemDto> Certificates);
+    IReadOnlyList<PilotCertListItemDto> Certificates,
+    /// <summary>Osvedčenia, o ktoré pilot požiadal a ešte nie sú pridelené.</summary>
+    IReadOnlyList<string>? RequestedCertificateCodes = null,
+    DateTimeOffset? CertificateRequestedAt = null);
 
 public sealed record PilotCertListItemDto(
     string CertificateTypeCode,
@@ -101,6 +104,9 @@ public sealed record PilotCertificateDto(
     IReadOnlyList<CertificateScopeDto> Scopes,
     string? MtowOrValidityText = null,
     DateTimeOffset? SuspendedUntil = null);
+
+/// <summary>Pilot (úroveň 3) žiada o osvedčenie na lietanie.</summary>
+public sealed record RequestPilotCertificateRequest(string CertificateTypeCode, string? Note);
 
 public sealed record CreatePilotCertificateRequest(
     string CertificateTypeCode,

@@ -12,8 +12,8 @@ namespace IsSuas.Api.Controllers;
 public sealed class UasController(IFleetService service) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<PagedResult<UasDto>>> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null, CancellationToken cancellationToken = default)
-        => Ok(await service.ListUasAsync(page, pageSize, search, cancellationToken));
+    public async Task<ActionResult<PagedResult<UasDto>>> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null, [FromQuery] bool includeOffers = false, CancellationToken cancellationToken = default)
+        => Ok(await service.ListUasAsync(page, pageSize, search, cancellationToken, includeOffers));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<UasDetailDto>> Get(Guid id, CancellationToken cancellationToken)
@@ -49,4 +49,19 @@ public sealed class UasController(IFleetService service) : ControllerBase
     [HttpPost("{id:guid}/transfer")]
     public async Task<ActionResult<UasAssignmentDto>> Transfer(Guid id, [FromBody] TransferUasRequest request, CancellationToken cancellationToken)
         => Ok(await service.TransferUasAsync(id, request, cancellationToken));
+
+    /// <summary>Gestor ponúkne UAS útvaru (čaká na prijatie správcom útvaru).</summary>
+    [HttpPost("{id:guid}/offer")]
+    public async Task<ActionResult<UasDto>> Offer(Guid id, [FromBody] OfferUasRequest request, CancellationToken cancellationToken)
+        => Ok(await service.OfferUasAsync(id, request, cancellationToken));
+
+    /// <summary>Správca útvaru (alebo gestor) prijme ponúknutý UAS.</summary>
+    [HttpPost("{id:guid}/offer/accept")]
+    public async Task<ActionResult<UasAssignmentDto>> AcceptOffer(Guid id, CancellationToken cancellationToken)
+        => Ok(await service.AcceptUasOfferAsync(id, cancellationToken));
+
+    /// <summary>Správca útvaru ponuku odmietne / gestor ju zruší.</summary>
+    [HttpPost("{id:guid}/offer/reject")]
+    public async Task<ActionResult<UasDto>> RejectOffer(Guid id, [FromBody] RespondUasOfferRequest? request, CancellationToken cancellationToken)
+        => Ok(await service.RejectUasOfferAsync(id, request?.Reason, cancellationToken));
 }

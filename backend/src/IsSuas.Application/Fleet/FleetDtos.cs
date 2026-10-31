@@ -22,7 +22,13 @@ public sealed record UasDto(
     int TotalFlightCount,
     int TotalFlightMinutes,
     bool IsActive,
-    uint RowVersion);
+    uint RowVersion,
+    Guid? PendingOrgUnitId = null,
+    string? PendingOrgUnitName = null,
+    DateTimeOffset? PendingSince = null,
+    string? PendingReason = null,
+    /// <summary>Ponuka je určená útvaru volajúceho (môže ju prijať / odmietnuť).</summary>
+    bool PendingForCaller = false);
 
 public sealed record UasDetailDto(
     UasDto Uas,
@@ -53,6 +59,12 @@ public sealed record UpdateUasRequest(
 public sealed record TransitionUasRequest(UasLifecycleStatus TargetStatus, string Reason, uint RowVersion);
 public sealed record AssignUasRequest(Guid OrgUnitId, DateTimeOffset ValidFrom, string Reason);
 public sealed record TransferUasRequest(Guid NewOrgUnitId, DateTimeOffset EffectiveAt, string Reason);
+
+/// <summary>Gestor ponúkne UAS útvaru; útvar ho musí prijať.</summary>
+public sealed record OfferUasRequest(Guid OrgUnitId, string? Reason);
+
+/// <summary>Odmietnutie / zrušenie ponuky UAS (dôvod je voliteľný).</summary>
+public sealed record RespondUasOfferRequest(string? Reason);
 
 public sealed record UasAssignmentDto(
     Guid Id,

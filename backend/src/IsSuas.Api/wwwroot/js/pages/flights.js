@@ -6,6 +6,7 @@ import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, content, formatFlightGps, makeTable, pageHead, sectionCard, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
 import { submitFlightRequestFromForm } from '../shared/flightRequest.js';
+import { bindCertGate, certGateHtml, certStateFor } from '../shared/pilotCertGate.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
 
 export async function renderFlights() {
@@ -220,6 +221,15 @@ export async function renderFlights() {
           '" readonly /></label>'
         : '<label>Pilot<select id="fl-pilot">' + pilotOpts + '</select></label>';
 
+      // Pilot bez osvedčenia nemôže lietať ani žiadať o let.
+      var certState = isL3 ? certStateFor(myPilot) : { certified: true };
+      var flightBlocked = isL3 && !certState.certified;
+      if (flightBlocked) {
+        state.openFlightForm = false;
+        state.flightRequestMode = false;
+        state.pendingFlightLocation = null;
+      }
+
       content.innerHTML =
         '<div class="stack">' +
         pageHead('Denník letov', isL3
@@ -232,11 +242,12 @@ export async function renderFlights() {
               ? chipHtml('Licencia', 'potvrdená', 'chip-ok') : ''))) +
         '<div class="chart-panel">' +
         '<div class="toolbar" style="margin:0">' +
-        '<button type="button" id="reveal-flight-form">+ Nový samostatný let</button> ' +
+        (flightBlocked ? '' : '<button type="button" id="reveal-flight-form">+ Nový samostatný let</button> ') +
         (isL3 ? '' : '<button type="button" class="secondary" id="fl-pick-map">Vybrať miesto na mape</button> ') +
         (isL3 ? '' : '<button type="button" class="secondary" id="import-telem">Import demo telemetrie</button>') +
         '</div>' +
         '<div id="flight-msg"></div>' +
+        (flightBlocked ? certGateHtml(certState) : '') +
         '<div id="flight-form-panel" class="form-panel hidden">' +
         '<h3>' + (state.flightRequestMode ? 'Nová žiadosť o let' : 'Nový let do denníka') + '</h3>' +
         '<form id="flight-create-form" class="form-grid">' +
@@ -312,7 +323,9 @@ export async function renderFlights() {
         navigate(target);
       }
 
-      document.getElementById('reveal-flight-form').onclick = function () {
+      if (flightBlocked) bindCertGate(function () { navigate('flights'); });
+      var revealFlightBtn = document.getElementById('reveal-flight-form');
+      if (revealFlightBtn) revealFlightBtn.onclick = function () {
         if (isL3) {
           // L3: najprv mapa → po výbere bodu sa otvorí formulár
           goPickFlightMap();

@@ -26,6 +26,7 @@ function escTrash(s) {
 
 export function canTrash(category) {
   var level = Number(state.accessLevel) || 3;
+  if (category === 'uas') return level === 1; // UAS maže iba gestor
   if (level === 1 || level === 2) return true;
   return !!OPEN_TO_PILOTS[category];
 }

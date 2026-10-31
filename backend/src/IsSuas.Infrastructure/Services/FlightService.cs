@@ -271,6 +271,24 @@ public sealed class FlightService(
         if (string.IsNullOrWhiteSpace(request.StandaloneReason))
             throw new ValidationException("Samostatný let vyžaduje dôvod.");
 
+        // Pilot (úroveň 3) bez platného osvedčenia nesmie lietať.
+        if (currentUser.AccountId is Guid callerId)
+        {
+            var caller = await db.Accounts.AsNoTracking().Where(x => x.Id == callerId)
+                .Select(x => new { x.AccessLevel, x.PersonId }).FirstOrDefaultAsync(cancellationToken);
+            if (caller is not null && caller.AccessLevel == AccessLevel.Level3)
+            {
+                var certNow = clock.UtcNow;
+                var certified = await db.PilotCertificates.AnyAsync(c =>
+                    c.Pilot.PersonId == caller.PersonId && c.Pilot.IsActive
+                    && c.IsActive && c.Status == CertificateStatus.Issued
+                    && (c.ValidFrom == null || c.ValidFrom <= certNow)
+                    && (c.ValidTo == null || c.ValidTo >= certNow), cancellationToken);
+                if (!certified)
+                    throw new ForbiddenException("Nemáte platné osvedčenie na lietanie (preukaz PnD). Najprv oň požiadajte.");
+            }
+        }
+
         var org = await db.OrgUnits.FirstOrDefaultAsync(o => o.Id == request.OrgUnitId && o.IsActive, cancellationToken)
             ?? throw new NotFoundException("Útvar nebol nájdený.");
         policy.EnsureOrgAccess(org.Path);

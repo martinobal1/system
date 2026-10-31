@@ -137,18 +137,24 @@ export function renderFleetModelsPanel(models, total, opts) {
   var hiddenModels = all.length - list.length;
   var usedColor = '#0d8f7a';
   var idleColor = '#8a97a6';
+  var decomColor = '#d92d20';
+  var anyDecom = all.some(function (m) { return Number(m.decommissioned || 0) > 0; });
   var max = Math.max.apply(null, list.map(function (m) { return Number(m.count || 0); }).concat([1]));
   var rows = list.map(function (m) {
     var used = Number(m.inUse || 0);
     var idle = Number(m.idle || 0);
-    var count = Number(m.count || used + idle);
+    var decom = Number(m.decommissioned || 0);
+    var count = Number(m.count || used + idle + decom);
     var usedPct = Math.max(0, Math.round((used / max) * 100));
     var idlePct = Math.max(0, Math.round((idle / max) * 100));
     if (used > 0 && usedPct === 0) usedPct = 2;
     if (idle > 0 && idlePct === 0) idlePct = 2;
+    var decomPct = Math.max(0, Math.round((decom / max) * 100));
+    if (decom > 0 && decomPct === 0) decomPct = 2;
     var label = m.label || m.model || '—';
     var mfr = m.manufacturer && m.manufacturer !== '—' ? m.manufacturer : '';
-    var tip = label + ' — ' + count + ' ks (používané ' + used + ', nepoužívané ' + idle + ')';
+    var tip = label + ' — ' + count + ' ks (používané ' + used + ', nepoužívané ' + idle +
+      (decom ? ', vyradené ' + decom : '') + ')';
     return '<div class="bar-row model-bar-row" data-tip="' + tip.replace(/"/g, '&quot;') +
       '" data-color="' + usedColor + '">' +
       '<span class="model-bar-name">' + label +
@@ -157,9 +163,10 @@ export function renderFleetModelsPanel(models, total, opts) {
       '<div class="bar-track is-stack">' +
       (used ? '<div class="bar-fill" style="width:' + usedPct + '%;background:' + usedColor + '"></div>' : '') +
       (idle ? '<div class="bar-fill" style="width:' + idlePct + '%;background:' + idleColor + '"></div>' : '') +
+      (decom ? '<div class="bar-fill" style="width:' + decomPct + '%;background:' + decomColor + '"></div>' : '') +
       '</div><span class="model-bar-counts"><b>' + count + '</b>' +
       '<span class="model-bar-detail" style="font-size:0.78rem;font-weight:400;color:var(--muted)">' +
-      ' (' + used + '/' + idle + ')' +
+      ' (' + used + '/' + idle + (anyDecom ? '/' + decom : '') + ')' +
       '</span></span></div>';
   }).join('');
   return '<div class="chart-panel"><h2>Typy dronov vo flotile</h2>' +
@@ -170,6 +177,7 @@ export function renderFleetModelsPanel(models, total, opts) {
     '<div class="model-legend">' +
     '<span><i class="dot" style="background:' + usedColor + '"></i>Používané (s náletom)</span>' +
     '<span><i class="dot" style="background:' + idleColor + '"></i>Nepoužívané (bez letu)</span>' +
+    '<span><i class="dot" style="background:' + decomColor + '"></i>Vyradené</span>' +
     '</div>' +
     '<div class="bar-chart">' + rows + '</div>' +
     (hiddenModels > 0
@@ -200,10 +208,11 @@ export function fleetModelsFromUasList(list) {
     var model = String(u.model || '').trim() || 'Neznámy model';
     var key = maker + '|' + model;
     if (!groups[key])
-      groups[key] = { label: model, manufacturer: maker, model: model, count: 0, inUse: 0, idle: 0 };
+      groups[key] = { label: model, manufacturer: maker, model: model, count: 0, inUse: 0, idle: 0, decommissioned: 0 };
     var group = groups[key];
     group.count++;
     if (isInUse(u)) group.inUse++;
+    else if (isDecommissioned(u)) group.decommissioned++;
     else if (!isDecommissioned(u) && !isUnavailable(u)) group.idle++;
   });
 

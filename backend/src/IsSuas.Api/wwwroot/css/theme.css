@@ -926,3 +926,108 @@ td:has(> .row-actions), td.row-actions { white-space: nowrap; }
 .trash-dep-warn ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
 .bin-check { width: 2.2rem; }
 .bin-bulk { justify-content: flex-end; }
+
+/* =========================== Zobraziť heslo (očko) =========================== */
+.pw-field { position: relative; display: block; }
+.pw-field > input { width: 100%; padding-right: 2.6rem; box-sizing: border-box; }
+button.pw-eye {
+  position: absolute; top: 50%; right: 0.35rem; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem; padding: 0; margin: 0;
+  background: transparent; border: 0; border-radius: var(--radius-sm);
+  color: var(--subtle); cursor: pointer; box-shadow: none;
+}
+button.pw-eye:hover { color: var(--ink); background: rgba(15, 23, 42, 0.06); }
+button.pw-eye:focus-visible { outline: none; box-shadow: var(--ring); }
+button.pw-eye:active { transform: translateY(-50%); }
+button.pw-eye svg { width: 1.15rem; height: 1.15rem; }
+
+/* =========================== Register UAS — vyradené =========================== */
+tr.uas-row.is-decommissioned td { background: #fef3f2; color: #7a271a; }
+tr.uas-row.is-decommissioned:hover td { background: #fee4e2; }
+.uas-decom-badge {
+  margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px;
+  background: #d92d20; color: #fff; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+}
+
+/* =========================== Register UAS — ponuka útvaru =========================== */
+.uas-offer-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.85rem 1rem; border: 1px solid #f5d18a; border-radius: var(--radius-sm);
+  background: #fffaeb; color: #7a4a06;
+}
+.uas-offer-banner > div:first-child { display: grid; gap: 0.15rem; }
+.uas-offer-banner span { font-size: 0.85rem; color: #93600e; }
+.uas-offer-badge {
+  margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px;
+  background: #fef0c7; color: #93370d; border: 1px solid #f5d18a;
+  font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+}
+
+/* =========================== Register UAS — kompaktná tabuľka =========================== */
+.uas-register table { width: 100%; }
+.uas-register th, .uas-register td { padding: 0.55rem 0.6rem; }
+.uas-register td { font-size: 0.82rem; white-space: normal; }
+.uas-register th { white-space: normal; font-size: 0.68rem; line-height: 1.25; min-width: 3.5rem; }
+/* dlhé hodnoty sa zalomia namiesto rozťahovania tabuľky */
+.uas-register td:nth-child(6) { word-break: break-all; min-width: 9rem; }
+.uas-register td:nth-child(8) { min-width: 8rem; }
+.uas-register td:nth-child(4) { white-space: nowrap; }
+.uas-register td:nth-child(4) .entity-label { flex-wrap: wrap; row-gap: 0.25rem; }
+.uas-type-cell { display: grid; gap: 0.1rem; }
+.uas-type-cell small { color: var(--subtle); font-size: 0.75rem; }
+.uas-register td button.uas-edit { padding: 0.35rem 0.6rem; font-size: 0.78rem; }
+
+/* =========================== Pilot bez osvedčenia — žiadosť =========================== */
+.cert-gate {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem;
+  margin: 0.75rem 0; padding: 0.85rem 1rem; border-radius: var(--radius-sm);
+  border: 1px solid #f8c9c5; background: #fef3f2; color: #7a271a;
+}
+.cert-gate > div:first-child { display: grid; gap: 0.15rem; }
+.cert-gate span { font-size: 0.85rem; color: #912018; }
+.cert-gate.is-waiting { border-color: #f5d18a; background: #fffaeb; color: #7a4a06; }
+.cert-gate.is-waiting span { color: #93600e; }
+
+/* =========================== Mapy pod hornou lištou a menu =========================== */
+/* Leaflet používa z-index až 1000 (vrstvy, ovládacie prvky). Izolácia ich uzavrie do mapy,
+   takže rozbaľovacie menu používateľa, dialógy a bočný panel sú vždy nad mapou. */
+.leaflet-container { isolation: isolate; z-index: 0; }
+.topbar { z-index: 1100; }
+
+/* =========================== Technická dokumentácia — PDF a AI =========================== */
+.tech-ai-panel { border: 1px dashed #b9c9d8; background: #f8fbfd; }
+.tech-ai-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.tech-file { position: relative; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fff; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
+.tech-file:hover { border-color: #b9c4d2; background: #f8fafc; }
+.tech-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.tech-spinner { display: inline-block; width: 12px; height: 12px; margin-right: 0.35rem; vertical-align: -1px;
+  border: 2px solid #b9c9d8; border-top-color: var(--primary); border-radius: 50%; animation: tech-spin 0.8s linear infinite; }
+@keyframes tech-spin { to { transform: rotate(360deg); } }
+.error-text { color: #b42318; }
+.tech-manual-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; }
+.tech-manual-head > div:first-child { display: grid; gap: 0.1rem; }
+.tech-manual-head .muted { font-size: 0.8rem; }
+.tech-manual-view iframe { width: 100%; height: min(78vh, 900px); border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
+.td-pdf { display: inline-block; margin-left: 0.35rem; padding: 0 0.35rem; border-radius: 4px; background: #fee4e2; color: #b42318;
+  font-size: 0.68rem; font-weight: 700; vertical-align: 2px; }
+
+/* =========================== Register PnD — kompaktná tabuľka =========================== */
+.pilot-register table { width: 100%; }
+.pilot-register th, .pilot-register td { padding: 0.55rem 0.6rem; }
+.pilot-register td { font-size: 0.82rem; white-space: normal; }
+.pilot-register th { white-space: normal; font-size: 0.68rem; line-height: 1.25; }
+.pilot-register td:nth-child(2) { white-space: nowrap; }
+.pilot-name-cell, .pilot-valid-cell { display: grid; gap: 0.1rem; }
+.pilot-name-cell b { font-weight: 600; color: var(--ink); }
+.pilot-name-cell small, .pilot-valid-cell small { color: var(--subtle); font-size: 0.74rem; word-break: break-all; }
+.pilot-valid-cell { white-space: nowrap; }
+.pilot-register td:nth-child(5) { word-break: break-word; min-width: 8rem; }
+
+/* =========================== Osvedčenia — klikateľní piloti =========================== */
+tr.cert-pilot-row { cursor: pointer; }
+.cert-pilot-name { display: grid; gap: 0.1rem; }
+.cert-pilot-name .row-actions button { padding: 0.25rem 0.55rem; font-size: 0.76rem; }
+.cert-pilot-name .linkish { font-size: 0.76rem; }
+.reg-tabs { flex-wrap: wrap; }

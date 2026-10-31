@@ -1,6 +1,7 @@
 import { api, setMaintenanceHandler, setUnauthorizedHandler } from './core/api.js';
 import { checkMaintenanceOnStart, initMaintenance, showMaintenanceScreen } from './core/maintenance.js';
 import { initTrashButtons } from './core/trash.js';
+import { initPasswordToggles } from './core/passwordToggle.js';
 import { applyDetailFromPath, applyNavByRole, closeNav, defaultPageForRole, initNav, isPageAllowedForRole, navigate, pageFromPath } from './core/nav.js';
 import { applyLoginSession, clearSession, hasUsableSession, state } from './core/state.js';
 import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/ui.js';
@@ -17,6 +18,7 @@ import { appView, displayNameEl, loginBtn, loginError, loginView } from './core/
     setMaintenanceHandler(function (status) { showMaintenanceScreen(status); });
     initMaintenance();
     initTrashButtons();
+    initPasswordToggles();
 
     function showApp() {
       document.documentElement.classList.add('issuas-has-session');

@@ -24,7 +24,7 @@ export async function renderGeozones() {
       content.innerHTML =
         '<div class="map-shell">' +
         '<div class="map-toolbar">' +
-        '<h2>GEO zony · Dopravny urad SR</h2>' +
+        '<h2>Mapa VFR · GEO zóny</h2>' +
         '<form class="map-search" id="geo-search-form">' +
         '<input type="search" id="geo-search-q" placeholder="Hladat obec / lokalitu (SK)…" />' +
         '<button type="submit">Hľadať</button></form>' +
@@ -32,7 +32,7 @@ export async function renderGeozones() {
           ? '<button type="button" class="secondary" id="map-pick-toggle">Označit miesto letu</button>'
           : '') +
         '<button type="button" class="secondary" id="geo-home">Slovensko</button>' +
-        '<label class="geo-layer-toggle"><input type="checkbox" id="geo-layer-toggle" checked /> GEO zony</label>' +
+        '<label class="geo-layer-toggle"><input type="checkbox" id="geo-layer-toggle" checked /> GEO zóny DÚ</label>' +
         '<span class="map-coords" id="geo-version">Verzia: ' + versionLabel +
         ' · ' + (mapPayload.zoneCount || 0) + ' zon · import ' + importedLabel + '</span>' +
         '</div>' +
@@ -49,9 +49,10 @@ export async function renderGeozones() {
           : '') +
         '<div class="map-body geo-map-body">' +
         '<aside class="map-legend geo-detail" id="geo-detail">' +
-        '<p class="hint">' + (canPickFlight
-          ? 'Zapnite „Označit miesto letu“ a kliknite na mapu (aj do GEO zóny).'
-          : 'Kliknite na zonu pre detail.') + '</p></aside>' +
+        '<div id="geo-zone-info"></div>' +
+        '<div id="geo-lps-info"><p class="hint">' + (canPickFlight
+          ? 'Kliknite na mapu — zobrazia sa vzdušné priestory, letiská a prekážky v danom mieste. Miesto letu označíte tlačidlom „Označiť miesto letu“.'
+          : 'Kliknite na mapu — zobrazia sa vzdušné priestory, letiská a prekážky v danom mieste.') + '</p></div></aside>' +
         '<div class="map-canvas-wrap">' +
         '<div id="geo-zones-map"></div>' +
         '<div id="map-fallback" class="map-fallback hidden"></div>' +
@@ -90,8 +91,8 @@ export async function renderGeozones() {
 
       var map = window.IsSuasDroneMap.initMap('geo-zones-map', {
         token: state.token,
-        center: [48.7, 19.5],
-        zoom: 7,
+        style: 'vfrm',
+        identifyPanelId: 'geo-lps-info',
         pickMode: canPickFlight && startPick,
         initialFlightArea: canPickFlight ? state.pendingFlightLocation : null,
         onFlightAreaChange: canPickFlight ? syncGeoPickUi : null,
@@ -100,25 +101,6 @@ export async function renderGeozones() {
           if (el) { el.textContent = msg; el.classList.remove('hidden'); }
         }
       });
-
-      // Simplified Slovakia border (approx.)
-      var skBorder = {
-        type: 'Feature',
-        properties: { name: 'Slovensko' },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [16.833, 48.0], [17.15, 48.58], [18.85, 49.4], [19.7, 49.5],
-            [21.3, 49.55], [22.55, 49.08], [22.15, 48.4], [21.2, 48.4],
-            [20.2, 48.1], [18.85, 47.75], [17.85, 47.75], [17.1, 47.85],
-            [16.833, 48.0]
-          ]]
-        }
-      };
-      window.L.geoJSON(skBorder, {
-        style: { color: '#334155', weight: 2, fill: false, dashArray: '6 4' },
-        interactive: false
-      }).addTo(map);
 
       function zoneColor(type) {
         var t = String(type || '').toLowerCase();
@@ -147,8 +129,16 @@ export async function renderGeozones() {
           row('Dátum importu', props.importDate ? new Date(props.importDate).toLocaleString('sk-SK') : importedLabel) +
           row('Verzia udajov', props.dataVersionDate || versionLabel) +
           '</dl>';
-        document.getElementById('geo-detail').innerHTML = html;
+        document.getElementById('geo-zone-info').innerHTML = html;
       }
+      // Klik mimo GEO zóny vyčistí jej detail (objekty z mapy LPS sa vypíšu pod ním).
+      var lastZoneClick = 0;
+      map.on('click', function () {
+        if (Date.now() - lastZoneClick > 80) {
+          var zi = document.getElementById('geo-zone-info');
+          if (zi) zi.innerHTML = '';
+        }
+      });
 
       function isPickActive() {
         var btn = document.getElementById('map-pick-toggle');
@@ -179,6 +169,7 @@ export async function renderGeozones() {
                 if (window.L && window.L.DomEvent) window.L.DomEvent.stopPropagation(e);
                 return;
               }
+              lastZoneClick = Date.now();
               showZoneDetail(feature.properties || {});
               try { map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 12 }); } catch (_) {}
             });
@@ -190,8 +181,8 @@ export async function renderGeozones() {
           try { map.fitBounds(geoLayer.getBounds(), { padding: [30, 30], maxZoom: 10 }); } catch (_) {}
         }
       } catch (err) {
-        document.getElementById('geo-detail').innerHTML =
-          '<div class="error">Nepodarilo sa vykreslit GEO zony: ' + (err.message || err) + '</div>';
+        document.getElementById('geo-zone-info').innerHTML =
+          '<div class="error">Nepodarilo sa vykresliť GEO zóny: ' + (err.message || err) + '</div>';
       }
 
       document.getElementById('geo-layer-toggle').onchange = function () {

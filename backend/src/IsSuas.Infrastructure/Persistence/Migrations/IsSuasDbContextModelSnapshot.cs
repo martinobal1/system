@@ -1911,6 +1911,16 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("OwningOrgUnitId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("PendingOrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PendingReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("PendingSince")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("RegisteredAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1958,6 +1968,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OwningOrgUnitId");
 
+                    b.HasIndex("PendingOrgUnitId");
+
                     b.HasIndex("RegistrationNumber")
                         .IsUnique()
                         .HasFilter("\"RegistrationNumber\" IS NOT NULL");
@@ -1966,6 +1978,77 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("UasAircraft", (string)null);
+                });
+
+            modelBuilder.Entity("IsSuas.Domain.Fleet.UasTypeDoc", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ManualFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<long?>("ManualSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ManualStorageKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset?>("ManualUploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Manufacturer")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("UasTypeDocs");
                 });
 
             modelBuilder.Entity("IsSuas.Domain.Fleet.UasAssignment", b =>
