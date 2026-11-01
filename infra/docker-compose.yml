@@ -28,6 +28,8 @@ services:
     volumes:
       # vzhľad (HTML/CSS/JS) sa berie priamo z disku — zmeny stačí obnoviť v prehliadači
       - ../backend/src/IsSuas.Api/wwwroot:/app/wwwroot:ro
+      # nahrané súbory (PDF manuály, dokumenty) — trvalé úložisko, prežije rebuild kontajnera
+      - issuas_storage:/app/App_Data
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,3 +37,4 @@ services:
 
 volumes:
   issuas_pgdata:
+  issuas_storage:

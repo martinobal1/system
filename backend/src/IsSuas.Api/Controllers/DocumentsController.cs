@@ -26,7 +26,8 @@ public sealed class DocumentsController(IDocumentService service) : ControllerBa
     public async Task<IActionResult> Download(Guid id, CancellationToken cancellationToken)
     {
         var (content, fileName, contentType) = await service.DownloadContentAsync(id, cancellationToken);
-        return File(content, contentType, fileName);
+        Response.Headers["X-Accel-Buffering"] = "no";
+        return File(content, contentType, fileName, enableRangeProcessing: true);
     }
 
     [HttpPost("refresh-expirations")]

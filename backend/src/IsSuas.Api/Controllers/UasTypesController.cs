@@ -37,7 +37,9 @@ public sealed class UasTypesController(IUasTypeDocService service) : ControllerB
     {
         var (content, fileName) = await service.DownloadManualAsync(slug, cancellationToken);
         Response.Headers.CacheControl = "private, no-store";
-        return File(content, "application/pdf", fileName);
+        // nginx: veľký súbor posielať priamo, nie cez dočasný súbor proxy (inak sa spojenie môže prerušiť)
+        Response.Headers["X-Accel-Buffering"] = "no";
+        return File(content, "application/pdf", fileName, enableRangeProcessing: true);
     }
 
     /// <summary>Spustí AI extrakciu na pozadí; výsledok sa zisťuje cez GET extract/{jobId}.</summary>

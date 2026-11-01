@@ -24,9 +24,15 @@ async function uploadManual(slug, file, doc) {
 }
 /** PDF manuálu ako blob (s prihlásením). */
 async function fetchManualBlob(slug) {
-  var res = await fetch('/api/v1/uas-types/' + encodeURIComponent(slug) + '/manual', {
-    headers: state.token ? { Authorization: 'Bearer ' + state.token } : {}
-  });
+  var res;
+  try {
+    res = await fetch('/api/v1/uas-types/' + encodeURIComponent(slug) + '/manual', {
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {}
+    });
+  } catch (_) {
+    throw new Error('Spojenie so serverom sa pri sťahovaní manuálu prerušilo. Skúste to znova.');
+  }
+  if (res.status === 404) throw new Error('Súbor manuálu sa na serveri nenašiel. Nahrajte PDF znova tlačidlom nižšie.');
   if (!res.ok) throw new Error('Manuál sa nepodarilo načítať (' + res.status + ').');
   return res.blob();
 }

@@ -42,6 +42,13 @@ export async function api(path, options = {}) {
     throw new Error(message);
   }
 
+  if (res.status === 413) {
+    throw new Error('Súbor je príliš veľký — server ho neprijal. Kontaktujte správcu systému (limit nahrávania na serveri).');
+  }
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    throw new Error('Server momentálne neodpovedá (' + res.status + '). Skúste to o chvíľu znova.');
+  }
+
   if (!res.ok) {
     let detail = 'Chyba ' + res.status;
     try {
