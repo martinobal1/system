@@ -25,3 +25,8 @@ public sealed record UploadUasTypeManualRequest(string FileName, string ContentB
 public sealed record ExtractUasTypeSpecsRequest(string Text, string? FileName, string? ManufacturerHint, string? ModelHint);
 
 public sealed record UasTypeExtractionDto(JsonElement Data, string ModelUsed);
+
+/// <summary>Stav AI úlohy: running | done | error.</summary>
+public sealed record UasTypeExtractionJobDto(string Status, JsonElement? Data, string? ModelUsed, string? Error, int ElapsedSeconds);
+
+public sealed record UasTypeExtractionStartedDto(Guid JobId);

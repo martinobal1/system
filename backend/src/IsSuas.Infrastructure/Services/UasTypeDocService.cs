@@ -22,7 +22,9 @@ public interface IUasTypeDocService
     Task HideAsync(string slug, HideUasTypeDocRequest request, CancellationToken cancellationToken = default);
     Task<UasTypeDocDto> UploadManualAsync(string slug, UploadUasTypeManualRequest request, CancellationToken cancellationToken = default);
     Task<(Stream Content, string FileName)> DownloadManualAsync(string slug, CancellationToken cancellationToken = default);
-    Task<UasTypeExtractionDto> ExtractSpecsAsync(ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Spustí AI extrakciu na pozadí (proxy servery rušia požiadavky dlhšie ako ~60 s) a vráti ID úlohy.</summary>
+    Task<Guid> StartExtractionAsync(ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken = default);
+    UasTypeExtractionJobDto GetExtractionJob(Guid jobId);
 }
 
 /// <summary>
@@ -38,7 +40,8 @@ public sealed class UasTypeDocService(
     IObjectStorage storage,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<UasTypeDocService> logger) : IUasTypeDocService
+    ILogger<UasTypeDocService> logger,
+    UasTypeExtractionJobStore jobs) : IUasTypeDocService
 {
     private const long MaxManualBytes = 50 * 1024 * 1024;
     private const int MaxDataJsonChars = 300_000;
@@ -167,9 +170,10 @@ public sealed class UasTypeDocService(
         return (stream, entity.ManualFileName ?? "manual.pdf");
     }
 
-    public async Task<UasTypeExtractionDto> ExtractSpecsAsync(ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken = default)
+    public async Task<Guid> StartExtractionAsync(ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken = default)
     {
         await EnsureGestorAsync(cancellationToken);
+        var owner = currentUser.AccountId!.Value;
         var provider = ResolveAiProvider();
         var model = provider switch
         {
@@ -198,13 +202,32 @@ public sealed class UasTypeDocService(
         var userPrompt = "Hint (file name / entered values): " + (hints.Length > 0 ? hints : "-") +
                          "\n<manual>\n" + text + "\n</manual>";
 
-        var answer = provider switch
-        {
-            "openai" => await CallOpenAiAsync(model, userPrompt, cancellationToken),
-            "gemini" => await CallGeminiAsync(model, userPrompt, cancellationToken),
-            _ => await CallAnthropicAsync(model, userPrompt, cancellationToken)
-        };
+        await audit.WriteAsync("UasTypeDoc.AiExtract", nameof(UasTypeDoc), null, null,
+            new { request.FileName, Provider = provider, Model = model, Chars = text.Length }, cancellationToken: cancellationToken);
 
+        // Samotné volanie AI beží na pozadí; používa len singletony (HttpClientFactory, konfigurácia, logger),
+        // takže nezávisí od skončenej HTTP požiadavky ani od DbContextu.
+        return jobs.Start(owner, async ct =>
+        {
+            var answer = provider switch
+            {
+                "openai" => await CallOpenAiAsync(model, userPrompt, ct),
+                "gemini" => await CallGeminiAsync(model, userPrompt, ct),
+                _ => await CallAnthropicAsync(model, userPrompt, ct)
+            };
+            return ParseExtraction(answer, model);
+        });
+    }
+
+    public UasTypeExtractionJobDto GetExtractionJob(Guid jobId)
+    {
+        if (currentUser.AccountId is not Guid owner)
+            throw new ForbiddenException("Chýba identita používateľa.");
+        return jobs.Get(jobId, owner) ?? throw new NotFoundException("Úloha AI spracovania neexistuje alebo už vypršala.");
+    }
+
+    private static UasTypeExtractionDto ParseExtraction(string answer, string model)
+    {
         var start = answer.IndexOf('{');
         var end = answer.LastIndexOf('}');
         if (start < 0 || end <= start)
@@ -221,9 +244,6 @@ public sealed class UasTypeDocService(
         }
         if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("sections", out var secs) || secs.ValueKind != JsonValueKind.Array)
             throw new ValidationException("AI nevrátila tabuľky špecifikácií. Vyplňte parametre ručne.");
-
-        await audit.WriteAsync("UasTypeDoc.AiExtract", nameof(UasTypeDoc), null, null,
-            new { request.FileName, Provider = provider, Model = model, Sections = secs.GetArrayLength() }, cancellationToken: cancellationToken);
         return new UasTypeExtractionDto(data, model);
     }
 
@@ -441,5 +461,64 @@ public sealed class UasTypeDocService(
         }
         return new UasTypeDocDto(x.Slug, x.Manufacturer, x.Model, data, x.IsHidden,
             !string.IsNullOrWhiteSpace(x.ManualStorageKey), x.ManualFileName, x.ManualSizeBytes, x.ManualUploadedAt, x.UpdatedAt);
+    }
+}
+
+/// <summary>Úlohy AI extrakcie bežiace na pozadí (v pamäti; po 30 min sa zahodia).</summary>
+public sealed class UasTypeExtractionJobStore(ILogger<UasTypeExtractionJobStore> logger)
+{
+    private sealed class Job
+    {
+        public Guid Owner { get; init; }
+        public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+        public volatile string Status = "running";
+        public UasTypeExtractionDto? Result;
+        public string? Error;
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Job> _jobs = new();
+
+    public Guid Start(Guid owner, Func<CancellationToken, Task<UasTypeExtractionDto>> work)
+    {
+        foreach (var old in _jobs.Where(j => j.Value.CreatedAt < DateTimeOffset.UtcNow.AddMinutes(-30)).Select(j => j.Key).ToList())
+            _jobs.TryRemove(old, out _);
+
+        var id = Guid.NewGuid();
+        var job = new Job { Owner = owner };
+        _jobs[id] = job;
+        _ = Task.Run(async () =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            try
+            {
+                job.Result = await work(cts.Token);
+                job.Status = "done";
+            }
+            catch (ValidationException ex)
+            {
+                job.Error = ex.Message;
+                job.Status = "error";
+            }
+            catch (OperationCanceledException)
+            {
+                job.Error = "AI spracovanie trvalo príliš dlho. Skúste znova.";
+                job.Status = "error";
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "AI extrakcia zlyhala.");
+                job.Error = "AI spracovanie zlyhalo. Skúste znova alebo vyplňte parametre ručne.";
+                job.Status = "error";
+            }
+        });
+        return id;
+    }
+
+    public UasTypeExtractionJobDto? Get(Guid id, Guid owner)
+    {
+        if (!_jobs.TryGetValue(id, out var job) || job.Owner != owner)
+            return null;
+        var seconds = (int)(DateTimeOffset.UtcNow - job.CreatedAt).TotalSeconds;
+        return new UasTypeExtractionJobDto(job.Status, job.Result?.Data, job.Result?.ModelUsed, job.Error, seconds);
     }
 }

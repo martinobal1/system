@@ -6,6 +6,14 @@ import { trashButtonHtml } from '../core/trash.js';
 import { chipHtml, confirmAction, confirmDialog, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusLabelSk } from '../core/ui.js';
 import { ensureTechDocCatalog, getTechDocCatalog, techDocSlug } from '../shared/techDocs.js';
 
+function foldTxt(v) {
+  return String(v == null ? '' : v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function uasHay(u) {
+  return foldTxt([u.registrationNumber, u.serialNumber, u.model, u.manufacturer, u.owningOrgUnitName, u.certificateNumber,
+    u.logbookNumber, u.inventoryAssetNumber, u.pendingOrgUnitName].join(' '));
+}
+
 function escAttr(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -301,7 +309,7 @@ export async function renderUas() {
         }).join('');
       }
       var catalog = getTechDocCatalog();
-      const rows = list.map(function (u, idx) {
+      let rows = list.map(function (u, idx) {
         var key = u.registrationNumber || u.serialNumber || u.id;
         var dereg = u.deregisteredAt
           ? new Date(u.deregisteredAt).toLocaleDateString('sk-SK')
@@ -319,7 +327,7 @@ export async function renderUas() {
           : (mdl || '—');
         var isDecom = u.status === 'Decommissioned' || u.status === 8;
         var accent = isDecom ? '#d92d20' : colorForKey(key);
-        return '<tr class="row-tint uas-row' + (isDecom ? ' is-decommissioned' : '') + '" data-id="' + u.id + '" style="--row-accent:' + accent + ';cursor:pointer"' +
+        return '<tr class="row-tint uas-row' + (isDecom ? ' is-decommissioned' : '') + '" data-search="' + escAttr(uasHay(u)) + '" data-id="' + u.id + '" style="--row-accent:' + accent + ';cursor:pointer"' +
           (isDecom ? ' title="Vyradené z prevádzky"' : '') + '>' +
           '<td>' + (idx + 1) + '</td>' +
           '<td>' + (u.certificateNumber || '—') + '</td>' +
@@ -343,6 +351,7 @@ export async function renderUas() {
             : '') +
           '</tr>';
       }).join('') || '<tr><td colspan="' + (canAddUas ? '10' : '9') + '">Zatiaľ žiadne UAS v registri</td></tr>';
+      if (list.length) rows += '<tr id="uas-search-empty" hidden><td colspan="' + (canAddUas ? '10' : '9') + '">Žiadny UAS nevyhovuje hľadaniu.</td></tr>';
       const uasModelsPanel = renderFleetModelsPanel(fleetModelsFromUasList(list), list.length, {
         subtitle: 'Zloženie registra podľa typu UAS',
         limit: 12
@@ -377,6 +386,8 @@ export async function renderUas() {
             '<button type="button" class="secondary" id="uas-c-cancel">Zrušiť</button></div></form></div>'
           : '') +
         uasModelsPanel +
+        '<div class="pilot-search-bar"><input type="search" id="uas-search-q" placeholder="Hľadať UAS — poznávacia značka, výrobné číslo, typ, útvar, č. osvedčenia, denník, IM…" autocomplete="off" />' +
+        '<span id="uas-search-count" class="muted"></span></div>' +
         mfrTabsHtml +
         '<div class="chart-panel table-scroll uas-register">' +
         makeTable([
@@ -398,6 +409,38 @@ export async function renderUas() {
           navigate('uas');
         };
       });
+      // Lupa: filtruje riadky aktuálnej karty, na kartách výrobcov ukáže počet zhôd.
+      var uasHayAll = allUas.map(function (u) { return { mfr: mfrKey(u), hay: uasHay(u) }; });
+      var uasSearch = document.getElementById('uas-search-q');
+      function applyUasSearch() {
+        var q = foldTxt(uasSearch.value || '').trim();
+        state.uasSearchQ = uasSearch.value || '';
+        var shown = 0, total = 0;
+        content.querySelectorAll('tr.uas-row').forEach(function (tr) {
+          total++;
+          var ok = !q || (tr.getAttribute('data-search') || '').indexOf(q) >= 0;
+          tr.hidden = !ok;
+          if (ok) shown++;
+        });
+        var empty = document.getElementById('uas-search-empty');
+        if (empty) empty.hidden = shown > 0;
+        content.querySelectorAll('.uas-mfr-tab').forEach(function (btn) {
+          var badge = btn.querySelector('.tab-hits');
+          if (!q) { if (badge) badge.remove(); return; }
+          var key = btn.dataset.mfr;
+          var n = uasHayAll.filter(function (x) { return (key === '__all' || x.mfr === key) && x.hay.indexOf(q) >= 0; }).length;
+          if (!badge) { badge = document.createElement('span'); badge.className = 'tab-hits'; btn.appendChild(badge); }
+          badge.textContent = n;
+          badge.classList.toggle('is-zero', n === 0);
+        });
+        var cnt = document.getElementById('uas-search-count');
+        if (cnt) cnt.textContent = q ? 'Zobrazených ' + shown + ' z ' + total : '';
+      }
+      if (uasSearch) {
+        uasSearch.value = state.uasSearchQ || '';
+        uasSearch.oninput = applyUasSearch;
+        if (uasSearch.value) applyUasSearch();
+      }
       if (canAddUas) {
         document.getElementById('uas-add-btn').onclick = function () {
           var panel = document.getElementById('uas-create-panel');

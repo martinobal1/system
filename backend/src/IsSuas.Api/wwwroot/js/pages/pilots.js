@@ -6,6 +6,10 @@ import { trashButtonHtml } from '../core/trash.js';
 import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
 import { bindCertGrantForm, bindCertLifecycleButtons, certActionButtons, certGrantFormHtml, certStatusHtml, certSuspendPanelHtml, fillCertGrantForm, isCertIssued, isCertSuspended } from '../shared/certs.js';
 
+function foldTxt(v) {
+  return String(v == null ? '' : v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function escHtml(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -210,7 +214,9 @@ export async function renderPilots() {
         var validTo = (topCert && topCert.validTo) || null;
         var mtow = (s2 && s2.mtowOrValidityText) || (s1 && s1.mtowOrValidityText)
           || (a2 && a2.mtowOrValidityText) || (validTo ? ('platné do ' + fmtDate(validTo)) : '—');
-        var common = '<tr class="row-tint pilot-row" data-id="' + p.id +
+        var hay = [p.lastName, p.firstName, p.firstName + ' ' + p.lastName, p.personalBadgeNumber, p.orgUnitName, p.email,
+          p.licenseNumber, p.gestorCertificateNumber, permit].join(' ');
+        var common = '<tr class="row-tint pilot-row" data-search="' + escHtml(foldTxt(hay)) + '" data-id="' + p.id +
           '" style="--row-accent:' + colorForKey(p.orgUnitName || p.id) +
           '" title="Otvoriť detail pilota">' +
           '<td>' + (idx + 1) + '</td>' +
@@ -234,6 +240,15 @@ export async function renderPilots() {
           '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
           '</tr>';
       }).join('') || '<tr><td colspan="' + headers.length + '">' + (emptyText[tab] || 'Žiadni piloti') + '</td></tr>';
+      if (list.length) rows += '<tr id="pilot-search-empty" hidden><td colspan="' + headers.length + '">Žiadny pilot v tejto karte nevyhovuje hľadaniu.</td></tr>';
+      // Počet zhôd v každej karte (aby bolo vidno, kde hľadaný pilot je)
+      var hayByGroup = {};
+      Object.keys(groups).forEach(function (k) {
+        hayByGroup[k] = groups[k].map(function (p) {
+          return foldTxt([p.lastName, p.firstName, p.firstName + ' ' + p.lastName, p.personalBadgeNumber, p.orgUnitName, p.email,
+            p.licenseNumber, p.gestorCertificateNumber].concat((p.certificates || []).map(function (c) { return c.externalNumber; })).join(' '));
+        });
+      });
 
       content.innerHTML = '<div class="stack">' + searchHighlightBanner() +
         pageHead('Register PnD',
@@ -251,6 +266,8 @@ export async function renderPilots() {
         '<button type="button" class="reg-tab' + (tab === 'sts2' ? ' active' : '') + '" data-tab="sts2">A1/A3 + A2 + STS1 + STS2</button>' +
         '<button type="button" class="reg-tab' + (tab === 'none' ? ' active' : '') + '" data-tab="none">Bez osvedčenia <span class="tab-count">' + groups.none.length + '</span></button>' +
         '</div>' +
+        '<div class="pilot-search-bar"><input type="search" id="pilot-search-q" placeholder="Hľadať pilota — meno, priezvisko, ČOZ, útvar, e-mail, číslo povolenia…" autocomplete="off" />' +
+        '<span id="pilot-search-count" class="muted"></span></div>' +
         '<div id="pilot-msg"></div>' +
         (canAddPilot
           ? '<div id="pilot-create-panel" class="form-panel hidden">' +
@@ -279,6 +296,36 @@ export async function renderPilots() {
           navigate('pilots');
         };
       });
+      var searchEl = document.getElementById('pilot-search-q');
+      function applyPilotSearch() {
+        var q = foldTxt(searchEl.value || '').trim();
+        state.pilotSearchQ = searchEl.value || '';
+        var shown = 0, total = 0;
+        content.querySelectorAll('tr.pilot-row').forEach(function (tr) {
+          total++;
+          var ok = !q || (tr.getAttribute('data-search') || '').indexOf(q) >= 0;
+          tr.hidden = !ok;
+          if (ok) shown++;
+        });
+        var empty = document.getElementById('pilot-search-empty');
+        if (empty) empty.hidden = shown > 0;
+        content.querySelectorAll('.reg-tab').forEach(function (btn) {
+          var k = btn.dataset.tab;
+          var badge = btn.querySelector('.tab-hits');
+          if (!q) { if (badge) badge.remove(); return; }
+          var n = (hayByGroup[k] || []).filter(function (h) { return h.indexOf(q) >= 0; }).length;
+          if (!badge) { badge = document.createElement('span'); badge.className = 'tab-hits'; btn.appendChild(badge); }
+          badge.textContent = n;
+          badge.classList.toggle('is-zero', n === 0);
+        });
+        var cnt = document.getElementById('pilot-search-count');
+        if (cnt) cnt.textContent = q ? 'Zobrazených ' + shown + ' z ' + total : '';
+      }
+      if (searchEl) {
+        searchEl.value = state.pilotSearchQ || '';
+        searchEl.oninput = applyPilotSearch;
+        if (searchEl.value) applyPilotSearch();
+      }
       content.querySelectorAll('tr.pilot-row').forEach(function (row) {
         row.onclick = function () {
           state.pilotDetailId = row.dataset.id;

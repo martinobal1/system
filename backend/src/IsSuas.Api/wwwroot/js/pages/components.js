@@ -36,7 +36,8 @@ export async function renderComponents() {
       var canManage = state.accessLevel === 1;
       if (!canManage) state.techDocCreating = false;
       await ensureTechDocCatalog();
-      var catalog = getTechDocCatalog();
+      var fullCatalog = getTechDocCatalog();
+      var catalog = fullCatalog;
       var uasData = { items: [] };
       try { uasData = await api('/api/v1/uas?page=1&pageSize=500'); } catch (_) {}
       var uasList = uasData.items || [];
@@ -49,6 +50,12 @@ export async function renderComponents() {
             return model.toLowerCase() === String(m).toLowerCase();
           });
         }).length;
+      }
+
+      // Správca útvaru (L2) a pilot (L3) vidia len dokumentáciu typov, ktoré má ich útvar vo flotile.
+      // Zoznam UAS z API už obsahuje len drony ich útvaru; gestor (L1) vidí celý katalóg.
+      if (!canManage) {
+        catalog = fullCatalog.filter(function (doc) { return fleetCountFor(doc) > 0; });
       }
 
       if (state.techDocCreating) {
@@ -176,10 +183,20 @@ export async function renderComponents() {
               if (f.key === 'model') modelHint = (f.value || '').trim();
             }); });
             try {
-              var out = await api('/api/v1/uas-types/extract', {
+              // AI beží na serveri na pozadí — každé 2 s sa opýtame na stav (proxy na doméne by dlhú požiadavku zrušila: 504).
+              var started = await api('/api/v1/uas-types/extract', {
                 method: 'POST',
                 body: JSON.stringify({ text: p.text.slice(0, 1500000), fileName: p.file.name, manufacturerHint: mfrHint || null, modelHint: modelHint || null })
               });
+              var out = null;
+              for (var attempt = 0; attempt < 200 && !out; attempt++) {
+                await new Promise(function (r) { setTimeout(r, 2000); });
+                var job = await api('/api/v1/uas-types/extract/' + started.jobId);
+                if (job.status === 'done') out = job;
+                else if (job.status === 'error') throw new Error(job.error || 'AI spracovanie zlyhalo.');
+                else setAiStatus('<span class="tech-spinner"></span> AI spracúva manuál… ' + (job.elapsedSeconds || 0) + ' s (zvyčajne 30–90 s)');
+              }
+              if (!out) throw new Error('AI spracovanie trvalo príliš dlho. Skúste znova.');
               var d = (out && out.data) || {};
               function v(x) { return x == null ? '' : String(x); }
               var basics = {
@@ -462,11 +479,13 @@ export async function renderComponents() {
               '">Odobrať</button>'
             : '') +
           '</div>';
-      }).join('') || '<p class="muted">Zatiaľ žiadna technická dokumentácia.</p>';
+      }).join('') || (canManage
+        ? '<p class="muted">Zatiaľ žiadna technická dokumentácia.</p>'
+        : '<p class="muted">Váš útvar zatiaľ nemá vo flotile žiadny dron s technickou dokumentáciou.</p>');
 
       content.innerHTML = '<div class="stack">' +
         pageHead('Technická dokumentácia',
-          'Katalóg typov dronov vo flotile — kliknutím otvoríte špecifikáciu.',
+          canManage ? 'Katalóg typov dronov vo flotile — kliknutím otvoríte špecifikáciu.' : 'Dokumentácia typov dronov, ktoré má váš útvar k dispozícii.',
           chipHtml('Typy', catalog.length, 'chip-soft')) +
         (canManage ? '<div class="toolbar"><button type="button" id="tech-add">Pridať typ</button></div>' : '') +
         '<div class="stack" style="gap:0.75rem">' + cards + '</div></div>';

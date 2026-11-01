@@ -1,0 +1,77 @@
+name: Nasadenie na server
+
+# Po pushi na main: skompiluje a otestuje backend, potom nasadí na Google Cloud server cez SSH.
+# Potrebné tajomstvá (GitHub → Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST     – verejná IP adresa servera
+#   DEPLOY_USER     – používateľ na serveri (napr. obalstoper)
+#   DEPLOY_SSH_KEY  – súkromný SSH kľúč (obsah ~/.ssh/github_deploy)
+#   DEPLOY_PATH     – (voliteľné) cesta k projektu na serveri, predvolene ~/system
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Vynútiť rebuild aj bez zmien v backende"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: issuas
+          POSTGRES_PASSWORD: issuas_dev
+          POSTGRES_DB: issuas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U issuas -d issuas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore
+        run: dotnet restore backend/IsSuas.slnx
+      - name: Build
+        run: dotnet build backend/IsSuas.slnx --no-restore -c Release
+      - name: Test
+        run: dotnet test backend/IsSuas.slnx --no-build -c Release --verbosity normal
+        env:
+          ConnectionStrings__Default: Host=localhost;Port=5432;Database=issuas;Username=issuas;Password=issuas_dev
+          Jwt__SigningKey: CI_TEST_SIGNING_KEY_MUST_BE_AT_LEAST_32_CHARS
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Nasadiť na server
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          FORCE_BUILD: ${{ github.event.inputs.force_build == 'true' && '1' || '0' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: FORCE_BUILD,DEPLOY_PATH
+          command_timeout: 30m
+          script: |
+            set -e
+            cd "${DEPLOY_PATH:-$HOME/system}"
+            BEFORE="$(git rev-parse HEAD)"
+            git pull --ff-only
+            FORCE_BUILD="$FORCE_BUILD" bash infra/deploy.sh "$BEFORE"

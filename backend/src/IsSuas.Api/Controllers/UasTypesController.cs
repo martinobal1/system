@@ -40,8 +40,16 @@ public sealed class UasTypesController(IUasTypeDocService service) : ControllerB
         return File(content, "application/pdf", fileName);
     }
 
+    /// <summary>Spustí AI extrakciu na pozadí; výsledok sa zisťuje cez GET extract/{jobId}.</summary>
     [HttpPost("extract")]
     [RequestSizeLimit(4_000_000)]
-    public async Task<ActionResult<UasTypeExtractionDto>> Extract([FromBody] ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken)
-        => Ok(await service.ExtractSpecsAsync(request, cancellationToken));
+    public async Task<ActionResult<UasTypeExtractionStartedDto>> Extract([FromBody] ExtractUasTypeSpecsRequest request, CancellationToken cancellationToken)
+        => Accepted(new UasTypeExtractionStartedDto(await service.StartExtractionAsync(request, cancellationToken)));
+
+    [HttpGet("extract/{jobId:guid}")]
+    public ActionResult<UasTypeExtractionJobDto> ExtractStatus(Guid jobId)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return Ok(service.GetExtractionJob(jobId));
+    }
 }

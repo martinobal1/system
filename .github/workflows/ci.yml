@@ -1,8 +1,9 @@
 name: IsSuas CI
 
 on:
+  # main testuje workflow „Nasadenie na server“ (deploy.yml), aby sa build nespúšťal dvakrát
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
     branches: [main, develop]
 

@@ -68,19 +68,53 @@ export async function renderCertificates() {
           return code + ' ' + code.replace(/_/g, '/') + ' ' + (c.externalNumber || '') + ' ' + (c.titleSk || '');
         })).join(' ');
       }
+      // ---------- filter (útvar, kategória, stav) — kombinuje sa s hľadaním pilota ----------
+      if (!state.certFilter) state.certFilter = { org: '', cat: '', st: '' };
+      function certFilterBarHtml() {
+        var orgs = {};
+        (pilots || []).forEach(function (p) { if (p.orgUnitId) orgs[p.orgUnitId] = p.orgUnitName || p.orgUnitId; });
+        var orgOpts = Object.keys(orgs).sort(function (a, b) { return String(orgs[a]).localeCompare(String(orgs[b]), 'sk'); })
+          .map(function (id) { return '<option value="' + escH(id) + '"' + (state.certFilter.org === id ? ' selected' : '') + '>' + escH(orgs[id]) + '</option>'; }).join('');
+        function o(v, label, cur) { return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + label + '</option>'; }
+        return '<div class="cert-filter-bar">' +
+          '<label>Útvar<select id="cf-org"><option value="">Všetky útvary</option>' + orgOpts + '</select></label>' +
+          '<label>Kategória<select id="cf-cat">' + o('', 'Všetky', state.certFilter.cat) + o('A1_A3', 'A1/A3', state.certFilter.cat) +
+            o('A2', 'A2', state.certFilter.cat) + o('STS1', 'STS1', state.certFilter.cat) + o('STS2', 'STS2', state.certFilter.cat) + '</select></label>' +
+          '<label>Stav<select id="cf-st">' + o('', 'Všetky', state.certFilter.st) + o('valid', 'S platným osvedčením', state.certFilter.st) +
+            o('suspended', 'Pozastavené', state.certFilter.st) + o('none', 'Bez osvedčenia', state.certFilter.st) +
+            o('request', 'Požiadali o osvedčenie', state.certFilter.st) + o('pending', 'Licencia čaká', state.certFilter.st) + '</select></label>' +
+          '<button type="button" class="secondary" id="cf-reset">Zrušiť filter</button>' +
+          '<span class="cert-filter-count" id="cf-count"></span>' +
+          '</div>';
+      }
+      function bindCertFilter() {
+        ['cf-org', 'cf-cat', 'cf-st'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.onchange = function () {
+            state.certFilter = { org: document.getElementById('cf-org').value, cat: document.getElementById('cf-cat').value, st: document.getElementById('cf-st').value };
+            filterCertTable(foldText(certSearchInput && certSearchInput.value));
+          };
+        });
+        var reset = document.getElementById('cf-reset');
+        if (reset) reset.onclick = function () {
+          state.certFilter = { org: '', cat: '', st: '' };
+          ['cf-org', 'cf-cat', 'cf-st'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+          filterCertTable(foldText(certSearchInput && certSearchInput.value));
+        };
+      }
       function certRowsHtml() {
         var rows = (pilots || []).map(function (p) {
           var name = ((p.firstName || '') + ' ' + (p.lastName || '')).trim() || p.licenseNumber || p.id;
           var certs = p.certificates || [];
           var certHtml = certs.length
             ? certs.map(function (c) {
-                return '<div class="row-actions" style="justify-content:flex-start;margin:0.15rem 0">' +
-                  certBadgesHtml([c.certificateTypeCode]) +
-                  certStatusHtml(c) +
-                  '<span class="muted">' + (c.externalNumber || '') +
-                  (!isCertSuspended(c) && c.validTo ? ' · do ' + fmtDate(c.validTo) : '') +
-                  '</span>' +
-                  certActionButtons(p.id, c, name) +
+                // Mriežka: kategória | stav | číslo | platnosť | akcie — rovnaké stĺpce v každom riadku.
+                return '<div class="cert-line">' +
+                  '<span class="cert-line-badge">' + certBadgesHtml([c.certificateTypeCode]) + '</span>' +
+                  '<span class="cert-line-status">' + certStatusHtml(c) + '</span>' +
+                  '<span class="cert-line-num" title="' + escH(c.externalNumber || '') + '">' + escH(c.externalNumber || '—') + '</span>' +
+                  '<span class="cert-line-valid">' + (!isCertSuspended(c) && c.validTo ? 'do ' + fmtDate(c.validTo) : '') + '</span>' +
+                  '<span class="cert-line-actions">' + certActionButtons(p.id, c, name) + '</span>' +
                 '</div>';
               }).join('')
             : '<span class="muted">Žiadne osvedčenie</span>';
@@ -88,7 +122,16 @@ export async function renderCertificates() {
             certHtml += '<div style="margin-top:0.25rem"><span class="badge badge-warn">Žiada o: ' +
               requestsOf(p).map(function (c) { return escH(CERT_LABELS[c] || c); }).join(', ') + '</span></div>';
           }
-          return '<tr class="cert-pilot-row" data-pilot="' + p.id + '" title="Otvoriť pilota a spravovať jeho osvedčenia" data-search="' +
+          var fCodes = (p.certificateCodes || []).map(function (c) { return String(c).toUpperCase(); });
+          var fStates = [];
+          if (!fCodes.length) fStates.push('none');
+          if (certs.some(function (c) { return isCertSuspended(c); })) fStates.push('suspended');
+          if (fCodes.length) fStates.push('valid');
+          if (requestsOf(p).length) fStates.push('request');
+          var lic = accByPerson[p.personId] && accByPerson[p.personId].licenseStatus;
+          if (lic === 'Pending' || lic === 1) fStates.push('pending');
+          return '<tr class="cert-pilot-row" data-pilot="' + p.id + '" data-org="' + escH(p.orgUnitId || '') + '" data-codes="' + fCodes.join(' ') +
+            '" data-states="' + fStates.join(' ') + '" title="Otvoriť pilota a spravovať jeho osvedčenia" data-search="' +
             String(certSearchHay(p)).replace(/"/g, '&quot;') + '"><td><span class="cert-pilot-name"><b>' + escH(name) + '</b>' +
             '<span class="row-actions" style="justify-content:flex-start;margin-top:0.25rem">' +
             '<button type="button" class="secondary cert-quick-grant" data-id="' + p.id + '">+ Prideliť</button>' +
@@ -97,7 +140,7 @@ export async function renderCertificates() {
             licChip(accByPerson[p.personId]) + '</td><td>' + certHtml + '</td></tr>';
         }).join('') || '<tr><td colspan="4">Žiadni piloti (úroveň 3) v dostupných útvaroch.</td></tr>';
         if ((pilots || []).length) {
-          rows += '<tr id="cert-search-empty" hidden><td colspan="4">Žiadny pilot podľa hľadania.</td></tr>';
+          rows += '<tr id="cert-search-empty" hidden><td colspan="4">Žiadny pilot nevyhovuje hľadaniu alebo filtru.</td></tr>';
         }
         return rows;
       }
@@ -144,6 +187,7 @@ export async function renderCertificates() {
         certSuspendPanelHtml() +
         '<div id="cert-requests">' + certRequestsHtml() + '</div>' +
         sectionCard('Piloti a osvedčenia',
+          certFilterBarHtml() +
           '<div id="cert-pilot-table">' +
           makeTable(['Pilot', 'Útvar', 'Licencia', 'Osvedčenia'], rows, true) +
           '</div>', '#0d8f7a') +
@@ -160,13 +204,19 @@ export async function renderCertificates() {
       function filterCertTable(q) {
         var tableRows = content.querySelectorAll('#cert-pilot-table tbody tr[data-search]');
         var shown = 0;
+        var f = state.certFilter || {};
         tableRows.forEach(function (tr) {
           var ok = !q || foldText(tr.getAttribute('data-search')).indexOf(q) >= 0;
+          if (ok && f.org) ok = tr.getAttribute('data-org') === f.org;
+          if (ok && f.cat) ok = (' ' + (tr.getAttribute('data-codes') || '') + ' ').indexOf(' ' + f.cat + ' ') >= 0;
+          if (ok && f.st) ok = (' ' + (tr.getAttribute('data-states') || '') + ' ').indexOf(' ' + f.st + ' ') >= 0;
           tr.hidden = !ok;
           if (ok) shown++;
         });
         var emptyRow = document.getElementById('cert-search-empty');
         if (emptyRow) emptyRow.hidden = shown > 0 || !tableRows.length;
+        var cnt = document.getElementById('cf-count');
+        if (cnt) cnt.textContent = (q || f.org || f.cat || f.st) ? 'Zobrazených ' + shown + ' z ' + tableRows.length + ' pilotov' : tableRows.length + ' pilotov';
       }
       async function reloadCertData() {
         try { pilots = await api('/api/v1/pilots'); } catch (_) { pilots = []; }
@@ -348,5 +398,7 @@ export async function renderCertificates() {
       bindCertPageActions();
       bindCertRequestButtons();
       bindCertRowActions();
+      bindCertFilter();
+      filterCertTable('');
       return;
 }
