@@ -24,9 +24,9 @@ public sealed record UploadUasTypeManualRequest(string FileName, string ContentB
 /// <summary>Text vytiahnutý z PDF manuálu (v prehliadači), z ktorého AI pripraví tabuľky špecifikácií.</summary>
 public sealed record ExtractUasTypeSpecsRequest(string Text, string? FileName, string? ManufacturerHint, string? ModelHint);
 
-public sealed record UasTypeExtractionDto(JsonElement Data, string ModelUsed);
+public sealed record UasTypeExtractionDto(JsonElement Data, string ModelUsed, string? Note = null);
 
 /// <summary>Stav AI úlohy: running | done | error.</summary>
-public sealed record UasTypeExtractionJobDto(string Status, JsonElement? Data, string? ModelUsed, string? Error, int ElapsedSeconds);
+public sealed record UasTypeExtractionJobDto(string Status, JsonElement? Data, string? ModelUsed, string? Error, int ElapsedSeconds, string? Note = null);
 
 public sealed record UasTypeExtractionStartedDto(Guid JobId);

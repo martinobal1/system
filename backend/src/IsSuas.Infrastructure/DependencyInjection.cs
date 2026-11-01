@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddHttpClient("Ai", c => c.Timeout = TimeSpan.FromSeconds(180));
         services.AddScoped<IUasTypeDocService, UasTypeDocService>();
         services.AddSingleton<UasTypeExtractionJobStore>();
+        services.AddHttpClient("SpecPage", c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<IWeatherProvider, OpenMeteoWeatherProvider>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddScoped<IPilotUasAuthorizationService, PilotUasAuthorizationService>();

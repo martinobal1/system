@@ -221,7 +221,8 @@ export async function renderComponents() {
               secs.push(basics);
               aiSecs.forEach(function (sec) { secs.push(sec); });
               var rows = aiSecs.reduce(function (n, sec) { return n + sec.fields.length; }, 0);
-              setAiStatus('✓ AI vyplnila ' + aiSecs.length + ' sekcií a ' + rows + ' parametrov. <b>Skontrolujte hodnoty</b> a potom kliknite „Uložiť typ“.');
+              setAiStatus('✓ AI vyplnila ' + aiSecs.length + ' sekcií a ' + rows + ' parametrov. <b>Skontrolujte hodnoty</b> a potom kliknite „Uložiť typ“.' +
+                (out.note ? '<br><span class="tech-ai-note">ℹ ' + escH(out.note) + '</span>' : ''));
               renderForm();
             } catch (err) {
               btn.disabled = false;

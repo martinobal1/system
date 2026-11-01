@@ -185,37 +185,61 @@ public sealed class UasTypeDocService(
         var text = (request.Text ?? "").Trim();
         if (text.Length < 200)
             throw new ValidationException("Z PDF sa nepodarilo vytiahnuť text (možno je to sken). Vyplňte parametre ručne.");
-        // Novšie manuály (napr. DJI Air 3S) tabuľku nemajú — len odkaz na web výrobcu.
+        // Novšie manuály (napr. DJI Air 3S, DJI Flip) tabuľku nemajú — len odkaz na web výrobcu.
+        // Vtedy si server stránku so špecifikáciami načíta sám (používateľ nemusí nič ukladať ručne).
+        string? specUrl = null;
         var specLink = Regex.Match(text,
             @"(?:Visit|See|Refer to)[^\n]{0,60}(?:website|site)[^\n]{0,40}specifications?[^\n]{0,10}\s*(https?://\S+)",
             RegexOptions.IgnoreCase);
         var specIdx = text.LastIndexOf("Specifications", StringComparison.Ordinal);
         if (specLink.Success && specIdx >= 0 && Math.Abs(specLink.Index - specIdx) < 300
             && !Regex.IsMatch(text.Substring(specIdx, Math.Min(2500, text.Length - specIdx)), @"(?i)takeoff weight|max(?:imum)? flight time"))
-            throw new ValidationException("Tento manuál neobsahuje tabuľku špecifikácií — výrobca ich uvádza na webe: " +
-                specLink.Groups[1].Value.TrimEnd('.', ',', ')') +
-                ". Otvorte túto stránku, uložte ju ako PDF (Ctrl+P → Uložiť ako PDF) a nahrajte toto PDF.");
-        text = PickSpecificationPart(text);
+            specUrl = specLink.Groups[1].Value.TrimEnd('.', ',', ')', ';');
+
+        var fullManual = text.Length > MaxExtractChars ? text[..MaxExtractChars] : text;
+        var specPart = specUrl is null ? PickSpecificationPart(text) : null;
 
         var hints = string.Join(" ", new[] { request.ManufacturerHint, request.ModelHint, request.FileName }
             .Where(s => !string.IsNullOrWhiteSpace(s)));
-        var userPrompt = "Hint (file name / entered values): " + (hints.Length > 0 ? hints : "-") +
-                         "\n<manual>\n" + text + "\n</manual>";
+        string BuildPrompt(string body, string sourceLabel) =>
+            "Hint (file name / entered values): " + (hints.Length > 0 ? hints : "-") +
+            "\nSource: " + sourceLabel + "\n<manual>\n" + body + "\n</manual>";
 
         await audit.WriteAsync("UasTypeDoc.AiExtract", nameof(UasTypeDoc), null, null,
-            new { request.FileName, Provider = provider, Model = model, Chars = text.Length }, cancellationToken: cancellationToken);
+            new { request.FileName, Provider = provider, Model = model, Chars = text.Length, SpecUrl = specUrl }, cancellationToken: cancellationToken);
 
         // Samotné volanie AI beží na pozadí; používa len singletony (HttpClientFactory, konfigurácia, logger),
         // takže nezávisí od skončenej HTTP požiadavky ani od DbContextu.
         return jobs.Start(owner, async ct =>
         {
+            string userPrompt;
+            string? note = null;
+            if (specUrl is null)
+            {
+                userPrompt = BuildPrompt(specPart!, "specifications chapter of the user manual");
+            }
+            else
+            {
+                var page = await FetchSpecPageAsync(specUrl, ct);
+                if (page is not null)
+                {
+                    userPrompt = BuildPrompt(page, "manufacturer specifications web page " + specUrl);
+                    note = "Manuál neobsahuje tabuľku parametrov, preto sa načítala zo stránky výrobcu (" + specUrl + ").";
+                }
+                else
+                {
+                    // Web nie je dostupný — AI vytiahne aspoň parametre roztrúsené v celom manuáli.
+                    userPrompt = BuildPrompt(fullManual, "full user manual (no specification table; extract every technical parameter mentioned anywhere)");
+                    note = "Manuál neobsahuje tabuľku parametrov a stránku výrobcu sa nepodarilo načítať. Vyplnené sú len údaje uvedené v texte manuálu — doplňte chýbajúce.";
+                }
+            }
             var answer = provider switch
             {
                 "openai" => await CallOpenAiAsync(model, userPrompt, ct),
                 "gemini" => await CallGeminiAsync(model, userPrompt, ct),
                 _ => await CallAnthropicAsync(model, userPrompt, ct)
             };
-            return ParseExtraction(answer, model);
+            return ParseExtraction(answer, model) with { Note = note };
         });
     }
 
@@ -224,6 +248,68 @@ public sealed class UasTypeDocService(
         if (currentUser.AccountId is not Guid owner)
             throw new ForbiddenException("Chýba identita používateľa.");
         return jobs.Get(jobId, owner) ?? throw new NotFoundException("Úloha AI spracovania neexistuje alebo už vypršala.");
+    }
+
+    /// <summary>Weby výrobcov, z ktorých smie server načítať stránku so špecifikáciami (Ai__SpecHosts).</summary>
+    private bool IsAllowedSpecHost(Uri uri)
+    {
+        var allowed = (configuration["Ai:SpecHosts"] is { Length: > 0 } h ? h : "dji.com,autelrobotics.com,parrot.com,skydio.com,yuneec.com")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return uri.Scheme == Uri.UriSchemeHttps
+            && allowed.Any(a => uri.Host.Equals(a, StringComparison.OrdinalIgnoreCase)
+                || uri.Host.EndsWith("." + a, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Načíta stránku so špecifikáciami a vráti jej text (bez HTML); null keď sa nedá.</summary>
+    private async Task<string?> FetchSpecPageAsync(string url, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !IsAllowedSpecHost(uri))
+        {
+            logger.LogInformation("Stránka špecifikácií {Url} nie je na zozname povolených webov.", url);
+            return null;
+        }
+        try
+        {
+            var client = httpClientFactory.CreateClient("SpecPage");
+            using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36");
+            req.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml");
+            req.Headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.8");
+            using var resp = await client.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Stránka špecifikácií {Url} vrátila {Status}.", url, (int)resp.StatusCode);
+                return null;
+            }
+            var html = await resp.Content.ReadAsStringAsync(ct);
+            var text = HtmlToText(html);
+            if (!Regex.IsMatch(text, @"(?i)weight|flight time|dimensions"))
+            {
+                // Obsah môže byť len v JSON dátach stránky — pošli aj ich text.
+                text = HtmlToText(Regex.Replace(html, @"<script[^>]*>", " ", RegexOptions.IgnoreCase));
+                if (!Regex.IsMatch(text, @"(?i)weight|flight time|dimensions")) return null;
+            }
+            // Začni pri prvých parametroch, nie pri navigácii webu.
+            var m = Regex.Match(text, @"(?i)(aircraft|takeoff weight|weight)");
+            if (m.Success && m.Index > 1500) text = text[(m.Index - 1500)..];
+            return text.Length > MaxSpecChars ? text[..MaxSpecChars] : text;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning(ex, "Stránku špecifikácií {Url} sa nepodarilo načítať.", url);
+            return null;
+        }
+    }
+
+    private static string HtmlToText(string html)
+    {
+        var t = Regex.Replace(html, @"<(script|style|noscript|svg)[^>]*>[\s\S]*?</\1>", " ", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"<(br|/p|/div|/li|/tr|/h\d|/dt|/dd|/td|/th)[^>]*>", "\n", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"<[^>]+>", " ");
+        t = System.Net.WebUtility.HtmlDecode(t);
+        t = Regex.Replace(t, @"[ \t\r\f\v]+", " ");
+        t = Regex.Replace(t, @"\n\s*\n+", "\n");
+        return t.Trim();
     }
 
     private static UasTypeExtractionDto ParseExtraction(string answer, string model)
@@ -519,6 +605,6 @@ public sealed class UasTypeExtractionJobStore(ILogger<UasTypeExtractionJobStore>
         if (!_jobs.TryGetValue(id, out var job) || job.Owner != owner)
             return null;
         var seconds = (int)(DateTimeOffset.UtcNow - job.CreatedAt).TotalSeconds;
-        return new UasTypeExtractionJobDto(job.Status, job.Result?.Data, job.Result?.ModelUsed, job.Error, seconds);
+        return new UasTypeExtractionJobDto(job.Status, job.Result?.Data, job.Result?.ModelUsed, job.Error, seconds, job.Result?.Note);
     }
 }
