@@ -2,11 +2,14 @@ import { api } from '../core/api.js';
 import { colorForKey, swatchHtml } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { trashButtonHtml } from '../core/trash.js';
-import { bindFormReveals, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, severityBadge, statusBadge, typeLabelSk, enumName } from '../core/ui.js';
+import { bindFormReveals, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, severityBadge, severityLabelSk, statusBadge, statusLabelSk, typeLabelSk, enumName } from '../core/ui.js';
+import { bindFilterBar, filterAttrs, filterBarHtml } from '../shared/listFilter.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
 
 export async function renderIncidents() {
-      const items = await api('/api/v1/safety-events');
+      const items = (await api('/api/v1/safety-events') || []).slice().sort(function (a, b) {
+        return String(b.occurredAt || '').localeCompare(String(a.occurredAt || ''));
+      });
       const notes = await api('/api/v1/notifications');
       const orgs = await api('/api/v1/org-units');
       const uasList = await loadUasOptions();
@@ -22,14 +25,25 @@ export async function renderIncidents() {
           ? '<button type="button" class="secondary submit-ev" data-id="' + e.id +
             '" data-rv="' + e.rowVersion + '">Odoslať</button>'
           : '—';
-        return '<tr class="row-tint" style="--row-accent:' +
+        var stLabel = statusLabelSk(enumName('safety', e.status));
+        var sevLabel = severityLabelSk(e.severity, 'safety');
+        var when = e.occurredAt ? new Date(e.occurredAt) : null;
+        return '<tr class="inc-row" ' + filterAttrs({
+          q: [e.title, e.initialReport, stLabel, sevLabel, when ? when.toLocaleDateString('sk-SK') : ''].join(' '),
+          status: [enumName('safety', e.status), stLabel],
+          sev: [String(e.severity), sevLabel],
+          susp: e.autoSuspendApplied ? ['1', 'S pozastavením UAS'] : ['0', 'Bez pozastavenia'],
+          date: e.occurredAt
+        }) + ' style="--row-accent:' +
           ({ 0: '#0d6b3c', 1: '#c47b1a', 2: '#b86e00', 3: '#b42318' }[Number(e.severity)] || colorForKey(e.severity)) +
           '"><td><span class="entity-label">' + swatchHtml(colorForKey(e.id || e.title)) +
-          '<span>' + e.title + '</span></span></td><td>' + severityBadge(e.severity, 'safety') + '</td><td>' + statusBadge(enumName('safety', e.status)) +
+          '<span>' + e.title + '</span></span></td><td style="white-space:nowrap">' +
+          (when ? when.toLocaleDateString('sk-SK') + ' <small class="muted">' + when.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' }) + '</small>' : '—') +
+          '</td><td>' + severityBadge(e.severity, 'safety') + '</td><td>' + statusBadge(enumName('safety', e.status)) +
           '</td><td>' + (e.initialReportLocked ? 'Ano' : 'Nie') + '</td><td>' +
           (e.autoSuspendApplied ? 'Ano' : 'Nie') + '</td><td><div class="row-actions-end">' +
           (submitBtn === '—' ? '' : submitBtn + ' ') + trashButtonHtml('incidents', e.id, e.title, { compact: true }) + '</div></td></tr>';
-      }).join('') || '<tr><td colspan="6">Žiadne udalosti — vytvorte prvu nizsie</td></tr>';
+      }).join('') || '<tr><td colspan="7">Žiadne udalosti — vytvorte prvu nizsie</td></tr>';
 
       content.innerHTML =
         '<div class="stack">' +
@@ -59,10 +73,17 @@ export async function renderIncidents() {
         '<button type="button" class="secondary" data-hide="inc-panel">Zrušiť</button>' +
         '</div></form></div>' +
         '<h2>Bezpečnostné udalosti</h2>' +
-        makeTable(['Názov', 'Závažnosť', 'Stav', 'Zamknuté', 'Autom. pozastavenie', 'Akcia'], rows) +
+        filterBarHtml('incidents', [
+          { key: 'q', type: 'search', placeholder: 'Hľadať — názov, popis udalosti…' },
+          { key: 'status', type: 'select', label: 'Stav' },
+          { key: 'sev', type: 'select', label: 'Závažnosť' },
+          { key: 'susp', type: 'select', label: 'Pozastavenie' },
+          { key: 'date', type: 'daterange', label: 'Udalosť' }
+        ]) +
+        makeTable(['Názov', 'Dátum', 'Závažnosť', 'Stav', 'Zamknuté', 'Autom. pozastavenie', 'Akcia'], rows) +
         sectionCard('Upozornenia', makeTable(['Priorita', 'Typ', 'Názov', 'Stav'],
           notes.map(function (n) {
-            return '<tr class="row-tint" style="--row-accent:' + colorForKey(n.priority || n.typeCode) + '">' +
+            return '<tr style="--row-accent:' + colorForKey(n.priority || n.typeCode) + '">' +
               '<td>' + statusBadge(n.priority) + '</td><td>' + typeLabelSk(n.typeCode) +
               '</td><td>' + n.title +
               '</td><td>' + statusBadge(enumName('notification', n.status)) + '</td></tr>';
@@ -70,6 +91,7 @@ export async function renderIncidents() {
         '</div>';
 
       bindFormReveals();
+      bindFilterBar('incidents', { rows: 'tr.inc-row', stateKey: 'incidents', colspan: 7 });
 
       async function createIncident(alsoSubmit) {
         const msg = document.getElementById('inc-msg');

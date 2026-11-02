@@ -3,8 +3,9 @@ import { colorForKey, swatchHtml } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
-import { chipHtml, confirmAction, content, makeTable, pageHead, severityBadge, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
+import { chipHtml, confirmAction, content, makeTable, pageHead, severityBadge, severityLabelSk, statusBadge, statusLabelSk, enumName } from '../core/ui.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
+import { bindFilterBar, filterAttrs, filterBarHtml } from '../shared/listFilter.js';
 
 function escHtml(value) {
   return String(value || '')
@@ -115,7 +116,9 @@ export async function renderDefects() {
         return;
       }
 
-      const items = await api('/api/v1/defects');
+      const items = (await api('/api/v1/defects') || []).slice().sort(function (a, b) {
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
       const uasList = await loadUasOptions();
       const uasOpts = uasSelectHtml(uasList);
       const rows = items.map(function (d) {
@@ -124,7 +127,17 @@ export async function renderDefects() {
           : '—';
         var sevColor = ({ 0: '#0d6b3c', 1: '#c47b1a', 2: '#b86e00', 3: '#b42318' })[Number(d.severity)]
           || colorForKey(d.severity);
-        return '<tr class="row-tint def-row" data-id="' + d.id + '" style="--row-accent:' + sevColor + ';cursor:pointer">' +
+        var stLabel = statusLabelSk(enumName('defect', d.status));
+        var sevLabel = severityLabelSk(d.severity, 'defect');
+        var uasName = [d.uasManufacturer, d.uasModel].filter(Boolean).join(' ');
+        return '<tr class="def-row" data-id="' + d.id + '" ' + filterAttrs({
+          q: [d.title, d.originalReport, serialBl(d), uasName, d.uasRegistrationNumber, d.defectTypeCode, stLabel, sevLabel, d.temporaryMeasure].join(' '),
+          status: [enumName('defect', d.status), stLabel],
+          sev: [String(d.severity), sevLabel],
+          block: d.blocksOperations ? ['1', 'Blokuje prevádzku'] : ['0', 'Neblokuje'],
+          uas: d.relatedUasId ? [d.relatedUasId, (uasName ? uasName + ' · ' : '') + serialBl(d)] : '',
+          date: d.createdAt
+        }) + ' style="--row-accent:' + sevColor + ';cursor:pointer">' +
           '<td><span class="entity-label">' + swatchHtml(sevColor) + '<span>' + escHtml(d.title) + '</span></span></td>' +
           '<td style="white-space:nowrap">' + escHtml(serialBl(d)) + '</td>' +
           '<td>' + severityBadge(d.severity, 'defect') + '</td>' +
@@ -160,9 +173,18 @@ export async function renderDefects() {
         '<button type="submit">Odoslať hlásenie</button>' +
         '<button type="button" class="secondary" id="def-cancel">Zrušiť</button>' +
         '</div></form></div>' +
+        filterBarHtml('defects', [
+          { key: 'q', type: 'search', placeholder: 'Hľadať — názov, popis, sériové č., dron…' },
+          { key: 'status', type: 'select', label: 'Stav' },
+          { key: 'sev', type: 'select', label: 'Závažnosť' },
+          { key: 'block', type: 'select', label: 'Blokovanie' },
+          { key: 'uas', type: 'select', label: 'Dron' },
+          { key: 'date', type: 'daterange', label: 'Nahlásené' }
+        ]) +
         '<div class="chart-panel table-scroll">' +
         makeTable(['Názov', 'Sériové č. BL', 'Závažnosť', 'Stav', 'Blokuje', 'Akcie'], rows, true) +
         '</div></div>';
+      bindFilterBar('defects', { rows: 'tr.def-row', stateKey: 'defects', colspan: 6 });
 
       document.getElementById('def-add-btn').onclick = function () {
         document.getElementById('def-msg').innerHTML = '';

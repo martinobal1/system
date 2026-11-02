@@ -7,6 +7,7 @@ using IsSuas.Application.Policies;
 using IsSuas.Domain.Enums;
 using IsSuas.Domain.Identity;
 using IsSuas.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -25,8 +26,40 @@ public sealed class AuthService(
     IsSuasDbContext db,
     IConfiguration configuration,
     ICurrentUser currentUser,
-    IAuditWriter audit) : IAuthService
+    IAuditWriter audit,
+    IHttpContextAccessor httpContextAccessor) : IAuthService
 {
+    /// <summary>IP klienta (za nginx z hlavičky X-Forwarded-For) a prehliadač — pre log prihlásení.</summary>
+    private (string? Ip, string? Agent) ClientInfo()
+    {
+        var ctx = httpContextAccessor.HttpContext;
+        if (ctx is null) return (null, null);
+        string? ip = ctx.Request.Headers["X-Forwarded-For"].ToString();
+        ip = string.IsNullOrWhiteSpace(ip) ? ctx.Connection.RemoteIpAddress?.ToString() : ip.Split(',')[0].Trim();
+        if (ip is not null && ip.StartsWith("::ffff:", StringComparison.Ordinal)) ip = ip[7..];
+        var agent = ctx.Request.Headers.UserAgent.ToString();
+        if (agent.Length > 400) agent = agent[..400];
+        return (ip is { Length: > 64 } ? ip[..64] : ip, string.IsNullOrWhiteSpace(agent) ? null : agent);
+    }
+
+    private async Task LogFailedLoginAsync(Account account, string result, CancellationToken cancellationToken)
+    {
+        var (ip, agent) = ClientInfo();
+        var now = DateTimeOffset.UtcNow;
+        db.UserSessions.Add(new UserSession
+        {
+            AccountId = account.Id,
+            IssuedAt = now,
+            ExpiresAt = now,
+            IpAddress = ip,
+            UserAgent = agent,
+            Result = result,
+            CreatedBy = account.Id,
+            UpdatedBy = account.Id
+        });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         var userName = (request.UserName ?? string.Empty).Trim();
@@ -35,9 +68,16 @@ public sealed class AuthService(
             throw new UnauthorizedAccessException("Neplatné prihlasovacie údaje.");
 
         var account = await LoadAccountByUserNameAsync(userName, cancellationToken);
-        if (account is null || !BCrypt.Net.BCrypt.Verify(password, account.PasswordHash))
+        if (account is null)
             throw new UnauthorizedAccessException("Neplatné prihlasovacie údaje.");
+        if (!BCrypt.Net.BCrypt.Verify(password, account.PasswordHash))
+        {
+            await LogFailedLoginAsync(account, "WrongPassword", cancellationToken);
+            throw new UnauthorizedAccessException("Neplatné prihlasovacie údaje.");
+        }
 
+        if (account.Status is AccountStatus.Deactivated or AccountStatus.TemporarilyBlocked or AccountStatus.Prepared)
+            await LogFailedLoginAsync(account, "Blocked", cancellationToken);
         EnsureAccountActive(account);
         return await IssueLoginAsync(account, writeSession: true, cancellationToken);
     }
@@ -200,11 +240,14 @@ public sealed class AuthService(
         if (writeSession)
         {
             account.LastLoginAt = now;
+            var (ip, agent) = ClientInfo();
             db.UserSessions.Add(new UserSession
             {
                 AccountId = account.Id,
                 IssuedAt = now,
                 ExpiresAt = expires,
+                IpAddress = ip,
+                UserAgent = agent,
                 Result = "Success",
                 CreatedBy = account.Id,
                 UpdatedBy = account.Id

@@ -1,6 +1,7 @@
 import { api } from '../core/api.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
+import { openOperatorProfile, openUserEditor } from './orgsProfile.js';
 import {
   accountLevel, avatarHtml, chipHtml, content, isAccountRemoved, pageHead,
   removeAccountFlow, restoreAccountFlow, searchHighlightBanner
@@ -47,9 +48,15 @@ export async function renderAccounts() {
     return '—';
   }
   const hoursByPilot = {};
+  const flightsByPilot = {};
   flights.forEach(function (f) {
-    if (f.pilotId && f.durationMinutes) hoursByPilot[f.pilotId] = (hoursByPilot[f.pilotId] || 0) + f.durationMinutes / 60;
+    if (f.pilotId && f.durationMinutes) {
+      hoursByPilot[f.pilotId] = (hoursByPilot[f.pilotId] || 0) + f.durationMinutes / 60;
+      flightsByPilot[f.pilotId] = (flightsByPilot[f.pilotId] || 0) + 1;
+    }
   });
+  // Piloti prevádzkovateľa = piloti, ktorým je nadriadený (rovnako ako v Organizačnej štruktúre)
+  function pilotsOf(a) { return pilots.filter(function (p) { return p.operatorAccountId === a.id; }); }
 
   const showRemoved = !!state.accountsShowRemoved;
   const q = String(state.accountsSearch || '').trim().toLowerCase();
@@ -60,7 +67,7 @@ export async function renderAccounts() {
     if (!q) return true;
     return [a.firstName, a.lastName, a.userName, a.email, a.homeOrgUnitName].join(' ').toLowerCase().indexOf(q) >= 0;
   }).map(function (a) {
-    var ps = a.homeOrgUnitId ? pilots.filter(function (p) { return inSubtree(p.orgUnitId, a.homeOrgUnitId); }) : [];
+    var ps = pilotsOf(a);
     return { a: a, pilots: ps.length, hours: ps.reduce(function (s, p) { return s + (hoursByPilot[p.id] || 0); }, 0) };
   }).sort(function (x, y) { return y.hours - x.hours; });
 
@@ -73,7 +80,7 @@ export async function renderAccounts() {
         ? '<button type="button" class="icon-btn" data-restore="' + a.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>Obnoviť</span></button>'
         : '<button type="button" class="icon-btn danger" data-remove="' + a.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg><span>Odstrániť</span></button>';
     }
-    return '<tr' + (removed ? ' class="is-removed"' : '') + '>' +
+    return '<tr class="acc-row' + (removed ? ' is-removed' : '') + '" data-profile="' + a.id + '" title="Otvoriť profil prevádzkovateľa">' +
       '<td><span class="cell-person">' + avatarHtml(a.firstName, a.lastName, a.userName) +
       '<span class="cell-person-text"><b>' + esc((a.firstName || '') + ' ' + (a.lastName || '')) + '</b><span>@' + esc(a.userName) + '</span></span></span></td>' +
       '<td>' + esc(a.homeOrgUnitName || '—') + '<div class="cell-sub">' + esc(branchName(a.homeOrgUnitId)) + '</div></td>' +
@@ -130,6 +137,24 @@ export async function renderAccounts() {
       state.orgOpenOperators = state.orgOpenOperators || {};
       state.orgOpenOperators[btn.getAttribute('data-op')] = true;
       navigate('orgs');
+    };
+  });
+  // Klik na prevádzkovateľa → profil s grafmi
+  function editAccount(acc) {
+    return openUserEditor(acc, { canEditLogin: state.accessLevel === 1 }).then(function (saved) { if (saved) navigate('accounts'); });
+  }
+  content.querySelectorAll('tr[data-profile]').forEach(function (tr) {
+    tr.onclick = function (ev) {
+      if (ev.target.closest('button, a')) return;
+      var a = accounts.find(function (x) { return x.id === tr.dataset.profile; });
+      if (!a) return;
+      openOperatorProfile({
+        op: a, pilots: pilotsOf(a), flights: flights,
+        hoursByPilot: hoursByPilot, flightsByPilot: flightsByPilot,
+        canEdit: state.accessLevel === 1 || a.id === state.accountId,
+        onEdit: editAccount,
+        onOpenPilot: function (pid) { state.pilotDetailId = pid; navigate('pilots'); }
+      });
     };
   });
   function showErr(err) {

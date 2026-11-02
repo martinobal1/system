@@ -23,7 +23,7 @@ export const state = {
   uasEditing: false,
   defectDetailId: null,
   pilotDetailId: null,
-  pilotRegisterTab: 'a1',
+  pilotRegisterTab: 'all',
   monthlyYear: null,
   monthlyMonth: null,
   monthlyOrgUnitId: null,

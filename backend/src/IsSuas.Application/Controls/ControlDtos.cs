@@ -49,4 +49,17 @@ public sealed record IssueControlReportRequest(string? ContentJson, uint RowVers
 
 public sealed record PermissionDto(Guid Id, string Code, string NameSk, string ModuleCode);
 public sealed record RolePermissionDto(Guid RoleId, string RoleCode, string PermissionCode);
+/// <summary>Riadok logu prihlásení pre Administráciu.</summary>
+public sealed record LoginLogDto(
+    Guid Id,
+    Guid AccountId,
+    string UserName,
+    string FullName,
+    int AccessLevel,
+    string? OrgUnitName,
+    DateTimeOffset At,
+    string? IpAddress,
+    string? UserAgent,
+    string Result);
+
 public sealed record UserSessionDto(Guid Id, Guid AccountId, DateTimeOffset IssuedAt, DateTimeOffset ExpiresAt, DateTimeOffset? RevokedAt, string? IpAddress, string Result);

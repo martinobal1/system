@@ -3,7 +3,8 @@ import { colorForKey } from '../core/charts.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
-import { certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
+import { bindChartToggles, registerChartsHtml } from '../shared/pilotCharts.js';
+import { avatarHtml, certBadgesHtml, chipHtml, content, makeTable, pageHead, searchHighlightBanner, sectionCard, statusBadge, enumName } from '../core/ui.js';
 import { bindCertGrantForm, bindCertLifecycleButtons, certActionButtons, certGrantFormHtml, certStatusHtml, certSuspendPanelHtml, fillCertGrantForm, isCertIssued, isCertSuspended } from '../shared/certs.js';
 
 function foldTxt(v) {
@@ -86,6 +87,18 @@ export async function renderPilots() {
           trashButtonHtml('pilots', pilot.id, name) +
           '</div>' +
           certSuspendPanelHtml() +
+          '<div class="pilot-op-bar">' +
+          '<span class="pilot-op-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg></span>' +
+          '<div class="pilot-op-text"><span>Nadriadený prevádzkovateľ</span><b id="pilot-op-name"' + (pilot.operatorName ? '' : ' class="is-none"') + '>' +
+          escHtml(pilot.operatorName || 'nepriradený') + '</b></div>' +
+          (state.accessLevel === 1 || state.accessLevel === 2
+            ? '<button type="button" class="pilot-op-change" id="pilot-op-change">Zmeniť</button>' +
+              '<div class="pilot-op-edit" id="pilot-op-edit" hidden>' +
+              '<select id="pilot-op-select" aria-label="Nadriadený prevádzkovateľ"><option value="">Načítavam…</option></select>' +
+              '<button type="button" id="pilot-op-save" disabled>Uložiť</button>' +
+              '<button type="button" class="pilot-op-cancel" id="pilot-op-cancel">Zrušiť</button></div>'
+            : '') +
+          '</div><div id="pilot-op-msg"></div>' +
           '<div id="pilot-cert-msg"></div>' +
           sectionCard('Preukazy PnD (A1/A3 · A2 · STS1 · STS2)', makeTable(['Kategória', 'Názov', 'Číslo', 'Stav', 'Platnosť od', 'Platnosť do', 'MTOW / platnosť', 'Akcie'], certRows, true), '#0d8f7a') +
           certGrantFormHtml(name, (pilot.requestedCertificateCodes || []).length ? { code: pilot.requestedCertificateCodes[0] } : null) +
@@ -109,6 +122,46 @@ export async function renderPilots() {
           }
           if (!errMsg) navigate('pilots');
         });
+        var opSelect = document.getElementById('pilot-op-select');
+        if (opSelect) {
+          api('/api/v1/pilots/operator-options?orgUnitId=' + encodeURIComponent(pilot.orgUnitId)).then(function (opts) {
+            opts = opts || [];
+            opSelect.innerHTML = '<option value="">— bez prevádzkovateľa —</option>' + opts.map(function (o) {
+              return '<option value="' + o.accountId + '"' + (o.accountId === pilot.operatorAccountId ? ' selected' : '') + '>' +
+                escHtml(o.name) + (o.orgUnitName && o.orgUnitName !== pilot.orgUnitName ? ' · ' + escHtml(o.orgUnitName) : '') + ' (' + o.pilotCount + ' pil.)</option>';
+            }).join('');
+            if (!opts.length) opSelect.innerHTML = '<option value="">— v útvare pilota nie je žiadny prevádzkovateľ —</option>';
+          }).catch(function () { opSelect.innerHTML = '<option value="">Nepodarilo sa načítať</option>'; });
+          var opSave = document.getElementById('pilot-op-save');
+          var opEdit = document.getElementById('pilot-op-edit');
+          var opChange = document.getElementById('pilot-op-change');
+          function setEditing(on) {
+            opEdit.hidden = !on; opChange.hidden = on;
+            if (on) opSelect.focus();
+            else { opSelect.value = pilot.operatorAccountId || ''; opSave.disabled = true; }
+          }
+          opChange.onclick = function () { document.getElementById('pilot-op-msg').innerHTML = ''; setEditing(true); };
+          document.getElementById('pilot-op-cancel').onclick = function () { setEditing(false); };
+          opSelect.onchange = function () { opSave.disabled = (opSelect.value || '') === (pilot.operatorAccountId || ''); };
+          opSave.onclick = async function () {
+            var box = document.getElementById('pilot-op-msg');
+            opSave.disabled = true;
+            try {
+              var upd = await api('/api/v1/pilots/' + pilot.id + '/operator', {
+                method: 'PUT', body: JSON.stringify({ operatorAccountId: opSelect.value || null })
+              });
+              pilot.operatorAccountId = upd.operatorAccountId;
+              var nameEl = document.getElementById('pilot-op-name');
+              nameEl.textContent = upd.operatorName || 'nepriradený';
+              nameEl.classList.toggle('is-none', !upd.operatorName);
+              setEditing(false);
+              box.innerHTML = '<div class="msg">Nadriadený prevádzkovateľ zmenený.</div>';
+            } catch (err) {
+              opSave.disabled = false;
+              box.innerHTML = '<div class="error">' + escHtml(err.message || 'Zmena zlyhala') + '</div>';
+            }
+          };
+        }
         bindCertGrantForm(pilot.id, function (okMsg) {
           var box = document.getElementById('pilot-cert-msg');
           if (box) box.innerHTML = '<div class="msg">' + okMsg + '</div>';
@@ -128,19 +181,44 @@ export async function renderPilots() {
         return;
       }
       const items = await api('/api/v1/pilots');
+      // Register PnD: najnovšie pridaní piloti hore.
+      items.sort(function (a, b) {
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || '')) ||
+          String(a.lastName || '').localeCompare(String(b.lastName || ''), 'sk');
+      });
       var canAddPilot = state.accessLevel === 1 || state.accessLevel === 2;
       var orgOptsHtml = '';
+      var orgList = [];
+      try { orgList = await api('/api/v1/org-units') || []; } catch (_) { orgList = []; }
+      // Zložka (PZ / HaZZ / CO) a útvar pre filter registra
+      var orgById = {};
+      orgList.forEach(function (o) { orgById[o.id] = o; });
+      var BRANCHES = [['ZLOZKA-PZ', 'Policajný zbor', 'PZ'], ['ZLOZKA-HAZZ', 'Hasičský a záchranný zbor', 'HaZZ'], ['ZLOZKA-CO', 'Civilná ochrana', 'CO']];
+      var branchCache = {};
+      function branchOfOrg(id) {
+        if (branchCache[id] !== undefined) return branchCache[id];
+        var o = orgById[id], guard = 0, found = '';
+        while (o && guard++ < 30) {
+          if (BRANCHES.some(function (b) { return b[0] === o.code; })) { found = o.code; break; }
+          o = o.parentId ? orgById[o.parentId] : null;
+        }
+        branchCache[id] = found;
+        return found;
+      }
+      function inOrgSubtree(id, rootId) {
+        var root = orgById[rootId], o = orgById[id];
+        if (!root || !o) return id === rootId;
+        return String(o.path || '').indexOf(String(root.path || '')) === 0;
+      }
       if (state.accessLevel === 1) {
-        var orgList = [];
-        try { orgList = await api('/api/v1/org-units'); } catch (_) { orgList = []; }
         orgOptsHtml = orgList.filter(function (o) { return o.isActive !== false; })
           .sort(function (a, b) { return String(a.path || '').localeCompare(String(b.path || '')); })
           .map(function (o) {
             return '<option value="' + o.id + '">' + Array((o.level || 0) + 1).join('\u00a0\u00a0') + o.name + '</option>';
           }).join('');
       }
-      var allowedTabs = { a1: 1, a2: 1, sts1: 1, sts2: 1, none: 1 };
-      var tab = allowedTabs[state.pilotRegisterTab] ? state.pilotRegisterTab : 'a1';
+      var allowedTabs = { all: 1, a1: 1, a2: 1, sts1: 1, sts2: 1, none: 1 };
+      var tab = allowedTabs[state.pilotRegisterTab] ? state.pilotRegisterTab : 'all';
       function normCode(raw) {
         var t = String(raw || '').toUpperCase().replace(/[-\/\s]/g, '_');
         if (t === 'A1_A3' || t === 'A1A3' || t === 'A1' || t === 'A3' || t === 'OPEN_A1_A3') return 'A1_A3';
@@ -169,21 +247,71 @@ export async function renderPilots() {
         if (a13 && !a2 && !sts1 && !sts2) return 'a1';
         return '';
       }
-      var groups = { a1: [], a2: [], sts1: [], sts2: [], none: [] };
+      var groups = { all: [], a1: [], a2: [], sts1: [], sts2: [], none: [] };
+      // Filter útvaru prenesený z Organizačnej štruktúry (vrátane podriadených útvarov)
+      var orgScope = state.pilotOrgFilter || null;
+      var scopeIds = null;
+      if (orgScope && orgScope.ids) { scopeIds = {}; orgScope.ids.forEach(function (id) { scopeIds[id] = true; }); }
+      var branchSel = state.pilotBranch || '';
+      var unitSel = state.pilotUnit && orgById[state.pilotUnit] ? state.pilotUnit : '';
+      if (unitSel && branchSel && branchOfOrg(unitSel) !== branchSel) unitSel = '';
+      var branchCounts = { '': 0 };
+      var unitCounts = {};
       (items || []).forEach(function (p) {
         if (p.isActive === false) return;
+        if (scopeIds && !scopeIds[p.orgUnitId]) return;
+        var br = branchOfOrg(p.orgUnitId);
+        branchCounts[''] += 1;
+        branchCounts[br] = (branchCounts[br] || 0) + 1;
+        if (branchSel && br !== branchSel) return;
+        // počty pre výber útvaru (vrátane nadradených útvarov)
+        var o = orgById[p.orgUnitId], guard = 0;
+        while (o && guard++ < 30) { unitCounts[o.id] = (unitCounts[o.id] || 0) + 1; o = o.parentId ? orgById[o.parentId] : null; }
+        if (unitSel && !inOrgSubtree(p.orgUnitId, unitSel)) return;
         var k = ladderOf(p) || 'none';
         groups[k].push(p);
+        groups.all.push(p);
       });
       var list = groups[tab] || [];
+      function branchFilterHtml() {
+        if (!orgList.length) return '';
+        var seg = '<div class="pf-branches" role="tablist">' +
+          '<button type="button" class="pf-branch' + (!branchSel ? ' active' : '') + '" data-branch="">Všetky zložky <span>' + branchCounts[''] + '</span></button>' +
+          BRANCHES.map(function (b) {
+            return '<button type="button" class="pf-branch pf-' + b[2].toLowerCase() + (branchSel === b[0] ? ' active' : '') + '" data-branch="' + b[0] + '" title="' + b[1] + '">' +
+              '<i></i>' + b[1] + ' <span>' + (branchCounts[b[0]] || 0) + '</span></button>';
+          }).join('') + '</div>';
+        var units = orgList.filter(function (o) {
+          return o.isActive !== false && unitCounts[o.id] && o.parentId && !BRANCHES.some(function (b) { return b[0] === o.code; });
+        }).sort(function (a, b) {
+          var ba = branchOfOrg(a.id), bb = branchOfOrg(b.id);
+          if (ba !== bb) return ba.localeCompare(bb);
+          return String(a.name).localeCompare(String(b.name), 'sk');
+        });
+        var lastBr = null;
+        var opts = '<option value="">Všetky útvary</option>';
+        units.forEach(function (o) {
+          var br = branchOfOrg(o.id);
+          if (!branchSel && br !== lastBr) {
+            if (lastBr !== null) opts += '</optgroup>';
+            var lbl = (BRANCHES.find(function (b) { return b[0] === br; }) || [0, 'Ostatné'])[1];
+            opts += '<optgroup label="' + escHtml(lbl) + '">';
+            lastBr = br;
+          }
+          opts += '<option value="' + o.id + '"' + (o.id === unitSel ? ' selected' : '') + '>' + escHtml(o.name) + ' (' + unitCounts[o.id] + ')</option>';
+        });
+        if (!branchSel && lastBr !== null) opts += '</optgroup>';
+        return '<div class="pf-row">' + seg +
+          '<label class="pf-unit"><span>Útvar</span><select id="pilot-unit-filter">' + opts + '</select></label></div>';
+      }
       // Kompaktná tabuľka: meno + e-mail v jednom stĺpci, platnosť od–do v jednom stĺpci.
       var headers = [
-        'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar',
+        'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar / prevádzkovateľ',
         'Č. povolenia DÚ', 'Platnosť od – do', 'Kategória', 'Osv. ges.'
       ];
       if (tab === 'sts1' || tab === 'sts2') {
         headers = [
-          'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar',
+          'P.č.', 'ČOZ', 'Pilot / e-mail do práce', 'Útvar / prevádzkovateľ',
           'Číslo povolenia / osvedčenia', 'Platnosť od', 'Kategória',
           'MTOW alebo platnosť', 'Číslo osvedčenia gestora'
         ];
@@ -193,9 +321,11 @@ export async function renderPilots() {
         a2: ['A1_A3', 'A2'],
         sts1: ['A1_A3', 'A2', 'STS1'],
         sts2: ['A1_A3', 'A2', 'STS1', 'STS2'],
-        none: []
+        none: [],
+        all: []
       };
       var emptyText = {
+        all: 'Zatiaľ žiadni piloti',
         a1: 'Žiadni piloti iba s A1/A3',
         a2: 'Žiadni piloti s A1/A3 a A2',
         sts1: 'Žiadni piloti s A1/A3, A2 a STS1',
@@ -215,15 +345,16 @@ export async function renderPilots() {
         var mtow = (s2 && s2.mtowOrValidityText) || (s1 && s1.mtowOrValidityText)
           || (a2 && a2.mtowOrValidityText) || (validTo ? ('platné do ' + fmtDate(validTo)) : '—');
         var hay = [p.lastName, p.firstName, p.firstName + ' ' + p.lastName, p.personalBadgeNumber, p.orgUnitName, p.email,
-          p.licenseNumber, p.gestorCertificateNumber, permit].join(' ');
-        var common = '<tr class="row-tint pilot-row" data-search="' + escHtml(foldTxt(hay)) + '" data-id="' + p.id +
-          '" style="--row-accent:' + colorForKey(p.orgUnitName || p.id) +
+          p.licenseNumber, p.gestorCertificateNumber, permit, p.operatorName].join(' ');
+        var common = '<tr class="pilot-row" data-search="' + escHtml(foldTxt(hay)) + '" data-id="' + p.id +
           '" title="Otvoriť detail pilota">' +
           '<td>' + (idx + 1) + '</td>' +
           '<td>' + (p.personalBadgeNumber || '—') + '</td>' +
-          '<td><span class="pilot-name-cell"><b>' + escHtml(((p.lastName || '') + ' ' + (p.firstName || '')).trim() || '—') + '</b>' +
-          (p.email ? '<small>' + escHtml(p.email) + '</small>' : '') + '</span></td>' +
-          '<td>' + escHtml(p.orgUnitName || '—') + '</td>';
+          '<td><span class="pilot-person">' + avatarHtml(p.firstName, p.lastName, p.id) +
+          '<span class="pilot-name-cell"><b>' + escHtml(((p.lastName || '') + ' ' + (p.firstName || '')).trim() || '—') + '</b>' +
+          (p.email ? '<small>' + escHtml(p.email) + '</small>' : '') + '</span></span></td>' +
+          '<td><span class="pilot-name-cell">' + escHtml(p.orgUnitName || '—') +
+          '<small>' + (p.operatorName ? 'Prevádzkovateľ: ' + escHtml(p.operatorName) : '<span style="color:#b42318">Bez prevádzkovateľa</span>') + '</small></span></td>';
         if (tab === 'sts1' || tab === 'sts2') {
           return common +
             '<td>' + permit + '</td>' +
@@ -236,7 +367,7 @@ export async function renderPilots() {
         return common +
           '<td>' + permit + '</td>' +
           '<td><span class="pilot-valid-cell">' + fmtDate(validFrom) + '<small>do ' + fmtDate(validTo) + '</small></span></td>' +
-          '<td>' + (tab === 'none' ? ((p.certificateCodes || []).length ? certBadgesHtml(p.certificateCodes) : ('<span class="badge badge-warn">Bez osvedčenia</span>' + ((p.requestedCertificateCodes || []).length ? ' <span class="badge badge-pending" title="Pilot požiadal o osvedčenie">Žiada o ' + (p.requestedCertificateCodes || []).map(function (c) { return c === 'A1_A3' ? 'A1/A3' : c; }).join(', ') + '</span>' : ''))) : certBadgesHtml(tabBadges[tab])) + '</td>' +
+          '<td>' + (tab === 'none' || tab === 'all' ? ((p.certificateCodes || []).length ? certBadgesHtml(p.certificateCodes) : ('<span class="badge badge-warn">Bez osvedčenia</span>' + ((p.requestedCertificateCodes || []).length ? ' <span class="badge badge-pending" title="Pilot požiadal o osvedčenie">Žiada o ' + (p.requestedCertificateCodes || []).map(function (c) { return c === 'A1_A3' ? 'A1/A3' : c; }).join(', ') + '</span>' : ''))) : certBadgesHtml(tabBadges[tab])) + '</td>' +
           '<td>' + (p.gestorCertificateNumber || '—') + '</td>' +
           '</tr>';
       }).join('') || '<tr><td colspan="' + headers.length + '">' + (emptyText[tab] || 'Žiadni piloti') + '</td></tr>';
@@ -259,13 +390,26 @@ export async function renderPilots() {
           chipHtml('+ STS1 + STS2', groups.sts2.length, 'chip-soft') +
           chipHtml('Bez osvedčenia', groups.none.length, groups.none.length ? 'chip-warn' : 'chip-soft')) +
         (canAddPilot ? '<div class="toolbar"><button type="button" id="pilot-add-btn">+ Pridať pilota</button></div>' : '') +
+        branchFilterHtml() +
+        registerChartsHtml(groups.all, {
+          branchFilter: branchSel, unitFilter: unitSel,
+          branchOf: function (id) {
+            var k = branchOfOrg(id);
+            var b = BRANCHES.find(function (x) { return x[0] === k; });
+            return b ? { key: b[0], label: b[1] } : null;
+          }
+        }) +
         '<div class="reg-tabs">' +
+        '<button type="button" class="reg-tab' + (tab === 'all' ? ' active' : '') + '" data-tab="all">Všetko <span class="tab-count">' + groups.all.length + '</span></button>' +
         '<button type="button" class="reg-tab' + (tab === 'a1' ? ' active' : '') + '" data-tab="a1">A1/A3</button>' +
         '<button type="button" class="reg-tab' + (tab === 'a2' ? ' active' : '') + '" data-tab="a2">A1/A3 + A2</button>' +
         '<button type="button" class="reg-tab' + (tab === 'sts1' ? ' active' : '') + '" data-tab="sts1">A1/A3 + A2 + STS1</button>' +
         '<button type="button" class="reg-tab' + (tab === 'sts2' ? ' active' : '') + '" data-tab="sts2">A1/A3 + A2 + STS1 + STS2</button>' +
         '<button type="button" class="reg-tab' + (tab === 'none' ? ' active' : '') + '" data-tab="none">Bez osvedčenia <span class="tab-count">' + groups.none.length + '</span></button>' +
         '</div>' +
+        (orgScope ? '<div class="lf-scope"><span>Zobrazení len piloti útvaru <b>' + escHtml(orgScope.name) + '</b>' +
+          (orgScope.withSubs ? ' a jeho podriadených útvarov' : '') + '</span>' +
+          '<button type="button" id="pilot-scope-clear">Zobraziť všetkých pilotov ✕</button></div>' : '') +
         '<div class="pilot-search-bar"><input type="search" id="pilot-search-q" placeholder="Hľadať pilota — meno, priezvisko, ČOZ, útvar, e-mail, číslo povolenia…" autocomplete="off" />' +
         '<span id="pilot-search-count" class="muted"></span></div>' +
         '<div id="pilot-msg"></div>' +
@@ -280,6 +424,9 @@ export async function renderPilots() {
             (state.accessLevel === 1
               ? '<label>Útvar<select id="pc-org" required>' + orgOptsHtml + '</select></label>'
               : '<label>Útvar<input value="Váš útvar" readonly /></label>') +
+            (state.accessLevel === 1
+              ? '<label>Nadriadený prevádzkovateľ<select id="pc-operator"><option value="">— najprv vyberte útvar —</option></select></label>'
+              : '<label>Nadriadený prevádzkovateľ<input value="Vy (prevádzkovateľ útvaru)" readonly /></label>') +
             '<label>Číslo licencie / povolenia<input id="pc-license" placeholder="voliteľné" /></label>' +
             '<label>Poznámka<input id="pc-notes" placeholder="voliteľné" /></label>' +
             '<div class="full toolbar"><button type="submit">Pridať pilota</button>' +
@@ -290,6 +437,18 @@ export async function renderPilots() {
         makeTable(headers, rows, true) +
         '</div></div>';
 
+      content.querySelectorAll('[data-branch]').forEach(function (b) {
+        b.onclick = function () {
+          state.pilotBranch = b.dataset.branch;
+          if (state.pilotUnit && b.dataset.branch && branchOfOrg(state.pilotUnit) !== b.dataset.branch) state.pilotUnit = '';
+          navigate('pilots');
+        };
+      });
+      var unitSelEl = document.getElementById('pilot-unit-filter');
+      if (unitSelEl) unitSelEl.onchange = function () { state.pilotUnit = unitSelEl.value; navigate('pilots'); };
+      bindChartToggles(content);
+      var scopeClear = document.getElementById('pilot-scope-clear');
+      if (scopeClear) scopeClear.onclick = function () { state.pilotOrgFilter = null; navigate('pilots'); };
       content.querySelectorAll('.reg-tab').forEach(function (btn) {
         btn.onclick = function () {
           state.pilotRegisterTab = btn.dataset.tab;
@@ -340,6 +499,33 @@ export async function renderPilots() {
           if (!createPanel.classList.contains('hidden')) document.getElementById('pc-first').focus();
         };
         document.getElementById('pc-cancel').onclick = function () { createPanel.classList.add('hidden'); };
+        var pcOrg = document.getElementById('pc-org');
+        var pcOp = document.getElementById('pc-operator');
+        if (pcOrg && pcOp) {
+          var loadPcOps = function () {
+            if (!pcOrg.value) return;
+            pcOp.innerHTML = '<option value="">Načítavam…</option>';
+            api('/api/v1/pilots/operator-options?orgUnitId=' + encodeURIComponent(pcOrg.value)).then(function (opts) {
+              opts = opts || [];
+              if (!opts.length) { pcOp.innerHTML = '<option value="">— v útvare nie je prevádzkovateľ (doplníte neskôr) —</option>'; return; }
+              pcOp.innerHTML = (opts.length === 1 ? '' : '<option value="">— vyberte prevádzkovateľa —</option>') + opts.map(function (o) {
+                return '<option value="' + o.accountId + '">' + escHtml(o.name) + (o.orgUnitName ? ' · ' + escHtml(o.orgUnitName) : '') +
+                  ' (' + o.pilotCount + ' pilotov)</option>';
+              }).join('');
+            }).catch(function () { pcOp.innerHTML = '<option value="">Nepodarilo sa načítať</option>'; });
+          };
+          pcOrg.addEventListener('change', loadPcOps);
+          // Predvyplnenie útvaru podľa aktuálneho filtra (Útvar v Registri PnD, alebo útvar z Organizačnej štruktúry)
+          // Pri zvolenej zložke ponúkneme len jej útvary
+          if (state.pilotBranch) {
+            Array.prototype.slice.call(pcOrg.options).forEach(function (o) {
+              if (o.value && branchOfOrg(o.value) !== state.pilotBranch) o.remove();
+            });
+          }
+          var presetOrg = state.pilotUnit || (state.pilotOrgFilter && state.pilotOrgFilter.ids && state.pilotOrgFilter.ids[0]) || '';
+          if (presetOrg && Array.prototype.some.call(pcOrg.options, function (o) { return o.value === presetOrg; })) pcOrg.value = presetOrg;
+          loadPcOps();
+        }
         document.getElementById('pilot-create-form').onsubmit = async function (ev) {
           ev.preventDefault();
           var msg = document.getElementById('pilot-msg');
@@ -354,6 +540,7 @@ export async function renderPilots() {
                 // L2: server pilota vždy zaradí do útvaru prevádzkovateľa
                 orgUnitId: orgEl ? orgEl.value : '00000000-0000-0000-0000-000000000000',
                 licenseNumber: document.getElementById('pc-license').value.trim() || null,
+                operatorAccountId: (document.getElementById('pc-operator') || {}).value || null,
                 notes: document.getElementById('pc-notes').value.trim() || null
               })
             });

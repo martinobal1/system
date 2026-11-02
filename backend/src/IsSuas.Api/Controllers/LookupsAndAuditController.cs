@@ -147,8 +147,28 @@ public sealed class PermissionsController(IsSuasDbContext db) : ControllerBase
 [ApiController]
 [Authorize]
 [Route("api/v1/user-sessions")]
-public sealed class UserSessionsController(IsSuasDbContext db) : ControllerBase
+public sealed class UserSessionsController(IsSuasDbContext db, IsSuas.Application.Policies.IAuthorizationPolicyService policy) : ControllerBase
 {
+    /// <summary>Log prihlásení všetkých používateľov (úspešné aj neúspešné) — pre gestora / audítora.</summary>
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<LoginLogDto>>> LoginLog([FromQuery] int? days, CancellationToken cancellationToken)
+    {
+        policy.EnsurePermission(IsSuas.Application.Policies.Permissions.AuditRead);
+        var since = DateTimeOffset.UtcNow.AddDays(-Math.Clamp(days ?? 90, 1, 730));
+        var items = await db.UserSessions.AsNoTracking().IgnoreQueryFilters()
+            .Where(s => s.IssuedAt >= since)
+            .OrderByDescending(s => s.IssuedAt)
+            .Take(2000)
+            .Select(s => new LoginLogDto(
+                s.Id, s.AccountId, s.Account.UserName,
+                (s.Account.Person.FirstName + " " + s.Account.Person.LastName).Trim(),
+                (int)s.Account.AccessLevel,
+                s.Account.Person.HomeOrgUnit != null ? s.Account.Person.HomeOrgUnit.Name : null,
+                s.IssuedAt, s.IpAddress, s.UserAgent, s.Result))
+            .ToListAsync(cancellationToken);
+        return Ok(items);
+    }
+
     [HttpGet("me")]
     public async Task<ActionResult<IReadOnlyList<UserSessionDto>>> MySessions(CancellationToken cancellationToken)
     {

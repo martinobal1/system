@@ -14,9 +14,11 @@ public interface IAccountService
 {
     Task<IReadOnlyList<AccountDto>> ListAsync(CancellationToken cancellationToken = default);
     Task<AccountCreatedDto> CreateAsync(CreateAccountRequest request, CancellationToken cancellationToken = default);
+    Task<UserNameSuggestionDto> SuggestUserNameAsync(string? baseName, CancellationToken cancellationToken = default);
     Task<AccountDto> ConfirmLicenseAsync(Guid id, ConfirmLicenseRequest request, CancellationToken cancellationToken = default);
     Task<AccountDto> SetPasswordAsync(Guid id, SetAccountPasswordRequest request, CancellationToken cancellationToken = default);
     Task<AccountDto> ChangeStatusAsync(Guid id, ChangeAccountStatusRequest request, CancellationToken cancellationToken = default);
+    Task<AccountDto> UpdateAsync(Guid id, UpdateAccountRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoleAssignmentDto>> ListRoleAssignmentsAsync(Guid accountId, CancellationToken cancellationToken = default);
     Task<RoleAssignmentDto> AssignRoleAsync(Guid accountId, CreateRoleAssignmentRequest request, CancellationToken cancellationToken = default);
     Task DeactivateRoleAssignmentAsync(Guid accountId, Guid assignmentId, DeactivateRoleAssignmentRequest request, CancellationToken cancellationToken = default);
@@ -41,6 +43,48 @@ public sealed class AccountService(
             .Where(a => a.Person.HomeOrgUnit is null || policy.CanAccessOrgUnit(a.Person.HomeOrgUnit.Path))
             .Select(Map)
             .ToList();
+    }
+
+    /// <summary>
+    /// Navrhne voľný login: „base“ ak je voľný, inak base2, base3… Kontroluje všetky účty v systéme
+    /// (aj z iných útvarov a v koši), lebo login musí byť jedinečný globálne.
+    /// </summary>
+    public async Task<UserNameSuggestionDto> SuggestUserNameAsync(string? baseName, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.AccountsWrite);
+        var b = NormalizeUserName(baseName);
+        if (b.Length == 0)
+            return new UserNameSuggestionDto("", false, false);
+        var taken = (await db.Accounts.IgnoreQueryFilters().AsNoTracking()
+                .Where(a => a.UserName.ToLower().StartsWith(b))
+                .Select(a => a.UserName)
+                .ToListAsync(cancellationToken))
+            .Select(u => u.ToLowerInvariant())
+            .ToHashSet();
+        if (!taken.Contains(b))
+            return new UserNameSuggestionDto(b, true, true);
+        for (var i = 2; i < 1000; i++)
+        {
+            var candidate = b + i;
+            if (!taken.Contains(candidate))
+                return new UserNameSuggestionDto(candidate, false, true);
+        }
+        return new UserNameSuggestionDto(b + Guid.NewGuid().ToString("N")[..4], false, true);
+    }
+
+    /// <summary>Login: malé písmená bez diakritiky, len a–z, 0–9, bodka, pomlčka, podčiarkovník; max 64 znakov.</summary>
+    private static string NormalizeUserName(string? value)
+    {
+        var s = (value ?? "").Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in s)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            if (ch is >= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '-' or '_') sb.Append(ch);
+            else if (char.IsWhiteSpace(ch)) sb.Append('.');
+        }
+        var r = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"[.]{2,}", ".").Trim('.', '-', '_');
+        return r.Length > 60 ? r[..60].TrimEnd('.', '-', '_') : r;
     }
 
     public async Task<AccountCreatedDto> CreateAsync(CreateAccountRequest request, CancellationToken cancellationToken = default)
@@ -137,10 +181,13 @@ public sealed class AccountService(
 
         if (targetLevel == AccessLevel.Level3)
         {
+            var operatorId = await PilotOperatorRules.ResolveForNewPilotAsync(
+                db, request.OperatorAccountId, org.Path, currentUser.AccountId, cancellationToken);
             db.Pilots.Add(new Pilot
             {
                 Person = person,
                 OrgUnitId = org.Id,
+                OperatorAccountId = operatorId,
                 LicenseNumber = $"PIL-{account.UserName.ToUpperInvariant()}",
                 Status = PilotStatus.Fit,
                 CurrencyValidUntil = clock.UtcNow.AddYears(1),
@@ -216,6 +263,54 @@ public sealed class AccountService(
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("Account.SetPassword", nameof(Account), account.Id, before, Map(account),
             cancellationToken: cancellationToken);
+        return Map(account);
+    }
+
+    public async Task<AccountDto> UpdateAsync(Guid id, UpdateAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.AccountsWrite);
+        var callerLevel = ResolveCallerAccessLevel();
+        var account = await db.Accounts.Include(a => a.Person).ThenInclude(p => p.HomeOrgUnit)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Účet nebol nájdený.");
+
+        var isSelf = currentUser.AccountId == account.Id;
+        if (callerLevel == AccessLevel.Level3 && !isSelf)
+            throw new ForbiddenException("Pilot môže upraviť iba svoje údaje.");
+        if (callerLevel == AccessLevel.Level2 && !isSelf && account.AccessLevel != AccessLevel.Level3)
+            throw new ForbiddenException("Prevádzkovateľ môže upravovať iba pilotov.");
+        if (account.Person.HomeOrgUnit is not null && !isSelf)
+            policy.EnsureOrgAccess(account.Person.HomeOrgUnit.Path);
+
+        if (account.RowVersion != request.RowVersion)
+            throw new ConflictException("Záznam bol medzitým zmenený iným používateľom. Obnovte stránku.");
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+            throw new ValidationException("Meno je povinné.");
+
+        var before = Map(account);
+        account.Person.FirstName = request.FirstName.Trim();
+        account.Person.LastName = (request.LastName ?? string.Empty).Trim();
+        account.Person.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+
+        if (!string.IsNullOrWhiteSpace(request.UserName))
+        {
+            var newName = NormalizeUserName(request.UserName);
+            if (string.IsNullOrEmpty(newName))
+                throw new ValidationException("Login môže obsahovať iba písmená, číslice, bodku, pomlčku a podčiarkovník.");
+            if (!string.Equals(newName, account.UserName, StringComparison.Ordinal))
+            {
+                if (callerLevel != AccessLevel.Level1)
+                    throw new ForbiddenException("Login môže zmeniť iba gestor (úroveň 1).");
+                var lower = newName.ToLower();
+                if (await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id != account.Id && a.UserName.ToLower() == lower, cancellationToken))
+                    throw new ConflictException("Login „" + newName + "“ už používa iný účet.");
+                account.UserName = newName;
+            }
+        }
+
+        account.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("Account.Update", nameof(Account), account.Id, before, Map(account), cancellationToken: cancellationToken);
         return Map(account);
     }
 

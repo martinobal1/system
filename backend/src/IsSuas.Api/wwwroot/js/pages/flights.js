@@ -8,6 +8,7 @@ import { chipHtml, content, formatFlightGps, makeTable, pageHead, sectionCard, s
 import { submitFlightRequestFromForm } from '../shared/flightRequest.js';
 import { bindCertGate, certGateHtml, certStateFor } from '../shared/pilotCertGate.js';
 import { loadUasOptions, uasSelectHtml } from '../shared/uas.js';
+import { bindFilterBar, filterAttrs, filterBarHtml } from '../shared/listFilter.js';
 
 export async function renderFlights() {
       if (state.flightDetailId) {
@@ -128,7 +129,16 @@ export async function renderFlights() {
         return;
       }
 
-      const items = await api('/api/v1/flights');
+      let items = (await api('/api/v1/flights') || []).slice().sort(function (a, b) {
+        return String(b.takeoffAt || '').localeCompare(String(a.takeoffAt || ''));
+      });
+      // Filter útvaru prenesený z Organizačnej štruktúry (vrátane podriadených útvarov)
+      var orgScope = state.flightOrgFilter || null;
+      if (orgScope && orgScope.ids) {
+        var scopeIds = {};
+        orgScope.ids.forEach(function (id) { scopeIds[id] = true; });
+        items = items.filter(function (f) { return scopeIds[f.orgUnitId]; });
+      }
       let orgs = [];
       try { orgs = await api('/api/v1/org-units'); } catch (_) { orgs = []; }
       const uasList = await loadUasOptions(200);
@@ -183,7 +193,14 @@ export async function renderFlights() {
         var dur = f.durationMinutes != null
           ? (Math.floor(f.durationMinutes / 60) + 'h ' + (f.durationMinutes % 60) + 'm')
           : '—';
-        return '<tr class="row-tint flight-row" data-id="' + f.id + '" style="--row-accent:' +
+        var stLabel = statusLabelSk ? statusLabelSk(enumName('flight', f.status)) : enumName('flight', f.status);
+        return '<tr class="flight-row" data-id="' + f.id + '" ' + filterAttrs({
+          q: [f.flightNumber, f.uasLabel, f.pilotName, f.purpose, f.orgUnitName, f.location, dateStr, stLabel].join(' '),
+          status: [enumName('flight', f.status), stLabel],
+          org: [f.orgUnitId, f.orgUnitName],
+          uas: f.uasId ? [f.uasId, f.uasLabel || '—'] : '',
+          date: f.takeoffAt
+        }) + ' style="--row-accent:' +
           colorForKey(f.uasLabel || f.flightNumber || f.id) + '" title="Otvoriť detail letu">' +
           '<td><button type="button" class="linkish flight-open" data-id="' + f.id + '">' +
           '<span class="entity-label">' + swatchHtml(colorForKey(f.flightNumber || f.id)) +
@@ -274,8 +291,19 @@ export async function renderFlights() {
         '<button type="button" class="secondary" id="fl-cancel">Zrušiť</button>' +
         '<button type="button" class="secondary" id="fl-clear-loc">Zrušiť bod mapy</button>' +
         '</div></form></div>' +
+        (orgScope ? '<div class="lf-scope"><span>Zobrazené len lety útvaru <b>' + orgScope.name + '</b>' +
+          (orgScope.withSubs ? ' a jeho podriadených útvarov' : '') + '</span>' +
+          '<button type="button" id="fl-scope-clear">Zobraziť všetky lety ✕</button></div>' : '') +
+        filterBarHtml('flights', [
+          { key: 'q', type: 'search', placeholder: 'Hľadať — číslo letu, pilot, dron, účel, miesto…' },
+          { key: 'status', type: 'select', label: 'Stav' }
+        ].concat(isL3 ? [] : [{ key: 'org', type: 'select', label: 'Útvar' }])
+          .concat([{ key: 'uas', type: 'select', label: 'Dron' }, { key: 'date', type: 'daterange', label: 'Dátum' }])) +
         makeTable(['Číslo letu', 'Dátum', 'Čas', 'Dron', 'Pilot', 'Trvanie', 'GPS', 'Účel', 'Stav'], rows, true) +
         '</div></div>';
+      bindFilterBar('flights', { rows: 'tr.flight-row', stateKey: 'flights', colspan: 9 });
+      var scopeClear = document.getElementById('fl-scope-clear');
+      if (scopeClear) scopeClear.onclick = function () { state.flightOrgFilter = null; navigate('flights'); };
 
       if (!isL3) {
         var defaultOrg = orgs.find(function (o) { return o.code === 'UTVAR-A'; })

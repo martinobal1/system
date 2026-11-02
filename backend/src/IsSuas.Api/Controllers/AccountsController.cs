@@ -14,6 +14,11 @@ public sealed class AccountsController(IAccountService service) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<AccountDto>>> List(CancellationToken cancellationToken)
         => Ok(await service.ListAsync(cancellationToken));
 
+    /// <summary>Navrhne voľný login z mena / názvu (napr. „Ján Novák“ → jan.novak, jan.novak2…).</summary>
+    [HttpGet("username-suggestion")]
+    public async Task<ActionResult<UserNameSuggestionDto>> SuggestUserName([FromQuery] string? @base, CancellationToken cancellationToken)
+        => Ok(await service.SuggestUserNameAsync(@base, cancellationToken));
+
     [HttpPost]
     public async Task<ActionResult<AccountCreatedDto>> Create([FromBody] CreateAccountRequest request, CancellationToken cancellationToken)
     {
@@ -28,6 +33,11 @@ public sealed class AccountsController(IAccountService service) : ControllerBase
     [HttpPost("{id:guid}/password")]
     public async Task<ActionResult<AccountDto>> SetPassword(Guid id, [FromBody] SetAccountPasswordRequest request, CancellationToken cancellationToken)
         => Ok(await service.SetPasswordAsync(id, request, cancellationToken));
+
+    /// <summary>Úprava mena, priezviska, e-mailu a loginu používateľa.</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<AccountDto>> Update(Guid id, [FromBody] UpdateAccountRequest request, CancellationToken cancellationToken)
+        => Ok(await service.UpdateAsync(id, request, cancellationToken));
 
     [HttpPatch("{id:guid}/status")]
     public async Task<ActionResult<AccountDto>> ChangeStatus(Guid id, [FromBody] ChangeAccountStatusRequest request, CancellationToken cancellationToken)

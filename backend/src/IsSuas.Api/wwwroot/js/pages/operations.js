@@ -6,6 +6,7 @@ import { beginFlightRequestFlow } from '../shared/flightRequest.js';
 import { bindCertGate, certGateHtml, loadMyPilotCertState } from '../shared/pilotCertGate.js';
 import { state } from '../core/state.js';
 import { trashButtonHtml } from '../core/trash.js';
+import { bindFilterBar, filterAttrs, filterBarHtml } from '../shared/listFilter.js';
 import { chipHtml, confirmAction, content, makeTable, pageHead, searchHighlightBanner, statusBadge, statusLabelSk } from '../core/ui.js';
 
 export async function renderOperations() {
@@ -457,8 +458,16 @@ export async function renderOperations() {
             '<div class="op-return-note"><strong>Dôvod vrátenia</strong>' +
             escapeHtml(o.decisionReason) + '</div>';
         }
-        return '<tr class="row-tint op-row' + settledCls + '" data-id="' + o.id +
-          '" style="--row-accent:' + accent + '" title="Otvoriť detail a mapu">' +
+        var stName = isCompleted(o) ? 'Odletené' : (isApproved(o) ? 'Schválené' : opStatusName(o));
+        var stLabel = statusLabelSk(stName);
+        return '<tr class="op-row' + settledCls + '" data-id="' + o.id + '" ' + filterAttrs({
+          q: [o.title, o.orgUnitName, o.locationAddress, stLabel, o.isUrgent ? 'neodkladná urgentná' : '', new Date(o.plannedStart).toLocaleDateString('sk-SK')].join(' '),
+          status: [stName, stLabel],
+          org: [o.orgUnitId, o.orgUnitName],
+          urgent: o.isUrgent ? ['1', 'Len neodkladné'] : ['0', 'Bežné'],
+          date: o.plannedStart
+        }) +
+          ' style="--row-accent:' + accent + '" title="Otvoriť detail a mapu">' +
           '<td><span class="entity-label">' + swatchHtml(colorForKey(o.id || o.title)) +
           '<span>' + escapeHtml(o.title) + '</span></span>' + returnNote +
           '</td><td>' + statusBadge(isCompleted(o) ? 'Odletené' : (isApproved(o) ? 'Schválené' : opStatusName(o))) + '</td><td>' +
@@ -482,8 +491,14 @@ export async function renderOperations() {
             : certGateHtml(certState))
           : '') +
         '<div id="op-msg"></div>' +
+        filterBarHtml('operations', [
+          { key: 'q', type: 'search', placeholder: 'Hľadať — názov, útvar, miesto…' },
+          { key: 'status', type: 'select', label: 'Stav' }
+        ].concat(isL3 ? [] : [{ key: 'org', type: 'select', label: 'Útvar' }])
+          .concat([{ key: 'urgent', type: 'select', label: 'Neodkladnosť' }, { key: 'date', type: 'daterange', label: 'Začiatok' }])) +
         makeTable(['Názov', 'Stav', 'Útvar', 'Začiatok', 'Neodkladná', 'Akcie'], rows, true) +
         '</div>';
+      bindFilterBar('operations', { rows: 'tr.op-row', stateKey: 'operations', colspan: 6 });
 
       if (isL3 && !certState.certified) bindCertGate(function () { navigate('operations'); });
       var newRequestBtn = document.getElementById('reveal-op-form');

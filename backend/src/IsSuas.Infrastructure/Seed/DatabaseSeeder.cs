@@ -88,7 +88,11 @@ public static class DatabaseSeeder
                 await EnsureDemoCriticalAlertsAsync(db, existingGestor.Id);
             }
         }
+        await EnsureHazzCoDemoDataAsync(db, logger);
         await EnsureNamedLoginUsersAsync(db, logger);
+        await EnsurePilotAccountsAsync(db, logger);
+        await EnsurePilotOperatorsAsync(db, logger);
+        await EnsureYearFlightHistoryAsync(db, logger);
         await EnsureLegacySeedOperatorsDemotedAsync(db);
         await EnsureFlightGpsLocationsAsync(db, logger);
         await EnsureFleetUsageDemoSplitAsync(db);
@@ -381,12 +385,622 @@ public static class DatabaseSeeder
         await EnsureNotificationCatalogAsync(db);
         await db.SaveChangesAsync();
         await EnsureAccessCatalogAsync(db);
+        await EnsureHazzCoDemoDataAsync(db, logger);
         await EnsureNamedLoginUsersAsync(db, logger);
+        await EnsurePilotAccountsAsync(db, logger);
+        await EnsurePilotOperatorsAsync(db, logger);
+        await EnsureYearFlightHistoryAsync(db, logger);
         await EnsureLegacySeedOperatorsDemotedAsync(db);
         await EnsureFlightGpsLocationsAsync(db, logger);
         await EnsureFleetUsageDemoSplitAsync(db);
         await EnsureDemoLoginPasswordsAsync(db, logger);
         logger.LogInformation("Seed completed.");
+    }
+
+    /// <summary>
+    /// Každý pilot z Registra PnD má aj účet používateľa (úroveň 3, rola Pilot v jeho útvare),
+    /// aby bol viditeľný v Organizačnej štruktúre. Idempotentné — pilotom, ktorí už účet majú, sa nič nemení.
+    /// Heslo je náhodné a nikde sa nezobrazuje (testovacie účty; v prípade potreby ho gestor nastaví v Administrácii).
+    /// </summary>
+    private static async Task EnsurePilotAccountsAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var pilotRole = await db.Roles.FirstOrDefaultAsync(r => r.Code == SystemRole.RemotePilot && r.IsActive);
+        if (pilotRole is null) return;
+
+        var personsWithAccount = (await db.Accounts.IgnoreQueryFilters().Select(a => a.PersonId).ToListAsync()).ToHashSet();
+        var pilots = await db.Pilots
+            .Include(p => p.Person)
+            .Include(p => p.Certificates)
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Person.LastName).ThenBy(p => p.Person.FirstName)
+            .ToListAsync();
+        var missing = pilots.Where(p => !personsWithAccount.Contains(p.PersonId)).ToList();
+        if (missing.Count == 0) return;
+
+        var taken = (await db.Accounts.IgnoreQueryFilters().Select(a => a.UserName.ToLower()).ToListAsync()).ToHashSet();
+        // Jedno náhodné heslo pre všetky (nikto ho nepozná) — hashovanie stokrát by zbytočne spomalilo štart.
+        var unusableHash = BCrypt.Net.BCrypt.HashPassword(Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)));
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var pilot in missing)
+        {
+            var baseName = UserNameFrom(pilot.Person.FirstName, pilot.Person.LastName);
+            if (baseName.Length == 0) baseName = "pilot";
+            var userName = baseName;
+            for (var i = 2; taken.Contains(userName); i++) userName = baseName + i;
+            taken.Add(userName);
+
+            pilot.Person.HomeOrgUnitId ??= pilot.OrgUnitId;
+            var hasCert = pilot.Certificates.Any(c => c.IsActive && c.Status == CertificateStatus.Issued);
+            var account = new Account
+            {
+                PersonId = pilot.PersonId,
+                UserName = userName,
+                PasswordHash = unusableHash,
+                Status = AccountStatus.Active,
+                AccessLevel = AccessLevel.Level3,
+                LicenseStatus = hasCert ? LicenseStatus.Confirmed : LicenseStatus.Pending
+            };
+            db.Accounts.Add(account);
+            db.RoleAssignments.Add(new RoleAssignment
+            {
+                Account = account,
+                RoleId = pilotRole.Id,
+                OrgUnitId = pilot.OrgUnitId,
+                ValidFrom = now,
+                Reason = "Účet pre pilota z Registra PnD"
+            });
+        }
+        await db.SaveChangesAsync();
+        logger.LogInformation("Vytvorené účty pre {Count} pilotov z Registra PnD.", missing.Count);
+    }
+
+    /// <summary>
+    /// Pilotom bez nadriadeného náhodne (ale stabilne — podľa ID pilota) pridelí prevádzkovateľa.
+    /// Prednostne z rovnakého útvaru, inak z najbližšieho nadradeného útvaru. Pilotom, ktorí nadriadeného majú, sa nič nemení.
+    /// </summary>
+    /// <summary>
+    /// Demo história letov za posledných 12 mesiacov, aby grafy náletu (Organizačná štruktúra,
+    /// profil prevádzkovateľa) boli vyplnené po celý rok. Deterministické a idempotentné (SEED-HISTORY).
+    /// </summary>
+    private static async Task EnsureYearFlightHistoryAsync(IsSuasDbContext db, ILogger logger)
+    {
+        if (await db.Flights.IgnoreQueryFilters().AnyAsync(f => f.StandaloneReason == "SEED-HISTORY"))
+            return;
+
+        var pilots = await db.Pilots.Where(p => p.IsActive).OrderBy(p => p.Id).ToListAsync();
+        if (pilots.Count == 0) return;
+        var drones = await db.UasAircraft
+            .Where(u => u.Status != UasLifecycleStatus.Decommissioned && u.Status != UasLifecycleStatus.Lost && u.OwningOrgUnitId != null)
+            .ToListAsync();
+        if (drones.Count == 0) return;
+        var dronesByOrg = drones.GroupBy(u => u.OwningOrgUnitId!.Value).ToDictionary(g => g.Key, g => g.ToList());
+
+        var spots = new (double Lat, double Lon)[]
+        {
+            (48.1738, 16.9782), (48.1700, 17.2000), (48.3774, 17.5883), (48.5900, 17.8300), (48.3442, 18.0963),
+            (47.7630, 18.1280), (48.8955, 18.0523), (48.7750, 18.6250), (49.2230, 18.7390), (49.0650, 18.9220),
+            (48.7320, 19.1400), (48.6390, 19.1390), (48.9980, 21.2400), (49.0550, 20.2970), (48.7360, 21.2120),
+            (48.7550, 21.9200), (47.9860, 18.1630), (49.4380, 18.7890), (48.2150, 18.6070), (48.9450, 20.5680)
+        };
+        var purposes = new[]
+        {
+            "Hliadkovanie", "Dokumentácia miesta", "Cvičný let", "Kalibrácia senzorov", "Monitorovanie davu",
+            "Kontrola hranice", "Prieskum terénu", "Podpora zásahu", "Mapovanie", "Výcvik pilota", "Pátranie po osobe"
+        };
+        // Sezónnosť: v lete sa lieta viac, v zime menej (index = mesiac 1–12).
+        var season = new[] { 0, 0.55, 0.6, 0.75, 0.9, 1.0, 1.15, 1.25, 1.2, 1.0, 0.85, 0.7, 0.6 };
+
+        var now = DateTimeOffset.UtcNow;
+        var firstMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(-11);
+        var created = 0;
+        var seq = 0;
+        foreach (var pilot in pilots)
+        {
+            var rng = new Random(pilot.Id.GetHashCode());
+            if (rng.NextDouble() > 0.7) continue; // ~30 % pilotov je neaktívnych
+            var fleet = dronesByOrg.TryGetValue(pilot.OrgUnitId, out var own) && own.Count > 0 ? own : drones;
+            var drone = fleet[rng.Next(fleet.Count)];
+            var spot = spots[rng.Next(spots.Length)];
+            var intensity = 0.6 + rng.NextDouble() * 1.2; // niektorí piloti lietajú viac
+            DateTimeOffset? last = pilot.LastFlightAt;
+
+            for (var m = 0; m < 12; m++)
+            {
+                var monthStart = firstMonth.AddMonths(m);
+                var expected = intensity * season[monthStart.Month];
+                var count = (int)Math.Floor(expected) + (rng.NextDouble() < expected - Math.Floor(expected) ? 1 : 0);
+                var maxDay = monthStart.Month == now.Month && monthStart.Year == now.Year ? Math.Max(1, now.Day - 1) : DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+                for (var k = 0; k < count; k++)
+                {
+                    var takeoff = monthStart.AddDays(rng.Next(0, maxDay)).AddHours(7 + rng.Next(0, 12)).AddMinutes(rng.Next(0, 60));
+                    if (takeoff >= now) continue;
+                    var minutes = 15 + rng.Next(0, 76);
+                    var landing = takeoff.AddMinutes(minutes);
+                    seq++;
+                    var lat = Math.Round(spot.Lat + (rng.NextDouble() - 0.5) * 0.04, 5);
+                    var lon = Math.Round(spot.Lon + (rng.NextDouble() - 0.5) * 0.06, 5);
+                    db.Flights.Add(new Domain.Flights.Flight
+                    {
+                        FlightNumber = $"LET-H{takeoff:yyMM}-{seq:0000}",
+                        Location = lat.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture) + ", " +
+                                   lon.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture),
+                        LocationLat = lat,
+                        LocationLon = lon,
+                        LocationRadiusMeters = 600 + rng.Next(0, 1400),
+                        Purpose = purposes[rng.Next(purposes.Length)],
+                        StandaloneReason = "SEED-HISTORY",
+                        OrgUnitId = pilot.OrgUnitId,
+                        UasId = drone.Id,
+                        PilotId = pilot.Id,
+                        Status = FlightStatus.Closed,
+                        TakeoffAt = takeoff,
+                        LandingAt = landing,
+                        DurationMinutes = minutes,
+                        DistanceMeters = 600 + rng.Next(0, 12000),
+                        MaxAltitudeMeters = 30 + rng.Next(0, 90),
+                        MaxSpeedMps = 5 + rng.NextDouble() * 11,
+                        PostFlightNotes = "Denník letov — história",
+                        CountersApplied = true,
+                        ClosedAt = landing
+                    });
+                    drone.TotalFlightCount += 1;
+                    drone.TotalFlightMinutes += minutes;
+                    if (last is null || landing > last) last = landing;
+                    created++;
+                }
+            }
+            pilot.LastFlightAt = last;
+        }
+
+        await db.SaveChangesAsync();
+        logger.LogInformation("Seed: doplnená história letov za 12 mesiacov ({Count} letov).", created);
+    }
+
+    /// <summary>
+    /// Demo dáta pre Hasičský a záchranný zbor a Civilnú ochranu: krajské útvary, prevádzkovatelia,
+    /// piloti, drony, história letov za 12 mesiacov, žiadosti o let, poruchy a incidenty.
+    /// Idempotentné — útvary podľa kódu, zvyšok sa vytvorí iba raz (značka SEED-HZCO).
+    /// </summary>
+    private static async Task EnsureHazzCoDemoDataAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var hazz = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-HAZZ");
+        var co = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == "ZLOZKA-CO");
+        if (hazz is null || co is null) return;
+        if (await db.Flights.IgnoreQueryFilters().AnyAsync(f => f.StandaloneReason == "SEED-HZCO"))
+            return;
+
+        var cities = new Dictionary<string, (string Name, double Lat, double Lon)>
+        {
+            ["BA"] = ("Bratislava", 48.1486, 17.1077), ["TT"] = ("Trnava", 48.3774, 17.5883),
+            ["NR"] = ("Nitra", 48.3069, 18.0864), ["TN"] = ("Trenčín", 48.8945, 18.0444),
+            ["ZA"] = ("Žilina", 49.2231, 18.7394), ["BB"] = ("Banská Bystrica", 48.7363, 19.1462),
+            ["PO"] = ("Prešov", 48.9984, 21.2339), ["KE"] = ("Košice", 48.7164, 21.2611),
+            ["MA"] = ("Malacky", 48.4362, 17.0188), ["ZH"] = ("Žiar nad Hronom", 48.5915, 18.8530),
+            ["HE"] = ("Humenné", 48.9324, 21.9067)
+        };
+
+        async Task<OrgUnit> EnsureUnit(OrgUnit branch, string code, string name)
+        {
+            var u = await db.OrgUnits.FirstOrDefaultAsync(o => o.Code == code);
+            if (u is not null) return u;
+            u = new OrgUnit { Code = code, Name = name, Kind = OrgUnitKind.Unit, ParentId = branch.Id, Level = 2, Path = "/" };
+            db.OrgUnits.Add(u);
+            await db.SaveChangesAsync();
+            u.Path = $"{branch.Path.TrimEnd('/')}/{u.Id}/";
+            await db.SaveChangesAsync();
+            return u;
+        }
+
+        // (útvar, kód mesta, zložka)
+        var units = new List<(OrgUnit Unit, string City, bool IsHazz)>();
+        foreach (var c in new[] { "BA", "TT", "NR", "TN", "ZA", "BB", "PO", "KE" })
+            units.Add((await EnsureUnit(hazz, $"HAZZ-KR-{c}", $"Krajské riaditeľstvo HaZZ {cities[c].Name}"), c, true));
+        units.Add((await EnsureUnit(hazz, "HAZZ-ZB-MA", "Záchranná brigáda HaZZ Malacky"), "MA", true));
+        units.Add((await EnsureUnit(hazz, "HAZZ-ZB-ZH", "Záchranná brigáda HaZZ Žiar nad Hronom"), "ZH", true));
+        foreach (var c in new[] { "BA", "TT", "NR", "TN", "ZA", "BB", "PO", "KE" })
+            units.Add((await EnsureUnit(co, $"CO-KR-{c}", $"Krajský odbor CO {cities[c].Name}"), c, false));
+        units.Add((await EnsureUnit(co, "CO-SKLAD-HE", "Sklad materiálu CO Humenné"), "HE", false));
+
+        var role = await db.Roles.FirstOrDefaultAsync(r => r.Code == SystemRole.UnitAdministrator && r.IsActive);
+        var unitIds = units.Select(u => u.Unit.Id).ToList();
+        var opHomes = await db.Accounts
+            .Where(a => a.IsActive && a.AccessLevel == AccessLevel.Level2 && a.Person.HomeOrgUnitId != null && unitIds.Contains(a.Person.HomeOrgUnitId.Value))
+            .Select(a => new { a.Id, Org = a.Person.HomeOrgUnitId!.Value })
+            .ToListAsync();
+        var operatorOf = opHomes.GroupBy(x => x.Org).ToDictionary(g => g.Key, g => g.First().Id);
+        var takenNames = new HashSet<string>(await db.Accounts.IgnoreQueryFilters().Select(a => a.UserName.ToLower()).ToListAsync());
+
+        var men = new[] { "Ján", "Peter", "Martin", "Juraj", "Michal", "Tomáš", "Ľubomír", "Marek", "Rastislav", "Stanislav",
+            "Igor", "Pavol", "Vladimír", "Branislav", "Radoslav", "Miroslav", "Andrej", "Dušan", "Milan", "Róbert" };
+        var women = new[] { "Jana", "Katarína", "Lucia", "Zuzana", "Simona", "Veronika", "Barbora", "Ivana", "Andrea", "Martina" };
+        var surM = new[] { "Kollár", "Mikuš", "Hrnčiar", "Sloboda", "Kubiš", "Bednár", "Ševčík", "Hruška", "Rybár", "Kmeť",
+            "Pavlík", "Jurík", "Mrázik", "Šulek", "Koreň", "Lacko", "Dobrota", "Gregor", "Halás", "Zeman" };
+        var surF = new[] { "Kollárová", "Mikušová", "Slobodová", "Bednárová", "Hrušková", "Rybárová", "Pavlíková", "Jurková", "Zemanová", "Lacková" };
+
+        var rng = new Random(20261102);
+        var now = DateTimeOffset.UtcNow;
+
+        string NewUserName(string first, string last)
+        {
+            var b = UserNameFrom(first, last);
+            var n = b; var k = 2;
+            while (takenNames.Contains(n.ToLower())) n = b + k++;
+            takenNames.Add(n.ToLower());
+            return n;
+        }
+
+        // --- prevádzkovatelia (1 na útvar, ak chýba)
+        foreach (var (unit, city, isHazz) in units)
+        {
+            if (operatorOf.ContainsKey(unit.Id) || role is null) continue;
+            var female = rng.Next(4) == 0;
+            var fn = female ? women[rng.Next(women.Length)] : men[rng.Next(men.Length)];
+            var ln = female ? surF[rng.Next(surF.Length)] : surM[rng.Next(surM.Length)];
+            var person = new Person { FirstName = fn, LastName = ln, Email = $"{UserNameFrom(fn, ln)}@{(isHazz ? "hazz" : "co")}.minv.sk", HomeOrgUnitId = unit.Id };
+            var acc = new Account
+            {
+                Person = person,
+                UserName = NewUserName(fn, ln),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N"), 4),
+                Status = AccountStatus.Active,
+                IsActive = true,
+                AccessLevel = AccessLevel.Level2,
+                LicenseStatus = LicenseStatus.NotApplicable
+            };
+            db.Persons.Add(person);
+            db.Accounts.Add(acc);
+            await db.SaveChangesAsync();
+            db.RoleAssignments.Add(new RoleAssignment
+            {
+                AccountId = acc.Id, RoleId = role.Id, OrgUnitId = unit.Id,
+                ValidFrom = now.AddYears(-1), Reason = "Demo HaZZ/CO seed"
+            });
+            operatorOf[unit.Id] = acc.Id;
+        }
+        await db.SaveChangesAsync();
+
+        // --- drony
+        var hazzModels = new (string Maker, string Model)[] { ("DJI", "Matrice 30T"), ("DJI", "Mavic 3T"), ("DJI", "Matrice 350 RTK"), ("DJI", "Matrice 4T"), ("DJI", "FlyCart 30") };
+        var coModels = new (string Maker, string Model)[] { ("DJI", "Mavic 3E"), ("DJI", "Mavic 3T"), ("DJI", "Matrice 30T"), ("DJI", "Mini 4 Pro") };
+        var regSeq = await db.UasAircraft.IgnoreQueryFilters().CountAsync() + 500;
+        var dronesOf = new Dictionary<Guid, List<Domain.Fleet.Uas>>();
+        var existingDrones = await db.UasAircraft.Where(u => u.OwningOrgUnitId != null && unitIds.Contains(u.OwningOrgUnitId.Value) && u.IsActive).ToListAsync();
+        foreach (var (unit, city, isHazz) in units)
+        {
+            var list = existingDrones.Where(d => d.OwningOrgUnitId == unit.Id).ToList();
+            var want = (isHazz ? 3 : 2) + rng.Next(0, 2);
+            var models = isHazz ? hazzModels : coModels;
+            for (var i = list.Count; i < want; i++)
+            {
+                regSeq++;
+                var m = models[(i + rng.Next(models.Length)) % models.Length];
+                var slug = m.Model.Replace(" ", "").ToUpperInvariant();
+                var prefix = isHazz ? "HZ" : "CO";
+                var d = new Domain.Fleet.Uas
+                {
+                    SerialNumber = $"SN-{prefix}-{slug}-{regSeq:00000}",
+                    Manufacturer = m.Maker,
+                    Model = m.Model,
+                    UasTypeCode = "MULTI_ROTOR",
+                    RegistrationNumber = $"OM-UAS-2026-{regSeq:00000}",
+                    CertificateNumber = $"OSV-2026-{regSeq:00000}",
+                    LogbookNumber = $"DN-2026-{regSeq:00000}",
+                    InventoryAssetNumber = $"IM-{prefix}-{regSeq:00000}",
+                    Status = UasLifecycleStatus.InService,
+                    OwningOrgUnitId = unit.Id,
+                    RegisteredAt = now.AddDays(-rng.Next(120, 900)),
+                    Notes = $"SEED-HZCO-{regSeq:00000}"
+                };
+                db.UasAircraft.Add(d);
+                list.Add(d);
+            }
+            dronesOf[unit.Id] = list;
+        }
+        await db.SaveChangesAsync();
+
+        // --- piloti
+        var pilotSeq = 0;
+        var pilotsOf = new Dictionary<Guid, List<Domain.Pilots.Pilot>>();
+        var existingPilots = await db.Pilots.Where(p => p.IsActive && unitIds.Contains(p.OrgUnitId)).ToListAsync();
+        foreach (var (unit, city, isHazz) in units)
+        {
+            var list = existingPilots.Where(p => p.OrgUnitId == unit.Id).ToList();
+            var want = (isHazz ? 6 : 4) + rng.Next(0, 4);
+            for (var i = list.Count; i < want; i++)
+            {
+                pilotSeq++;
+                var female = rng.Next(5) == 0;
+                var fn = female ? women[rng.Next(women.Length)] : men[rng.Next(men.Length)];
+                var ln = female ? surF[rng.Next(surF.Length)] : surM[rng.Next(surM.Length)];
+                var prefix = isHazz ? "HZ" : "CO";
+                var person = new Person
+                {
+                    FirstName = fn, LastName = ln,
+                    Email = $"{UserNameFrom(fn, ln)}.{pilotSeq}@{(isHazz ? "hazz" : "co")}.minv.sk",
+                    HomeOrgUnitId = unit.Id
+                };
+                db.Persons.Add(person);
+                var pilot = new Domain.Pilots.Pilot
+                {
+                    Person = person,
+                    OrgUnitId = unit.Id,
+                    LicenseNumber = $"PIL-{prefix}-{pilotSeq:000}",
+                    Status = PilotStatus.Fit,
+                    CurrencyValidUntil = now.AddMonths(4 + rng.Next(0, 14)),
+                    OperatorAccountId = operatorOf.TryGetValue(unit.Id, out var opId) ? opId : null,
+                    Notes = "Demo HaZZ/CO"
+                };
+                db.Pilots.Add(pilot);
+                list.Add(pilot);
+            }
+            pilotsOf[unit.Id] = list;
+        }
+        await db.SaveChangesAsync();
+
+        // --- história letov za 12 mesiacov
+        var hazzPurposes = new[] { "Požiar — termovízne snímkovanie", "Pátranie po nezvestnej osobe", "Povodne — monitoring toku",
+            "Dopravná nehoda — dokumentácia", "Požiar lesa — prieskum ohniska", "Cvičenie jednotky", "Únik nebezpečnej látky — prieskum",
+            "Kontrola po zásahu", "Výcvik pilotov", "Záchrana zo skaly — prieskum terénu" };
+        var coPurposes = new[] { "Mapovanie záplavového územia", "Cvičenie evakuácie", "Monitoring zosuvu pôdy",
+            "Kontrola skladu materiálu CO", "Dokumentácia mimoriadnej udalosti", "Výcvik pilotov", "Prieskum úkrytov",
+            "Monitoring sucha a požiarneho rizika", "Povodňová prehliadka hrádzí" };
+        var season = new[] { 0, 0.6, 0.6, 0.85, 1.0, 1.1, 1.3, 1.5, 1.4, 1.0, 0.85, 0.7, 0.65 };
+        var firstMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(-11);
+        var flightSeq = 0;
+        var flightCount = 0;
+        foreach (var (unit, city, isHazz) in units)
+        {
+            var drones = dronesOf[unit.Id];
+            var (cname, clat, clon) = cities[city];
+            var purposes = isHazz ? hazzPurposes : coPurposes;
+            foreach (var pilot in pilotsOf[unit.Id])
+            {
+                if (drones.Count == 0) break;
+                if (rng.NextDouble() < 0.2) continue; // niekoľko neaktívnych pilotov
+                var intensity = (isHazz ? 0.8 : 0.5) + rng.NextDouble() * (isHazz ? 1.4 : 0.9);
+                var drone = drones[rng.Next(drones.Count)];
+                DateTimeOffset? last = pilot.LastFlightAt;
+                for (var m = 0; m < 12; m++)
+                {
+                    var ms = firstMonth.AddMonths(m);
+                    var expected = intensity * season[ms.Month];
+                    var count = (int)Math.Floor(expected) + (rng.NextDouble() < expected - Math.Floor(expected) ? 1 : 0);
+                    var maxDay = ms.Month == now.Month && ms.Year == now.Year ? Math.Max(1, now.Day - 1) : DateTime.DaysInMonth(ms.Year, ms.Month);
+                    for (var k = 0; k < count; k++)
+                    {
+                        var takeoff = ms.AddDays(rng.Next(0, maxDay)).AddHours(6 + rng.Next(0, 15)).AddMinutes(rng.Next(0, 60));
+                        if (takeoff >= now) continue;
+                        var minutes = 12 + rng.Next(0, isHazz ? 70 : 55);
+                        var landing = takeoff.AddMinutes(minutes);
+                        var lat = Math.Round(clat + (rng.NextDouble() - 0.5) * 0.35, 5);
+                        var lon = Math.Round(clon + (rng.NextDouble() - 0.5) * 0.5, 5);
+                        flightSeq++;
+                        db.Flights.Add(new Domain.Flights.Flight
+                        {
+                            FlightNumber = $"LET-{(isHazz ? "HZ" : "CO")}{takeoff:yyMM}-{flightSeq:0000}",
+                            Location = lat.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture) + ", " +
+                                       lon.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture),
+                            LocationLat = lat, LocationLon = lon,
+                            LocationRadiusMeters = 500 + rng.Next(0, 1500),
+                            Purpose = purposes[rng.Next(purposes.Length)],
+                            StandaloneReason = "SEED-HZCO",
+                            OrgUnitId = unit.Id, UasId = drone.Id, PilotId = pilot.Id,
+                            Status = FlightStatus.Closed,
+                            TakeoffAt = takeoff, LandingAt = landing, DurationMinutes = minutes,
+                            DistanceMeters = 500 + rng.Next(0, 9000),
+                            MaxAltitudeMeters = 25 + rng.Next(0, 95),
+                            MaxSpeedMps = 4 + rng.NextDouble() * 12,
+                            PostFlightNotes = $"Denník letov — {cname}",
+                            CountersApplied = true, ClosedAt = landing
+                        });
+                        drone.TotalFlightCount += 1;
+                        drone.TotalFlightMinutes += minutes;
+                        if (last is null || landing > last) last = landing;
+                        flightCount++;
+                        if (rng.Next(4) == 0) drone = drones[rng.Next(drones.Count)];
+                    }
+                }
+                pilot.LastFlightAt = last;
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // --- žiadosti o let (rôzne stavy, aj do budúcna)
+        var reqTitlesH = new[] { "Termovízna kontrola po požiari", "Cvičenie — vyhľadávanie osôb", "Monitoring povodňovej vlny",
+            "Prieskum skládky pneumatík", "Dokumentácia zásahu na diaľnici", "Výcvik nočného letu" };
+        var reqTitlesC = new[] { "Mapovanie inundačného územia", "Cvičenie evakuácie obce", "Kontrola zosuvu pri ceste",
+            "Prehliadka hrádze", "Inventúra skladu CO z výšky" };
+        var statuses = new[] { OperationStatus.Submitted, OperationStatus.Approved, OperationStatus.Completed,
+            OperationStatus.Draft, OperationStatus.Returned, OperationStatus.Approved, OperationStatus.Rejected, OperationStatus.Submitted };
+        var reqIdx = 0;
+        foreach (var (unit, city, isHazz) in units)
+        {
+            if (!operatorOf.TryGetValue(unit.Id, out var proposer)) continue;
+            var (cname, clat, clon) = cities[city];
+            var titles = isHazz ? reqTitlesH : reqTitlesC;
+            var n = 2 + rng.Next(0, 3);
+            for (var i = 0; i < n; i++)
+            {
+                var st = statuses[reqIdx++ % statuses.Length];
+                var future = st is OperationStatus.Submitted or OperationStatus.Approved or OperationStatus.Draft;
+                var start = (future ? now.AddDays(rng.Next(1, 25)) : now.AddDays(-rng.Next(3, 60)));
+                start = new DateTimeOffset(start.Year, start.Month, start.Day, 7 + rng.Next(0, 10), 0, 0, TimeSpan.Zero);
+                var urgent = isHazz && rng.Next(5) == 0;
+                db.Operations.Add(new Domain.Operations.Operation
+                {
+                    Title = titles[rng.Next(titles.Length)] + " — " + cname,
+                    OperationTypeCode = isHazz ? "RESCUE" : "CIVIL_PROTECTION",
+                    Status = st,
+                    OrgUnitId = unit.Id,
+                    ProposedByAccountId = proposer,
+                    PlannedStart = start,
+                    PlannedEnd = start.AddHours(1 + rng.Next(0, 4)),
+                    LocationAddress = cname,
+                    LocationLat = Math.Round(clat + (rng.NextDouble() - 0.5) * 0.2, 5),
+                    LocationLon = Math.Round(clon + (rng.NextDouble() - 0.5) * 0.3, 5),
+                    Description = $"SEED-HZCO\nPolomer oblasti: {800 + rng.Next(0, 1200)} m",
+                    IsUrgent = urgent,
+                    UrgentReason = urgent ? "Prebiehajúci zásah" : null,
+                    DecisionReason = st == OperationStatus.Returned ? "Doplňte presné vymedzenie priestoru a kontakt na veliteľa zásahu."
+                        : st == OperationStatus.Rejected ? "Kolízia s dočasne obmedzeným vzdušným priestorom." : null,
+                    Version = 1
+                });
+            }
+        }
+
+        // --- poruchy a incidenty
+        var defTitles = new[] { "Prehriatie termokamery", "Poškodená vrtuľa po pristátí v teréne", "Chyba kompasu pri požiarisku",
+            "Výpadok prenosu obrazu", "Zanesený filter po prašnom zásahu", "Slabá batéria v mraze" };
+        var allDrones = dronesOf.Values.SelectMany(x => x).ToList();
+        for (var i = 0; i < 9 && allDrones.Count > 0; i++)
+        {
+            var d = allDrones[rng.Next(allDrones.Count)];
+            var sev = (DefectSeverity)rng.Next(0, 4);
+            var st = (DefectStatus)rng.Next(0, 4);
+            var reporter = operatorOf.TryGetValue(d.OwningOrgUnitId!.Value, out var rep) ? rep : operatorOf.Values.First();
+            var done = st is DefectStatus.Resolved or DefectStatus.Closed;
+            db.Defects.Add(new Domain.Maintenance.Defect
+            {
+                TargetType = MaintenanceTargetType.Uas, TargetId = d.Id, RelatedUasId = d.Id,
+                Title = defTitles[i % defTitles.Length],
+                OriginalReport = $"Nahlásené po zásahu ({d.SerialNumber}). Dron odstavený do kontroly.",
+                OriginalReportLocked = true,
+                Severity = sev, Status = st,
+                BlocksOperations = sev == DefectSeverity.Blocking && !done,
+                TemporaryMeasure = sev == DefectSeverity.Blocking && !done ? "Dočasne vyradené z prevádzky" : null,
+                ReportedByAccountId = reporter,
+                DefectTypeCode = "SEED-HZCO",
+                TechnicalAssessment = done ? "Servisná kontrola vykonaná." : null,
+                TestPerformed = done,
+                ResolutionNotes = done ? "Opravené, testovací let v poriadku." : null,
+                ResolvedAt = done ? now.AddDays(-rng.Next(1, 60)) : null,
+                ResolvedByAccountId = done ? reporter : null
+            });
+        }
+        var incTitles = new[] { ("Strata spojenia nad požiariskom", SafetySeverity.High), ("Kolízia s vtákom počas pátrania", SafetySeverity.Medium),
+            ("Núdzové pristátie pri silnom vetre", SafetySeverity.High), ("Narušenie priestoru civilným dronom", SafetySeverity.Critical),
+            ("Pád batérie pod 15 % počas zásahu", SafetySeverity.Low) };
+        var incIdx = 0;
+        foreach (var (title, sev) in incTitles)
+        {
+            var (unit, city, isHazz) = units[(incIdx * 3) % units.Count];
+            incIdx++;
+            if (!operatorOf.TryGetValue(unit.Id, out var reporter)) continue;
+            var drs = dronesOf[unit.Id];
+            db.SafetyEvents.Add(new Domain.Safety.SafetyEvent
+            {
+                Title = title,
+                InitialReport = $"Udalosť počas letu v oblasti {cities[city].Name}. Pilot postupoval podľa checklistu, dron bezpečne pristál.",
+                InitialReportLocked = true,
+                Severity = sev,
+                Status = incIdx % 3 == 0 ? SafetyEventStatus.Closed : incIdx % 3 == 1 ? SafetyEventStatus.Submitted : SafetyEventStatus.UnderInvestigation,
+                ReportedByAccountId = reporter,
+                OrgUnitId = unit.Id,
+                RelatedUasId = drs.Count > 0 ? drs[0].Id : null,
+                OccurredAt = now.AddDays(-rng.Next(2, 200)).AddHours(-rng.Next(0, 12)),
+                LocationDescription = cities[city].Name,
+                AutoSuspendApplied = sev == SafetySeverity.Critical
+            });
+        }
+        await db.SaveChangesAsync();
+        logger.LogInformation("Seed HaZZ/CO: {Units} útvarov, {Pilots} pilotov, {Flights} letov.", units.Count, pilotSeq, flightCount);
+    }
+
+    /// <summary>
+    /// Demo preukazy mali všetky rovnakú platnosť (vydané pred 2 mesiacmi, platné 1 rok). Rozloží dátumy
+    /// realisticky: A1/A3 a A2 platia 5 rokov, STS 2 roky, vydané kedykoľvek za posledné roky,
+    /// ~8 % vyprší v najbližších 60 dňoch. Týka sa len demo čísel (DU-/EU-) s „jednoročnou“ platnosťou.
+    /// </summary>
+    private static async Task EnsureVariedSeedCertificateDatesAsync(IsSuasDbContext db)
+    {
+        var certs = await db.PilotCertificates
+            .Where(c => c.IsActive && c.ExternalNumber != null
+                && (c.ExternalNumber.StartsWith("DU-") || c.ExternalNumber.StartsWith("EU-"))
+                && c.ValidFrom != null && c.ValidTo != null)
+            .ToListAsync();
+        var now = DateTimeOffset.UtcNow;
+        var changed = 0;
+        foreach (var c in certs)
+        {
+            var span = (c.ValidTo!.Value - c.ValidFrom!.Value).TotalDays;
+            if (span < 355 || span > 440) continue; // seed dával „od −2 mesiace, do +1 rok“ (≈ 426 dní); rozložené majú 2 alebo 5 rokov
+            var rng = new Random(c.Id.GetHashCode());
+            var isSts = c.CertificateTypeCode.StartsWith("STS", StringComparison.OrdinalIgnoreCase);
+            var years = isSts ? 2 : 5;
+            DateTimeOffset from, to;
+            if (rng.NextDouble() < 0.08)
+            {
+                to = now.AddDays(rng.Next(6, 58));
+                from = to.AddYears(-years);
+            }
+            else
+            {
+                from = now.AddDays(-rng.Next(20, isSts ? 680 : 1700));
+                to = from.AddYears(years);
+            }
+            from = new DateTimeOffset(from.Year, from.Month, from.Day, 0, 0, 0, TimeSpan.Zero);
+            to = new DateTimeOffset(to.Year, to.Month, to.Day, 0, 0, 0, TimeSpan.Zero);
+            c.ValidFrom = from;
+            c.IssuedAt = from;
+            c.ValidTo = to;
+            if (c.MtowOrValidityText != null && c.MtowOrValidityText.StartsWith("platné do", StringComparison.OrdinalIgnoreCase))
+                c.MtowOrValidityText = $"platné do {to:dd.MM.yyyy}";
+            changed++;
+        }
+        if (changed > 0) await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsurePilotOperatorsAsync(IsSuasDbContext db, ILogger logger)
+    {
+        var operators = await db.Accounts
+            .Include(a => a.Person).ThenInclude(p => p.HomeOrgUnit)
+            .Where(a => a.IsActive && a.Status == AccountStatus.Active && a.AccessLevel == AccessLevel.Level2
+                && a.Person.HomeOrgUnit != null && a.Person.HomeOrgUnit.IsActive)
+            .ToListAsync();
+        if (operators.Count == 0) return;
+
+        var pilots = await db.Pilots.Include(p => p.OrgUnit)
+            .Where(p => p.IsActive && p.OperatorAccountId == null)
+            .ToListAsync();
+        if (pilots.Count == 0) return;
+
+        var assigned = 0;
+        foreach (var pilot in pilots)
+        {
+            var covering = operators
+                .Where(o => pilot.OrgUnit.Path.StartsWith(o.Person.HomeOrgUnit!.Path, StringComparison.Ordinal))
+                .ToList();
+            if (covering.Count == 0) continue;
+            // najbližší útvar (najdlhšia cesta) má prednosť; v ňom náhodný prevádzkovateľ
+            var closest = covering.Max(o => o.Person.HomeOrgUnit!.Path.Length);
+            var pool = covering.Where(o => o.Person.HomeOrgUnit!.Path.Length == closest).OrderBy(o => o.Id).ToList();
+            var pick = pool[(int)((uint)pilot.Id.GetHashCode() % (uint)pool.Count)];
+            pilot.OperatorAccountId = pick.Id;
+            assigned++;
+        }
+        if (assigned > 0)
+        {
+            await db.SaveChangesAsync();
+            logger.LogInformation("Pridelený nadriadený prevádzkovateľ {Count} pilotom.", assigned);
+        }
+        var without = pilots.Count - assigned;
+        if (without > 0)
+            logger.LogInformation("{Count} pilotov zostáva bez prevádzkovateľa (v ich útvare ani nad ním nie je žiadny prevádzkovateľ).", without);
+    }
+
+    private static string UserNameFrom(string? first, string? last)
+    {
+        var s = ((first ?? "") + " " + (last ?? "")).Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in s)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            if (ch is >= 'a' and <= 'z' or >= '0' and <= '9') sb.Append(ch);
+            else if (sb.Length > 0 && sb[^1] != '.') sb.Append('.');
+        }
+        var r = sb.ToString().Trim('.');
+        return r.Length > 50 ? r[..50].TrimEnd('.') : r;
     }
 
     private static async Task EnsureDemoLoginPasswordsAsync(IsSuasDbContext db, ILogger logger)
@@ -1525,6 +2139,7 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync();
         await EnsureMartinPilotAndFlightsAsync(db, logger);
         await EnsurePilotOpenCategoryCertificatesAsync(db);
+        await EnsureVariedSeedCertificateDatesAsync(db);
         logger.LogInformation("Ensured named login users martin (L3) and janko.novak (L2) under KR-BA.");
     }
 

@@ -15,6 +15,8 @@ internal sealed class PilotConfiguration : IEntityTypeConfiguration<Pilot>
         builder.Property(x => x.LogbookNumber).HasMaxLength(64);
         builder.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.OrgUnit).WithMany().HasForeignKey(x => x.OrgUnitId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Operator).WithMany().HasForeignKey(x => x.OperatorAccountId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(x => x.OperatorAccountId);
         builder.HasIndex(x => x.PersonId);
         builder.HasIndex(x => new { x.PersonId, x.IsActive });
     }

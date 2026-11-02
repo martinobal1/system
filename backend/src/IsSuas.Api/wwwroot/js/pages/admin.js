@@ -1,7 +1,111 @@
 import { api } from '../core/api.js';
 import { navigate } from '../core/nav.js';
 import { state } from '../core/state.js';
-import { bindFormReveals, chipHtml, content, makeTable, pageHead, statusBadge, typeLabelSk } from '../core/ui.js';
+import { ACCESS_LEVEL_LABELS, bindFormReveals, chipHtml, content, makeTable, pageHead, statusBadge, typeLabelSk } from '../core/ui.js';
+import { bindFilterBar, filterAttrs, filterBarHtml } from '../shared/listFilter.js';
+
+function escH(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+var LOGIN_RESULT = {
+  Success: ['Úspešné', 'ok'],
+  WrongPassword: ['Nesprávne heslo', 'bad'],
+  Blocked: ['Účet zablokovaný', 'bad']
+};
+/** Krátky popis prehliadača a systému z User-Agent. */
+function deviceOf(ua) {
+  if (!ua) return '—';
+  var b = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Iný prehliadač';
+  var o = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS'
+    : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return b + (o ? ' · ' + o : '');
+}
+
+function loginLogHtml(logins) {
+  if (!logins) {
+    return '<section class="adm-logins"><h2>Prihlásenia používateľov</h2>' +
+      '<p class="muted">Log prihlásení sa nepodarilo načítať (server je potrebné aktualizovať, alebo nemáte oprávnenie na audit).</p></section>';
+  }
+  var now = new Date();
+  var dayKey = function (d) { return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+  var today = dayKey(now);
+  var weekAgo = new Date(now.getTime() - 7 * 86400000);
+  var ok = logins.filter(function (l) { return l.result === 'Success'; });
+  var todayUsers = {}, weekUsers = {};
+  ok.forEach(function (l) {
+    var d = new Date(l.at);
+    if (dayKey(d) === today) todayUsers[l.accountId] = 1;
+    if (d >= weekAgo) weekUsers[l.accountId] = 1;
+  });
+  var failedWeek = logins.filter(function (l) { return l.result !== 'Success' && new Date(l.at) >= weekAgo; }).length;
+
+  // posledných 14 dní — stĺpce úspešných / neúspešných prihlásení
+  var days = [];
+  for (var i = 13; i >= 0; i--) {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    days.push({ key: dayKey(d), label: d.toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric' }), wd: d.toLocaleDateString('sk-SK', { weekday: 'short' }), ok: 0, bad: 0 });
+  }
+  var idx = {};
+  days.forEach(function (d, i) { idx[d.key] = i; });
+  logins.forEach(function (l) {
+    var i = idx[dayKey(new Date(l.at))];
+    if (i === undefined) return;
+    if (l.result === 'Success') days[i].ok++; else days[i].bad++;
+  });
+  var max = days.reduce(function (m, d) { return Math.max(m, d.ok + d.bad); }, 0) || 1;
+  var chart = '<div class="adm-days">' + days.map(function (d) {
+    return '<div class="adm-day" title="' + d.label + ': ' + d.ok + ' úspešných, ' + d.bad + ' neúspešných">' +
+      '<span class="adm-day-val">' + ((d.ok + d.bad) || '') + '</span>' +
+      '<span class="adm-day-bar"><span class="is-bad" style="height:' + (d.bad / max * 100).toFixed(1) + '%"></span>' +
+      '<span class="is-ok" style="height:' + (d.ok / max * 100).toFixed(1) + '%"></span></span>' +
+      '<small>' + d.label + '</small></div>';
+  }).join('') + '</div>';
+
+  var rows = logins.map(function (l) {
+    var r = LOGIN_RESULT[l.result] || [l.result, 'bad'];
+    var at = new Date(l.at);
+    var lvl = ACCESS_LEVEL_LABELS[l.accessLevel] || '—';
+    var dev = deviceOf(l.userAgent);
+    return '<tr class="login-row' + (r[1] === 'bad' ? ' is-failed' : '') + '" ' + filterAttrs({
+      q: [l.fullName, l.userName, l.orgUnitName, l.ipAddress, dev, r[0]].join(' '),
+      result: [l.result, r[0]],
+      level: [String(l.accessLevel), lvl],
+      user: [l.accountId, l.fullName + ' (@' + l.userName + ')'],
+      date: l.at
+    }) + '>' +
+      '<td style="white-space:nowrap"><b>' + at.toLocaleDateString('sk-SK') + '</b> ' + at.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '</td>' +
+      '<td><span class="adm-user"><b>' + escH(l.fullName || l.userName) + '</b><small>@' + escH(l.userName) + '</small></span></td>' +
+      '<td><span class="lvl-pill lvl-' + l.accessLevel + '">' + escH(lvl) + '</span></td>' +
+      '<td>' + escH(l.orgUnitName || '—') + '</td>' +
+      '<td><span class="adm-res adm-res-' + r[1] + '">' + escH(r[0]) + '</span></td>' +
+      '<td><code>' + escH(l.ipAddress || '—') + '</code></td>' +
+      '<td title="' + escH(l.userAgent || '') + '">' + escH(dev) + '</td></tr>';
+  }).join('') || '<tr><td colspan="7">Zatiaľ žiadne prihlásenia.</td></tr>';
+
+  return '<section class="adm-logins">' +
+    '<div class="adm-logins-head"><h2>Prihlásenia používateľov</h2><span class="muted">posledných 90 dní</span></div>' +
+    '<div class="adm-kpis">' +
+    '<div class="adm-kpi"><b>' + Object.keys(todayUsers).length + '</b><span>prihlásených dnes</span></div>' +
+    '<div class="adm-kpi"><b>' + Object.keys(weekUsers).length + '</b><span>používateľov za 7 dní</span></div>' +
+    '<div class="adm-kpi"><b>' + ok.length + '</b><span>úspešných prihlásení</span></div>' +
+    '<div class="adm-kpi' + (failedWeek ? ' is-warn' : '') + '"><b>' + failedWeek + '</b><span>neúspešných pokusov za 7 dní</span></div>' +
+    '</div>' +
+    '<div class="adm-chart-card"><h4>Prihlásenia za posledných 14 dní</h4>' + chart +
+    '<div class="adm-legend"><span><i class="is-ok"></i>úspešné</span><span><i class="is-bad"></i>neúspešné</span></div></div>' +
+    filterBarHtml('logins', [
+      { key: 'q', type: 'search', placeholder: 'Hľadať — meno, login, útvar, IP adresa…' },
+      { key: 'user', type: 'select', label: 'Používateľ' },
+      { key: 'result', type: 'select', label: 'Výsledok' },
+      { key: 'level', type: 'select', label: 'Úroveň' },
+      { key: 'date', type: 'daterange', label: 'Dátum' }
+    ]) +
+    '<div class="chart-panel table-scroll">' +
+    makeTable(['Čas', 'Používateľ', 'Úroveň', 'Útvar', 'Výsledok', 'IP adresa', 'Zariadenie'], rows, true) +
+    '</div></section>';
+}
 
 export async function renderAdmin() {
       const codes = await api('/api/v1/lookups');
@@ -10,6 +114,8 @@ export async function renderAdmin() {
       const audit = await api('/api/v1/audit-events');
       let info = null;
       try { info = await api('/api/v1/system/info'); } catch (_) {}
+      let logins = null;
+      try { logins = await api('/api/v1/user-sessions?days=90'); } catch (_) { logins = null; }
 
       content.innerHTML =
         '<div class="stack">' +
@@ -17,8 +123,6 @@ export async function renderAdmin() {
           chipHtml('Číselníky', codes.length, 'chip-soft') +
           chipHtml('Pravidlá', rules.length) +
           chipHtml('Integrácie', connectors.length)) +
-        (info ? '<div class="msg">Verzia ' + info.appVersion + ' · ' + info.environmentName +
-          ' · DB ' + info.databaseMode + ' · aktivne pravidla: ' + info.activeConfigRules + '</div>' : '') +
         '<div class="toolbar">' +
         '<button type="button" data-reveal="adm-lookup">Nový číselník / položka</button>' +
         '<button type="button" data-reveal="adm-config">Nové config pravidlo</button>' +
@@ -61,6 +165,7 @@ export async function renderAdmin() {
         '<label>Odkaz na tajomstvo (nie samotné tajomstvo)<input id="int-secret" placeholder="secrets/xyz" /></label>' +
         '<div class="full toolbar"><button type="submit">Uložiť</button>' +
         '<button type="button" class="secondary" data-hide="adm-int">Zrušiť</button></div></form></div>' +
+        loginLogHtml(logins) +
         '<h2>Číselníky</h2>' +
         makeTable(['Kod', 'Názov', 'Polozky', 'Aktivny'],
           codes.map(function (c) {
@@ -91,6 +196,7 @@ export async function renderAdmin() {
         '</div>';
 
       bindFormReveals();
+      if (logins) bindFilterBar('logins', { rows: 'tr.login-row', stateKey: 'logins', colspan: 7, pageSize: 100 });
 
       document.getElementById('lookup-code-form').onsubmit = async function (ev) {
         ev.preventDefault();

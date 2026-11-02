@@ -20,6 +20,8 @@ public interface IPilotService
     Task<PilotCertificateDto> AddCertificateAsync(Guid pilotId, CreatePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> IssueCertificateAsync(Guid pilotId, Guid certificateId, IssuePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> GrantCertificateAsync(Guid pilotId, GrantPilotCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<PilotDto> SetOperatorAsync(Guid pilotId, SetPilotOperatorRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PilotOperatorOptionDto>> GetOperatorOptionsAsync(Guid orgUnitId, CancellationToken cancellationToken = default);
     Task<PilotDto> RequestOwnCertificateAsync(RequestPilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> RevokeCertificateAsync(Guid pilotId, Guid certificateId, RevokePilotCertificateRequest request, CancellationToken cancellationToken = default);
     Task<PilotCertificateDto> SuspendCertificateAsync(Guid pilotId, Guid certificateId, SuspendPilotCertificateRequest request, CancellationToken cancellationToken = default);
@@ -56,10 +58,12 @@ public sealed class PilotService(
         var pilots = await db.Pilots.AsNoTracking()
             .Include(p => p.Person)
             .Include(p => p.OrgUnit)
+            .Include(p => p.Operator).ThenInclude(a => a!.Person)
             .Include(p => p.Certificates)
             .Include(p => p.Restrictions)
             .Where(p => p.IsActive)
-            .OrderBy(p => p.Person.LastName)
+            .OrderByDescending(p => p.CreatedAt)
+            .ThenBy(p => p.Person.LastName)
             .ThenBy(p => p.Person.FirstName)
             .ToListAsync(cancellationToken);
 
@@ -117,10 +121,12 @@ public sealed class PilotService(
         };
         db.Persons.Add(person);
 
+        var operatorId = await PilotOperatorRules.ResolveForNewPilotAsync(db, request.OperatorAccountId, org.Path, currentUser.AccountId, cancellationToken);
         var pilot = new Pilot
         {
             Person = person,
             OrgUnitId = org.Id,
+            OperatorAccountId = operatorId,
             LicenseNumber = request.LicenseNumber,
             Notes = request.Notes,
             Status = PilotStatus.Draft,
@@ -131,6 +137,8 @@ public sealed class PilotService(
         await db.SaveChangesAsync(cancellationToken);
 
         pilot.OrgUnit = org;
+        if (operatorId is Guid opId)
+            pilot.Operator = await db.Accounts.Include(a => a.Person).FirstOrDefaultAsync(a => a.Id == opId, cancellationToken);
         await audit.WriteAsync("Pilot.Create", nameof(Pilot), pilot.Id, null, Map(pilot), cancellationToken: cancellationToken);
         return Map(pilot);
     }
@@ -361,6 +369,54 @@ public sealed class PilotService(
         await audit.WriteAsync("PilotCertificate.Grant", nameof(PilotCertificate), granted!.Id, null,
             MapCertificate(granted), cancellationToken: cancellationToken);
         return MapCertificate(granted);
+    }
+
+    public async Task<PilotDto> SetOperatorAsync(Guid pilotId, SetPilotOperatorRequest request, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsWrite);
+        var pilot = await LoadDetailAsync(pilotId, cancellationToken);
+        policy.EnsureOrgAccess(pilot.OrgUnit.Path);
+        var before = Map(pilot);
+        if (request.OperatorAccountId is Guid opId)
+        {
+            var candidates = await PilotOperatorRules.CandidatesAsync(db, pilot.OrgUnit.Path, cancellationToken);
+            var op = candidates.FirstOrDefault(c => c.Id == opId)
+                ?? throw new ValidationException("Zvolený prevádzkovateľ nemôže viesť pilota z tohto útvaru.");
+            // Prevádzkovateľ (L2) môže priradiť len prevádzkovateľa zo svojho útvaru / podútvarov.
+            if (!policy.CanAccessOrgUnit(op.Person.HomeOrgUnit!.Path))
+                throw new ForbiddenException("Tohto prevádzkovateľa nemôžete priradiť.");
+            pilot.OperatorAccountId = op.Id;
+            pilot.Operator = op;
+        }
+        else
+        {
+            pilot.OperatorAccountId = null;
+            pilot.Operator = null;
+        }
+        pilot.UpdatedBy = currentUser.AccountId;
+        await db.SaveChangesAsync(cancellationToken);
+        var after = Map(pilot);
+        await audit.WriteAsync("Pilot.SetOperator", nameof(Pilot), pilot.Id, before, after, cancellationToken: cancellationToken);
+        return after;
+    }
+
+    public async Task<IReadOnlyList<PilotOperatorOptionDto>> GetOperatorOptionsAsync(Guid orgUnitId, CancellationToken cancellationToken = default)
+    {
+        policy.EnsurePermission(Permissions.PilotsRead);
+        var org = await db.OrgUnits.AsNoTracking().FirstOrDefaultAsync(o => o.Id == orgUnitId, cancellationToken)
+            ?? throw new NotFoundException("Útvar nebol nájdený.");
+        policy.EnsureOrgAccess(org.Path);
+        var candidates = (await PilotOperatorRules.CandidatesAsync(db, org.Path, cancellationToken))
+            .Where(a => policy.CanAccessOrgUnit(a.Person.HomeOrgUnit!.Path))
+            .ToList();
+        var ids = candidates.Select(c => c.Id).ToList();
+        var counts = await db.Pilots.AsNoTracking()
+            .Where(p => p.IsActive && p.OperatorAccountId != null && ids.Contains(p.OperatorAccountId.Value))
+            .GroupBy(p => p.OperatorAccountId!.Value)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
+        return candidates.Select(a => new PilotOperatorOptionDto(a.Id, PilotOperatorRules.DisplayName(a),
+            a.Person.HomeOrgUnit?.Name, counts.TryGetValue(a.Id, out var n) ? n : 0)).ToList();
     }
 
     private const string CertificateRequestNote = "Žiadosť pilota o osvedčenie";
@@ -996,6 +1052,7 @@ public sealed class PilotService(
             .Include(p => p.Trainings)
             .Include(p => p.StatusHistory)
             .Include(p => p.Restrictions)
+            .Include(p => p.Operator).ThenInclude(a => a!.Person)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
             ?? throw new NotFoundException("Pilot nebol nájdený.");
     }
@@ -1149,7 +1206,9 @@ public sealed class PilotService(
             p.LicenseNumber, p.PersonalBadgeNumber, p.GestorCertificateNumber, p.LogbookNumber,
             p.Status, p.CurrencyValidUntil, p.LastFlightAt,
             PilotEligibility.CanAssignToOperation(p, now), p.IsActive, p.RowVersion, certCodes, certItems,
-            requestedCodes, requests.Count > 0 ? requests.Max(c => c.CreatedAt) : (DateTimeOffset?)null);
+            requestedCodes, requests.Count > 0 ? requests.Max(c => c.CreatedAt) : (DateTimeOffset?)null,
+            p.OperatorAccountId, p.Operator is null ? null : PilotOperatorRules.DisplayName(p.Operator),
+            p.CreatedAt);
     }
 
     private static string NormalizeCertCode(string code)

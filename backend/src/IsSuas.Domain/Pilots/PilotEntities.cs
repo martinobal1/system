@@ -11,6 +11,9 @@ public class Pilot : AuditableEntity
     public Person Person { get; set; } = null!;
     public Guid OrgUnitId { get; set; }
     public OrgUnit OrgUnit { get; set; } = null!;
+    /// <summary>Nadriadený prevádzkovateľ (účet úrovne 2) — každý pilot má najviac jedného.</summary>
+    public Guid? OperatorAccountId { get; set; }
+    public Account? Operator { get; set; }
     public string? LicenseNumber { get; set; }
     /// <summary>ČOZ — číslo osobnej známky.</summary>
     public string? PersonalBadgeNumber { get; set; }

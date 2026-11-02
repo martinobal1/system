@@ -42,6 +42,9 @@ export async function api(path, options = {}) {
     throw new Error(message);
   }
 
+  if (res.status === 405) {
+    throw new Error('Server túto funkciu ešte nepozná — treba ho aktualizovať (docker compose up -d --build).');
+  }
   if (res.status === 413) {
     throw new Error('Súbor je príliš veľký — server ho neprijal. Kontaktujte správcu systému (limit nahrávania na serveri).');
   }

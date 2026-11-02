@@ -30,7 +30,7 @@ export async function renderGeozonesAdmin() {
         } else if (active) {
           actions = '<button type="button" class="secondary geo-remove" data-id="' + i.id + '">Odstrániť z mapy</button>';
         }
-        return '<tr class="row-tint" style="--row-accent:' + (active ? '#0d8f7a' : '#94a3b8') + '">' +
+        return '<tr style="--row-accent:' + (active ? '#0d8f7a' : '#94a3b8') + '">' +
           '<td>' + (i.fileName || '—') + '</td>' +
           '<td>' + (i.dataVersionDate ? new Date(i.dataVersionDate).toLocaleDateString('sk-SK') : '—') + '</td>' +
           '<td>' + (i.importedAt ? new Date(i.importedAt).toLocaleString('sk-SK') : '—') + '</td>' +

@@ -4928,6 +4928,9 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrgUnitId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OperatorAccountId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PersonId")
                         .HasColumnType("uuid");
 
@@ -4951,6 +4954,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("OperatorAccountId");
 
                     b.HasIndex("OrgUnitId");
 
@@ -7750,6 +7755,11 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("IsSuas.Domain.Pilots.Pilot", b =>
                 {
+                    b.HasOne("IsSuas.Domain.Identity.Account", "Operator")
+                        .WithMany()
+                        .HasForeignKey("OperatorAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("IsSuas.Domain.Identity.OrgUnit", "OrgUnit")
                         .WithMany()
                         .HasForeignKey("OrgUnitId")
@@ -7761,6 +7771,8 @@ namespace IsSuas.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Operator");
 
                     b.Navigation("OrgUnit");
 

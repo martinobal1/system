@@ -327,7 +327,7 @@ export async function renderUas() {
           : (mdl || '—');
         var isDecom = u.status === 'Decommissioned' || u.status === 8;
         var accent = isDecom ? '#d92d20' : colorForKey(key);
-        return '<tr class="row-tint uas-row' + (isDecom ? ' is-decommissioned' : '') + '" data-search="' + escAttr(uasHay(u)) + '" data-id="' + u.id + '" style="--row-accent:' + accent + ';cursor:pointer"' +
+        return '<tr class="uas-row' + (isDecom ? ' is-decommissioned' : '') + '" data-search="' + escAttr(uasHay(u)) + '" data-id="' + u.id + '" style="--row-accent:' + accent + ';cursor:pointer"' +
           (isDecom ? ' title="Vyradené z prevádzky"' : '') + '>' +
           '<td>' + (idx + 1) + '</td>' +
           '<td>' + (u.certificateNumber || '—') + '</td>' +

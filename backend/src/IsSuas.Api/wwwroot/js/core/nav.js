@@ -101,7 +101,11 @@ export async function navigate(requestedPage, options) {
   closeUserMenu();
   if (window.IsSuasDroneMap) window.IsSuasDroneMap.destroyMap();
   content.classList.toggle('content-map', page === 'map' || page === 'geozones');
-  content.innerHTML = loadingSkeleton();
+  // Opätovné vykreslenie tej istej stránky (rozbalenie, filter, uloženie) nechá pôvodný obsah
+  // na mieste, kým nepríde nový — inak by stránka na zlomok sekundy „zbelela“ a poskočila.
+  var sameAsShown = page === shownPage && page !== 'map' && page !== 'geozones' && content.children.length > 0;
+  if (!sameAsShown) content.innerHTML = loadingSkeleton();
+  shownPage = page;
   try {
     var loadPage = pageModules[page];
     if (!loadPage) throw new Error('Neznama stranka: ' + page);
@@ -117,6 +121,7 @@ export async function navigate(requestedPage, options) {
     content.innerHTML = '<div class="error">' + err.message + '</div>';
   }
 }
+var shownPage = null;
 
 function loadingSkeleton() {
   return '<div class="stack skeleton" aria-busy="true" aria-label="Načítavam">' +

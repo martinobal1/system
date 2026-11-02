@@ -24,7 +24,17 @@ public sealed record PilotDto(
     IReadOnlyList<PilotCertListItemDto> Certificates,
     /// <summary>Osvedčenia, o ktoré pilot požiadal a ešte nie sú pridelené.</summary>
     IReadOnlyList<string>? RequestedCertificateCodes = null,
-    DateTimeOffset? CertificateRequestedAt = null);
+    DateTimeOffset? CertificateRequestedAt = null,
+    Guid? OperatorAccountId = null,
+    string? OperatorName = null,
+    /// <summary>Kedy bol pilot zaradený do registra (zoradenie od najnovších).</summary>
+    DateTimeOffset? CreatedAt = null);
+
+/// <summary>Zmena nadriadeného prevádzkovateľa pilota (null = bez prevádzkovateľa).</summary>
+public sealed record SetPilotOperatorRequest(Guid? OperatorAccountId);
+
+/// <summary>Prevádzkovateľ, ktorý môže viesť pilota z daného útvaru.</summary>
+public sealed record PilotOperatorOptionDto(Guid AccountId, string Name, string? OrgUnitName, int PilotCount);
 
 public sealed record PilotCertListItemDto(
     string CertificateTypeCode,
@@ -51,7 +61,8 @@ public sealed record CreatePilotRequest(
     string? Email,
     Guid OrgUnitId,
     string? LicenseNumber,
-    string? Notes);
+    string? Notes,
+    Guid? OperatorAccountId = null);
 
 public sealed record ChangePilotStatusRequest(PilotStatus Status, string Reason, uint RowVersion);
 
